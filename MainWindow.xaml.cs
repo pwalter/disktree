@@ -279,6 +279,7 @@ public partial class MainWindow : Window
                 : scanner.ScanAsync(path, (int)ThreadsBox.SelectedItem, ct);
             _scanTarget = scanner.ScanTarget;
             _root = new NodeVM(scanner.Root!, Kind.Dir, null, 0) { IsExpanded = true };
+            Treemap.Reset(_scanTarget ?? scanner.Root);
             Tree.ItemsSource = new[] { _root };
             ExpandToScanTarget();
             return scan;
@@ -439,8 +440,41 @@ public partial class MainWindow : Window
 
     private void Tree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
+        Treemap.SetTreeSelection(PieTarget().Node);
         _ = UpdatePieAsync();
         OwnerTab.SetFolder(PieTarget().Node?.FullPath);
+    }
+
+    // Treemap click / dive: select that folder in the tree (opening the path down to it).
+    private void Treemap_NodeClicked(Node node)
+    {
+        if (_root == null) return;
+        var chain = new List<Node>();
+        for (var n = node; n != null; n = n.Parent) chain.Insert(0, n);
+        if (chain.Count == 0 || chain[0] != _root.Node) return;
+
+        var vm = _root;
+        foreach (var n in chain.Skip(1))
+        {
+            vm.IsExpanded = true;
+            vm = vm.FindDescendant(n);
+            if (vm == null) return;
+        }
+        vm.IsSelected = true;
+        Dispatcher.InvokeAsync(() => BringIntoView(vm), DispatcherPriority.Loaded);
+    }
+
+    private void BringIntoView(NodeVM vm)
+    {
+        var path = new List<NodeVM>();
+        for (var v = vm; v != null; v = v.Parent) path.Insert(0, v);
+        ItemsControl host = Tree;
+        for (int i = 0; i < path.Count; i++)
+        {
+            if (host.ItemContainerGenerator.ContainerFromItem(path[i]) is not TreeViewItem item) return;
+            if (i == path.Count - 1) { item.BringIntoView(); return; }
+            host = item;
+        }
     }
 
     private int _pieVersion;
@@ -473,6 +507,7 @@ public partial class MainWindow : Window
 
     private async Task UpdatePieAsync()
     {
+        _ = Treemap.RefreshAsync();
         var (node, ownOnly, title) = PieTarget();
         _ = UpdateAgeAsync(node, ownOnly, title);
         int version = ++_pieVersion;

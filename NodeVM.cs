@@ -141,6 +141,18 @@ public sealed class NodeVM : INotifyPropertyChanged
         ? DarkGray
         : Cached(TextCache, Percent, Theme.IsDark ? 0.55 : 0.95, Theme.IsDark ? 0.98 : 0.62);
 
+    private bool _selected;
+    public bool IsSelected
+    {
+        get => _selected;
+        set
+        {
+            if (_selected == value) return;
+            _selected = value;
+            Notify(nameof(IsSelected));
+        }
+    }
+
     public bool IsExpanded
     {
         get => _expanded;
