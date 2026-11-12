@@ -10,9 +10,17 @@ on:
 permissions:
   contents: read
 
+# Two merges in a row must not hand out the same release number.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -20,15 +28,36 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      # A tag like v1.2.3 gives version 1.2.3, everything else a CI version.
+      # - tag v1.2.3            -> version 1.2.3 (release)
+      # - push to main          -> version yyyy.M.d.N (date in Germany, N = running number of the day), release
+      # - everything else       -> CI version, no release
       - name: Work out the version
         id: ver
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if ('${{ github.ref_type }}' -eq 'tag') { $v = '${{ github.ref_name }}'.TrimStart('v') }
+          $tag = ''
+          if ('${{ github.ref_type }}' -eq 'tag') {
+            $tag = '${{ github.ref_name }}'
+            $v = $tag.TrimStart('v')
+          }
+          elseif ('${{ github.event_name }}' -eq 'push' -and '${{ github.ref }}' -eq 'refs/heads/main') {
+            $tz = [TimeZoneInfo]::FindSystemTimeZoneById('W. Europe Standard Time')
+            $d = [TimeZoneInfo]::ConvertTimeFromUtc([DateTime]::UtcNow, $tz)
+            $prefix = "{0}.{1}.{2}" -f $d.Year, $d.Month, $d.Day
+            $existing = gh api "repos/${{ github.repository }}/git/matching-refs/tags/v$prefix." --jq '.[].ref' | Out-String
+            $n = 1
+            foreach ($r in ($existing -split "`n")) {
+              if ($r.Trim() -match "refs/tags/v$([regex]::Escape($prefix))\.(\d+)$") { $n = [Math]::Max($n, [int]$Matches[1] + 1) }
+            }
+            $v = "$prefix.$n"
+            $tag = "v$v"
+          }
           else { $v = '0.0.0-ci.${{ github.run_number }}' }
           "version=$v" >> $env:GITHUB_OUTPUT
-          "Version: $v"
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "Version: $v  Tag: $tag"
 
       - name: Build
         run: dotnet build DiskTree.csproj -c Release -p:Version=${{ steps.ver.outputs.version }}
@@ -59,10 +88,10 @@ jobs:
           path: release/*
           if-no-files-found: error
 
-  # Only for tags (v1.0.0, ...): puts the exe files on the Releases page.
+  # Tags (v1.0.0, ...) and every push to main: puts the exe files on the Releases page.
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: needs.build.outputs.tag != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -76,10 +105,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" release/* \
-            --repo "${{ github.repository }}" \
-            --title "DiskTree ${{ github.ref_name }}" \
-            --generate-notes \
-            --notes "**DiskTree.exe** – eine einzelne Datei, läuft ohne Installation (Windows x64).
+          # For a pushed tag the tag already exists; for main it is created here on the built commit.
+          gh release create "${{ needs.build.outputs.tag }}" release/*             --repo "${{ github.repository }}"             --target "${{ github.sha }}"             --title "DiskTree ${{ needs.build.outputs.version }}"             --generate-notes             --notes "**DiskTree.exe** – eine einzelne Datei, läuft ohne Installation (Windows x64).
           **DiskTree-slim.exe** – sehr klein, braucht die .NET 10 Desktop-Laufzeit.
           Prüfsummen: SHA256SUMS.txt"
