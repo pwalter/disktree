@@ -1,0 +1,64 @@
+<UserControl x:Class="DiskTree.OwnerPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:DiskTree">
+    <UserControl.Resources>
+        <DataTemplate x:Key="OwnerRowTemplate" DataType="{x:Type local:OwnerRowVM}">
+            <Grid Margin="0,3" ToolTip="{Binding Detail}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="52" />
+                </Grid.ColumnDefinitions>
+                <Border Width="12" Height="12" CornerRadius="3" Background="{Binding Brush}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="2" Text="{Binding SizeText}" FontWeight="SemiBold" Margin="8,0,0,0" TextAlignment="Right" />
+                <TextBlock Grid.Column="3" Text="{Binding PercentText}" Foreground="{DynamicResource Muted}" TextAlignment="Right" />
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Margin="4,0">
+            <TextBlock x:Name="FolderText" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis" Text="Besitzer" />
+            <TextBlock x:Name="OwnerText" Margin="0,4,0,0" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Text="Ordner im Baum markieren." />
+            <Expander x:Name="AclExpander" Header="Rechte (ACL)" Margin="0,6,0,0" Visibility="Collapsed"
+                      Foreground="{DynamicResource Ink}" Expanded="AclExpander_Expanded">
+                <TextBox x:Name="AclText" IsReadOnly="True" BorderThickness="0" Background="Transparent" TextWrapping="Wrap"
+                         Foreground="{DynamicResource Muted}" FontSize="11" MaxHeight="130" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0" />
+            </Expander>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Margin="4,10,4,0">
+            <TextBlock Text="Speicher pro Besitzer" FontWeight="SemiBold" />
+            <CheckBox x:Name="SampleBox" IsChecked="True" Margin="0,6,0,0" Foreground="{DynamicResource Ink}"
+                      Content="Stichprobe: nur Dateien ≥ 1 MB"
+                      ToolTip="Überspringt kleine Dateien. Deutlich schneller, besonders auf Netzfreigaben." />
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                <Button x:Name="RunButton" Content="Analysieren" Padding="14,4" Click="Run_Click"
+                        ToolTip="Liest den Besitzer jeder Datei unter dem markierten Ordner. Kann auf Netzfreigaben dauern." />
+                <TextBlock x:Name="ProgressText" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource Muted}"
+                           TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <ProgressBar x:Name="Bar" Height="4" Margin="0,8,0,0" IsIndeterminate="True" Visibility="Collapsed"
+                         Background="{DynamicResource TrackBg}" BorderThickness="0" />
+        </StackPanel>
+
+        <TextBlock x:Name="SummaryText" Grid.Row="2" Margin="4,8,4,0" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" FontSize="11" />
+
+        <local:PieChart x:Name="Pie" Grid.Row="3" Height="190" Margin="0,8" Visibility="Collapsed" />
+
+        <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto" Margin="4,0">
+            <ItemsControl x:Name="OwnerList" ItemTemplate="{StaticResource OwnerRowTemplate}" />
+        </ScrollViewer>
+    </Grid>
+</UserControl>

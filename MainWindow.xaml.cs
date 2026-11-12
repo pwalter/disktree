@@ -437,7 +437,11 @@ public partial class MainWindow : Window
 
     // ---------------------------------------------------------------- file-type chart
 
-    private void Tree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e) => _ = UpdatePieAsync();
+    private void Tree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    {
+        _ = UpdatePieAsync();
+        OwnerTab.SetFolder(PieTarget().Node?.FullPath);
+    }
 
     private int _pieVersion;
     private bool _pieBusy;
