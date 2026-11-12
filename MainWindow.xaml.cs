@@ -65,6 +65,7 @@ public partial class MainWindow : Window
         Theme.Changed += () => _root?.RefreshTheme();
         ShowThemeButton();
         ShowExcludeButton();
+        InitAge();
         Loaded += OnLoaded;
         Closing += OnClosing;
     }
@@ -447,6 +448,7 @@ public partial class MainWindow : Window
     private async Task UpdatePieAsync()
     {
         var (node, ownOnly, title) = PieTarget();
+        _ = UpdateAgeAsync(node, ownOnly, title);
         int version = ++_pieVersion;
         _pieLastTick = Environment.TickCount64;
 
@@ -647,6 +649,7 @@ public partial class MainWindow : Window
 
     private void RunShell(string path, bool isFile, long size, NodeVM? vm, Action action)
     {
+        int ageBucket = isFile ? AgeBuckets.OfFile(path) : -1; // read before the file is gone
         try
         {
             action();
@@ -661,9 +664,9 @@ public partial class MainWindow : Window
         if (File.Exists(path) || Directory.Exists(path)) return;
 
         if (vm != null)
-            vm.RemoveFromTree();
+            vm.RemoveFromTree(ageBucket);
         else if (isFile && _scanner?.FindNode(Path.GetDirectoryName(path) ?? "") is { } dir)
-            dir.RemoveFile(Path.GetFileName(path), size);
+            dir.RemoveFile(Path.GetFileName(path), size, ageBucket);
 
         _scanner?.RemoveTop(path);
         if (_scanner?.Root is { } drive) Scanner.ReadDrive(drive);

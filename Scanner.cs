@@ -23,6 +23,12 @@ public sealed class Node
     /// <summary>Own files per document category. Replaced as a whole (never mutated) so readers need no lock.</summary>
     public volatile TypeStat[]? OwnTypes;
 
+    /// <summary>Own files per age bucket (see <see cref="AgeBuckets"/>); replaced as a whole.</summary>
+    public volatile long[]? OwnAges;
+
+    /// <summary>Bytes per age bucket of the whole subtree (updated with Interlocked like Size).</summary>
+    public long[]? AgeSub;
+
     /// <summary>Number of folders in this subtree (itself included) that are not fully scanned yet.</summary>
     public int Open;
 
@@ -36,11 +42,16 @@ public sealed class Node
     public bool PartialDrive;
 
     /// <summary>Takes a deleted file out of this folder's numbers and all parents'.</summary>
-    public void RemoveFile(string name, long size)
+    public void RemoveFile(string name, long size, int ageBucket = -1)
     {
         OwnSize -= size;
         OwnCount--;
         OwnTypes = FileTypes.Without(OwnTypes, FileTypes.CategoryOf(name), size);
+        if (ageBucket >= 0)
+        {
+            OwnAges = AgeBuckets.Without(OwnAges, ageBucket, size);
+            AgeBuckets.AddSub(this, ageBucket, -size);
+        }
         for (var n = this; n != null; n = n.Parent)
         {
             Interlocked.Add(ref n.Size, -size);
@@ -82,7 +93,7 @@ public sealed class Node
 
 public sealed class Scanner
 {
-    private readonly record struct Entry(string? Name, bool IsDir, long Length, bool Reparse, int Cat);
+    private readonly record struct Entry(string? Name, bool IsDir, long Length, bool Reparse, int Cat, int Age);
 
     private long _files, _dirs, _bytes, _errors, _pending;
     private int _signalled;
@@ -244,6 +255,7 @@ public sealed class Scanner
     {
         // The tree always starts at the drive; a scan of a subfolder hangs below a chain of
         // placeholder nodes (one per path component), so percentages can refer to the whole drive.
+        AgeBuckets.SetReference(DateTime.UtcNow);
         var full = Path.GetFullPath(path);
         var driveRoot = Path.GetPathRoot(full) ?? full;
         var top = new Node { Name = driveRoot, FullPath = driveRoot, Open = 1 };
@@ -324,6 +336,9 @@ public sealed class Scanner
             Interlocked.Add(ref n.Open, 1 - oldOpen);
         }
 
+        AgeBuckets.RemoveSubtree(node);
+        if (node.AgeSub is { } oldAges) Array.Clear(oldAges);
+        node.OwnAges = null;
         node.Size = node.FileCount = node.DirCount = node.Excluded = 0;
         node.OwnSize = node.OwnCount = 0;
         node.OwnTypes = null;
@@ -410,6 +425,9 @@ public sealed class Scanner
         long sum = 0, count = 0, subDirs = 0;
         Span<long> typeSize = stackalloc long[FileTypes.Count];
         Span<long> typeCount = stackalloc long[FileTypes.Count];
+        Span<long> ageSize = stackalloc long[AgeBuckets.Count];
+        Span<long> ageCount = stackalloc long[AgeBuckets.Count];
+        Span<long> ageDelta = stackalloc long[AgeBuckets.Count];
 
         var options = new EnumerationOptions
         {
@@ -429,7 +447,8 @@ public sealed class Scanner
                     // Folders need a name; files only when they could make it into the largest-files list.
                     string? name = isDir || len >= Volatile.Read(ref _topMin) ? e.FileName.ToString() : null;
                     return new Entry(name, isDir, len, (e.Attributes & FileAttributes.ReparsePoint) != 0,
-                        isDir ? 0 : FileTypes.CategoryOf(e.FileName));
+                        isDir ? 0 : FileTypes.CategoryOf(e.FileName),
+                        isDir ? 0 : AgeBuckets.Of(e.LastWriteTimeUtc.UtcTicks));
                 }, options);
 
             foreach (var e in entries)
@@ -471,6 +490,9 @@ public sealed class Scanner
                     dir.OwnCount++;
                     typeSize[e.Cat] += e.Length;
                     typeCount[e.Cat]++;
+                    ageSize[e.Age] += e.Length;
+                    ageCount[e.Age]++;
+                    ageDelta[e.Age] += e.Length;
                     if (e.Name != null)
                         OfferTop(Path.Join(dir.FullPath, e.Name), e.Length);
                 }
@@ -480,6 +502,8 @@ public sealed class Scanner
                 {
                     Flush(dir, ref sum, ref count, ref subDirs);
                     dir.OwnTypes = FileTypes.Pack(typeSize, typeCount);
+                    dir.OwnAges = AgeBuckets.Pack(ageSize, ageCount);
+                    AgeBuckets.FlushDelta(dir, ageDelta);
                     Signal();
                 }
             }
@@ -496,6 +520,8 @@ public sealed class Scanner
         {
             Flush(dir, ref sum, ref count, ref subDirs);
             dir.OwnTypes = FileTypes.Pack(typeSize, typeCount);
+            dir.OwnAges = AgeBuckets.Pack(ageSize, ageCount);
+            AgeBuckets.FlushDelta(dir, ageDelta);
             Interlocked.Increment(ref _dirs);
         }
     }
