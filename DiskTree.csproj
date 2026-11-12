@@ -26,6 +26,8 @@
 
   <ItemGroup>
     <Resource Include="app.ico" />
+    <Compile Remove="tests\**" />
+    <Page Remove="tests\**" />
   </ItemGroup>
 
 </Project>

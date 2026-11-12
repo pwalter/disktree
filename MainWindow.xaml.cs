@@ -62,8 +62,21 @@ public partial class MainWindow : Window
             AdminButton.Visibility = Visibility.Collapsed;
         }
 
-        Theme.Changed += () => _root?.RefreshTheme();
+        InitSnapshots();
+        InitSearch();
+        // Duplicate finder tab (DuplicatesPanel.xaml.cs): searches the selected folder, uses the shell menu from here.
+        Dup.Settings = _settings;
+        Dup.RootProvider = DuplicateRoot;
+        Dup.ShellMenuRequested += (path, size, pos) => RunShell(path, isFile: true, size, null,
+            () => ShellContextMenu.Show(this, path, pos, Extras(path, isDir: false)));
+        Dup.ShellDeleteRequested += (path, size) => RunShell(path, isFile: true, size, null,
+            () => ShellContextMenu.InvokeVerb(this, path, "delete"));
+
+        Theme.Changed += () => { _root?.RefreshTheme(); _ = UpdatePieAsync(); };
         ShowThemeButton();
+        InitTabChips();
+        ShowExcludeButton();
+        InitAge();
         Loaded += OnLoaded;
         Closing += OnClosing;
     }
@@ -116,6 +129,51 @@ public partial class MainWindow : Window
         _settings.Save();
     }
 
+    // ---- exclusions: saved ones plus those from the command line (--exclude) ----
+    private ExcludeRules CurrentExcludes() => new(_settings.Excludes.Concat(App.Options.Excludes));
+
+    private void ShowExcludeButton()
+    {
+        int n = _settings.Excludes.Count + App.Options.Excludes.Count;
+        ExcludeButton.Content = n > 0 ? $"Ausschlüsse ({n})…" : "Ausschlüsse…";
+    }
+
+    private void Exclude_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new ExcludeDialog(_settings.Excludes) { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+        _settings.Excludes = dlg.Result;
+        _settings.Save();
+        ShowExcludeButton();
+    }
+
+    // ---------------------------------------------------------------- side panel tab chips
+
+    private bool _chipSync;
+
+    private void InitTabChips()
+    {
+        foreach (TabItem t in SideTabs.Items) TabChips.Items.Add(t.Header);
+        SideTabs.SelectedIndex = 0;
+        TabChips.SelectedIndex = 0;
+        // Programmatic selection (Ctrl+F, treemap ...) and clicks on the chips stay in step.
+        SideTabs.SelectionChanged += (s, e) =>
+        {
+            if (!ReferenceEquals(e.OriginalSource, SideTabs) || _chipSync) return;
+            _chipSync = true;
+            TabChips.SelectedIndex = SideTabs.SelectedIndex;
+            _chipSync = false;
+        };
+    }
+
+    private void TabChips_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_chipSync || TabChips.SelectedIndex < 0) return;
+        _chipSync = true;
+        SideTabs.SelectedIndex = TabChips.SelectedIndex;
+        _chipSync = false;
+    }
+
     private void Theme_Click(object sender, RoutedEventArgs e)
     {
         // Windows -> Hell -> Dunkel -> Windows ...
@@ -140,8 +198,7 @@ public partial class MainWindow : Window
     private void Admin_Click(object sender, RoutedEventArgs e)
     {
         // Hand the current path over so the elevated instance starts scanning it right away.
-        var path = NormalizePath(PathBox.Text);
-        var args = Directory.Exists(path) ? new[] { path } : Array.Empty<string>();
+        var args = PathList.Parse(PathBox.Text).Where(Directory.Exists).ToArray();
 
         if (AdminHelper.RestartElevated(args))
             Application.Current.Shutdown();
@@ -159,13 +216,18 @@ public partial class MainWindow : Window
         if (dlg.ShowDialog(this) == true) PathBox.Text = dlg.FolderName;
     }
 
-    // Dropping a folder (or a file: its folder) on the window scans it.
+    // Dropping folders (or files: their folders) on the window scans them; several at once are scanned together.
     private async void Window_Drop(object sender, DragEventArgs e)
     {
         if (e.Data.GetData(DataFormats.FileDrop) is not string[] { Length: > 0 } files) return;
-        var path = files[0];
-        if (File.Exists(path)) path = Path.GetDirectoryName(path)!;
-        await ScanPathAsync(path);
+        if (files[0].EndsWith(SnapshotStore.Extension, StringComparison.OrdinalIgnoreCase) && File.Exists(files[0]))
+        {
+            await LoadSnapshotAsync(files[0]);
+            return;
+        }
+        var paths = files.Select(f => File.Exists(f) ? Path.GetDirectoryName(f)! : f)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        await ScanPathAsync(paths.Count == 1 ? paths[0] : PathList.Join(paths));
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -178,6 +240,11 @@ public partial class MainWindow : Window
                 _ = RescanAsync(node);
             else
                 _ = BeginScan();
+        }
+        else if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            ShowSearch();
         }
         else if (e.Key == Key.Escape && _cts != null)
         {
@@ -210,18 +277,22 @@ public partial class MainWindow : Window
     {
         if (_cts != null) return;
 
-        var path = NormalizePath(PathBox.Text);
-        if (!Directory.Exists(path))
+        var paths = PathList.Parse(PathBox.Text);
+        if (paths.Count == 0) paths.Add(""); // reports "Pfad nicht gefunden" like before
+        var missing = paths.Where(p => !Directory.Exists(p)).ToList();
+        if (missing.Count > 0)
         {
-            MessageBox.Show(this, $"Pfad nicht gefunden:\n{path}", "DiskTree", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, $"Pfad nicht gefunden:\n{string.Join("\n", missing)}", "DiskTree", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
-        path = Path.GetFullPath(path);
-        _settings.LastPath = path;
+        paths = PathList.Reduce(paths);
+        var path = paths[0];
+        _settings.LastPath = PathList.Join(paths);
 
         await RunAsync(ct =>
         {
-            var scanner = _scanner = new Scanner();
+            var scanner = _scanner = new Scanner { Excludes = CurrentExcludes() };
+            OnNewScanner(scanner);
             // Event instead of polling: the scanner reports changes from its worker threads, the UI reacts.
             scanner.Changed += () => Dispatcher.InvokeAsync(() => OnScannerChanged(scanner), DispatcherPriority.Background);
             _root = null;
@@ -231,9 +302,12 @@ public partial class MainWindow : Window
 
             // ScanAsync creates the tree (drive -> ... -> scanned folder) and starts the workers synchronously,
             // so the tree can be shown right away and fills up while the scan is running.
-            var scan = scanner.ScanAsync(path, (int)ThreadsBox.SelectedItem, ct);
+            var scan = paths.Count > 1
+                ? scanner.ScanManyAsync(paths, (int)ThreadsBox.SelectedItem, ct)
+                : scanner.ScanAsync(path, (int)ThreadsBox.SelectedItem, ct);
             _scanTarget = scanner.ScanTarget;
             _root = new NodeVM(scanner.Root!, Kind.Dir, null, 0) { IsExpanded = true };
+            Treemap.Reset(_scanTarget ?? scanner.Root);
             Tree.ItemsSource = new[] { _root };
             ExpandToScanTarget();
             return scan;
@@ -241,7 +315,9 @@ public partial class MainWindow : Window
     }
 
     private Task RescanAsync(Node? node) =>
-        node == null || _scanner == null ? Task.CompletedTask : _scanTask = StartRescan(node);
+        node == null || _scanner == null ? Task.CompletedTask
+        : _scanner.IsMulti && node == _scanner.Root ? BeginScan() // the artificial root: scan all paths again
+        : _scanTask = StartRescan(node);
 
     /// <summary>
     /// Scans one folder of the existing tree again, in place. Its row and everything above it get new numbers,
@@ -250,6 +326,7 @@ public partial class MainWindow : Window
     private async Task StartRescan(Node node)
     {
         var scanner = _scanner!;
+        if (!CanRescan(node)) return;
 
         // A running scan has to stop first. (_scanTask still is the old scan here: this method runs
         // synchronously up to the first await, before RescanAsync assigns its own task.)
@@ -264,6 +341,7 @@ public partial class MainWindow : Window
             // The previous scan's last change event may never have been acknowledged (the UI had already
             // finished); without this the scanner stays silent and the row would not update.
             scanner.Acknowledge();
+            scanner.Excludes = CurrentExcludes(); // the same rules as the scan (incl. changes made since)
             var scan = scanner.RescanAsync(node, (int)ThreadsBox.SelectedItem, ct);
             _root?.FindDescendant(node)?.ResetForRescan();
             _scanTarget = scanner.ScanTarget;
@@ -347,6 +425,13 @@ public partial class MainWindow : Window
             RefreshTop();
     }
 
+    private static string ExcludedTooltip(Scanner s)
+    {
+        var paths = s.ExcludedPaths();
+        var text = "Ausgeschlossene Ordner (nicht gescannt):\n" + string.Join("\n", paths.Take(15));
+        return s.Excluded > 15 ? text + $"\n… und {s.Excluded - 15:N0} weitere" : text;
+    }
+
     private void UpdateStatus(bool running, bool done = false)
     {
         if (_scanner == null) return;
@@ -358,7 +443,9 @@ public partial class MainWindow : Window
 
         StatusText.Text =
             $"{(done ? "Fertig: " : "")}{s.Dirs:N0} Ordner · {s.Files:N0} Dateien · {NodeVM.FormatSize(s.Bytes)}" +
-            $" · {s.Errors:N0} nicht lesbar · {_sw.Elapsed:mm\\:ss\\.f}{percent}";
+            $" · {s.Errors:N0} nicht lesbar" + (s.Excluded > 0 ? $" · {s.Excluded:N0} ausgeschlossen" : "") +
+            $" · {_sw.Elapsed:mm\\:ss\\.f}{percent}";
+        StatusText.ToolTip = s.Excluded > 0 ? ExcludedTooltip(s) : null;
         CurrentText.Text = running ? s.Current : "";
 
         if (running)
@@ -379,15 +466,62 @@ public partial class MainWindow : Window
 
     // ---------------------------------------------------------------- file-type chart
 
-    private void Tree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e) => _ = UpdatePieAsync();
+    private void Tree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    {
+        Treemap.SetTreeSelection(PieTarget().Node);
+        _ = UpdatePieAsync();
+        OwnerTab.SetFolder(PieTarget().Node?.FullPath);
+    }
+
+    // Treemap click / dive: select that folder in the tree (opening the path down to it).
+    private void Treemap_NodeClicked(Node node)
+    {
+        if (_root == null) return;
+        var chain = new List<Node>();
+        for (var n = node; n != null; n = n.Parent) chain.Insert(0, n);
+        if (chain.Count == 0 || chain[0] != _root.Node) return;
+
+        var vm = _root;
+        foreach (var n in chain.Skip(1))
+        {
+            vm.IsExpanded = true;
+            vm = vm.FindDescendant(n);
+            if (vm == null) return;
+        }
+        vm.IsSelected = true;
+        Dispatcher.InvokeAsync(() => BringIntoView(vm), DispatcherPriority.Loaded);
+    }
+
+    private void BringIntoView(NodeVM vm)
+    {
+        var path = new List<NodeVM>();
+        for (var v = vm; v != null; v = v.Parent) path.Insert(0, v);
+        ItemsControl host = Tree;
+        for (int i = 0; i < path.Count; i++)
+        {
+            if (host.ItemContainerGenerator.ContainerFromItem(path[i]) is not TreeViewItem item) return;
+            if (i == path.Count - 1) { item.BringIntoView(); return; }
+            host = item;
+        }
+    }
 
     private int _pieVersion;
     private bool _pieBusy;
     private long _pieLastTick;
 
-    private static readonly Brush[] CategoryBrushes = FileTypes.All.Select(c =>
+    private static readonly Brush[] CategoryBrushesLight = MakeCategoryBrushes(false);
+    private static readonly Brush[] CategoryBrushesDark = MakeCategoryBrushes(true);
+    private static Brush[] CategoryBrushes => Theme.IsDark ? CategoryBrushesDark : CategoryBrushesLight;
+
+    // On the dark panel the darkest categories (e.g. programs, #3F4A57) would vanish: lighten them a little.
+    private static Brush[] MakeCategoryBrushes(bool dark) => FileTypes.All.Select(c =>
     {
-        var b = new SolidColorBrush(Color.FromRgb((byte)(c.Color >> 16), (byte)(c.Color >> 8), (byte)c.Color));
+        byte r = (byte)(c.Color >> 16), g = (byte)(c.Color >> 8), bl = (byte)c.Color;
+        if (dark && 0.299 * r + 0.587 * g + 0.114 * bl < 110)
+        {
+            r = (byte)(r + (255 - r) * 0.45); g = (byte)(g + (255 - g) * 0.45); bl = (byte)(bl + (255 - bl) * 0.45);
+        }
+        var b = new SolidColorBrush(Color.FromRgb(r, g, bl));
         b.Freeze();
         return (Brush)b;
     }).ToArray();
@@ -411,7 +545,9 @@ public partial class MainWindow : Window
 
     private async Task UpdatePieAsync()
     {
+        _ = Treemap.RefreshAsync();
         var (node, ownOnly, title) = PieTarget();
+        _ = UpdateAgeAsync(node, ownOnly, title);
         int version = ++_pieVersion;
         _pieLastTick = Environment.TickCount64;
 
@@ -538,7 +674,22 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ShowFileMenu(TopRow row, Point screenPos) =>
+    // Folder for the duplicate search: the selected folder (or the folder of the selected file), else what was scanned.
+    private string? DuplicateRoot()
+    {
+        var vm = Tree.SelectedItem as NodeVM;
+        if (vm is { Kind: Kind.File or Kind.Files }) vm = vm.Parent is { Kind: Kind.Dir } p ? p : vm.Parent?.Parent;
+        var path = vm is { Kind: Kind.Dir } ? vm.Path : (_scanTarget ?? _root?.Node)?.FullPath;
+        return string.IsNullOrEmpty(path) ? null : path;
+    }
+
+    private void ShowFileMenu(TopRow row, Point screenPos)
+    {
+        if (IsSnapshotMode) { ShowSnapshotMenu(row.Path, isDir: false); return; }
+        ShowFileMenuShell(row, screenPos);
+    }
+
+    private void ShowFileMenuShell(TopRow row, Point screenPos) =>
         RunShell(row.Path, isFile: true, row.Size, null,
             () => ShellContextMenu.Show(this, row.Path, screenPos, Extras(row.Path, isDir: false)));
 
@@ -579,11 +730,13 @@ public partial class MainWindow : Window
     }
 
     // The "Dateien" row stands for a whole folder's files, so it gets no menu: "Löschen" there would hit the folder.
-    private static bool CanUseShell(NodeVM vm) => vm.Kind is Kind.Dir or Kind.File;
+    // The artificial "Mehrere Pfade" root has no path either.
+    private static bool CanUseShell(NodeVM vm) => vm.Kind is Kind.Dir or Kind.File && vm.Path.Length > 0;
 
     private void ShowTreeMenu(NodeVM vm, Point screenPos)
     {
         if (!CanUseShell(vm)) return;
+        if (IsSnapshotMode) { ShowSnapshotMenu(vm.Path, vm.Kind == Kind.Dir); return; }
         RunShell(vm.Path, vm.Kind == Kind.File, vm.Size, vm,
             () => ShellContextMenu.Show(this, vm.Path, screenPos, Extras(vm.Path, vm.Kind == Kind.Dir)));
     }
@@ -606,11 +759,19 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Opens the folder that contains the item and selects the item there.</summary>
-    private static void OpenInExplorer(string path) =>
+    private static void OpenInExplorer(string path)
+    {
+        if (!File.Exists(path) && !Directory.Exists(path)) return; // e.g. a stored scan of another machine
+        OpenInExplorerCore(path);
+    }
+
+    private static void OpenInExplorerCore(string path) =>
         Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true });
 
     private void RunShell(string path, bool isFile, long size, NodeVM? vm, Action action)
     {
+        if (IsSnapshotMode) { SnapshotHint(); return; }
+        int ageBucket = isFile ? AgeBuckets.OfFile(path) : -1; // read before the file is gone
         try
         {
             action();
@@ -625,9 +786,9 @@ public partial class MainWindow : Window
         if (File.Exists(path) || Directory.Exists(path)) return;
 
         if (vm != null)
-            vm.RemoveFromTree();
+            vm.RemoveFromTree(ageBucket);
         else if (isFile && _scanner?.FindNode(Path.GetDirectoryName(path) ?? "") is { } dir)
-            dir.RemoveFile(Path.GetFileName(path), size);
+            dir.RemoveFile(Path.GetFileName(path), size, ageBucket);
 
         _scanner?.RemoveTop(path);
         if (_scanner?.Root is { } drive) Scanner.ReadDrive(drive);

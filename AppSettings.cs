@@ -11,7 +11,13 @@ public sealed class AppSettings
     public double Width { get; set; }
     public double Height { get; set; }
     public bool Maximized { get; set; }
+    /// <summary>Files at least this many months old count as "old" (age column / chart); one of AgeBuckets.LimitMonths.</summary>
+    public int AgeThresholdMonths { get; set; } = 24;
     public ThemeSetting Theme { get; set; } = ThemeSetting.System;
+    /// <summary>Folder patterns the scan skips (see <see cref="ExcludeRules"/>).</summary>
+    public List<string> Excludes { get; set; } = new();
+    /// <summary>Duplicate search ignores files smaller than this.</summary>
+    public long DuplicateMinBytes { get; set; } = 1 << 20;
 
     private static readonly string FilePath =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DiskTree", "settings.json");

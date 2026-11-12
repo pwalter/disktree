@@ -25,8 +25,12 @@ public sealed class NodeVM : INotifyPropertyChanged
     private static Brush DarkGray => Theme.IsDark ? DarkGrayDark : DarkGrayLight;
     private static Brush Ink => Theme.IsDark ? InkDark : InkLight;
     private static readonly Brush Gold = Frozen(Color.FromRgb(0xE0, 0xA8, 0x20));
-    private static readonly Brush FreeBrush = Frozen(Color.FromRgb(0x9C, 0xC4, 0xEE));
-    private static readonly Brush RestBrush = Frozen(Color.FromRgb(0xD6, 0xC8, 0xB0));
+    private static readonly Brush FreeBrushLight = Frozen(Color.FromRgb(0x9C, 0xC4, 0xEE));
+    private static readonly Brush RestBrushLight = Frozen(Color.FromRgb(0xD6, 0xC8, 0xB0));
+    private static readonly Brush FreeBrushDark = Frozen(Color.FromRgb(0x3F, 0x6E, 0xA0));
+    private static readonly Brush RestBrushDark = Frozen(Color.FromRgb(0x6E, 0x62, 0x4C));
+    private static Brush FreeBrush => Theme.IsDark ? FreeBrushDark : FreeBrushLight;
+    private static Brush RestBrush => Theme.IsDark ? RestBrushDark : RestBrushLight;
 
     private readonly Node? _node;
     private readonly Dictionary<Node, NodeVM> _byNode = new();
@@ -117,6 +121,17 @@ public sealed class NodeVM : INotifyPropertyChanged
     public string PercentText => Kind == Kind.Dummy ? "" : (Percent * 100).ToString("0.#", CultureInfo.CurrentCulture) + " %";
     public string FilesText => Kind is Kind.Dummy or Kind.Space ? "" : _node!.FileCount.ToString("N0", CultureInfo.CurrentCulture);
 
+    /// <summary>Bytes older than the age threshold (AgeBuckets.ThresholdMonths); empty for single files and drive space.</summary>
+    public string OldText
+    {
+        get
+        {
+            if (Kind is not (Kind.Dir or Kind.Files)) return "";
+            long old = Kind == Kind.Dir ? AgeBuckets.OldSize(_node!) : AgeBuckets.OldOwnSize(Parent!._node!);
+            return old <= 0 ? "–" : FormatSize(old);
+        }
+    }
+
     public double BarWidth => Kind == Kind.Dummy ? 0 : Math.Max(Size > 0 ? 2 : 0, Percent * BarMax);
 
     public Brush BarBrush => Kind switch
@@ -129,6 +144,18 @@ public sealed class NodeVM : INotifyPropertyChanged
     public Brush SizeBrush => Kind is Kind.Files or Kind.Space || IsPending
         ? DarkGray
         : Cached(TextCache, Percent, Theme.IsDark ? 0.55 : 0.95, Theme.IsDark ? 0.98 : 0.62);
+
+    private bool _selected;
+    public bool IsSelected
+    {
+        get => _selected;
+        set
+        {
+            if (_selected == value) return;
+            _selected = value;
+            Notify(nameof(IsSelected));
+        }
+    }
 
     public bool IsExpanded
     {
@@ -161,6 +188,7 @@ public sealed class NodeVM : INotifyPropertyChanged
         Notify(nameof(SizeText));
         Notify(nameof(PercentText));
         Notify(nameof(FilesText));
+        Notify(nameof(OldText));
         Notify(nameof(BarWidth));
         Notify(nameof(BarBrush));
         Notify(nameof(SizeBrush));
@@ -243,15 +271,15 @@ public sealed class NodeVM : INotifyPropertyChanged
             if (_free == null)
             {
                 _free = new NodeVM(new Node { Name = FreeName }, Kind.Space, this, Level + 1);
-                _rest = new NodeVM(new Node
-                {
-                    Name = _node.PartialDrive ? "Rest des Laufwerks (nicht gescannt)" : "Nicht erfasst (Systemdateien, fehlende Rechte)",
-                }, Kind.Space, this, Level + 1);
+                _rest = new NodeVM(new Node(), Kind.Space, this, Level + 1);
                 Children.Add(_free);
                 Children.Add(_rest);
             }
             _free._node!.Size = _node.DriveFree;
-            _rest!._node!.Size = Math.Max(0, _node.DriveTotal - _node.DriveFree - _node.Size);
+            _rest!._node!.Name = _node.PartialDrive
+                ? "Rest des Laufwerks (nicht gescannt)"
+                : "Nicht erfasst (Systemdateien, fehlende Rechte" + (_node.Excluded > 0 ? $", {_node.Excluded:N0} ausgeschlossen" : "") + ")";
+            _rest._node!.Size = Math.Max(0, _node.DriveTotal - _node.DriveFree - _node.Size);
         }
 
         // With only a subfolder scanned, the drive's free/unscanned rows go first: below the (expanded) scanned
@@ -342,18 +370,19 @@ public sealed class NodeVM : INotifyPropertyChanged
     /// Takes a deleted file or folder out of the tree and subtracts its size from all parents.
     /// The root cannot be removed.
     /// </summary>
-    public void RemoveFromTree()
+    public void RemoveFromTree(int ageBucket = -1)
     {
         if (Parent == null || _node == null) return;
 
         if (Kind == Kind.File)
         {
-            Parent.Parent!._node!.RemoveFile(_node.Name, Size);
+            Parent.Parent!._node!.RemoveFile(_node.Name, Size, ageBucket);
             Parent.Children.Remove(this);
         }
         else if (Kind == Kind.Dir)
         {
             var parentNode = Parent._node!;
+            AgeBuckets.RemoveSubtree(_node);
             for (var n = parentNode; n != null; n = n.Parent)
             {
                 Interlocked.Add(ref n.Size, -_node.Size);

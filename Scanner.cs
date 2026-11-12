@@ -14,6 +14,7 @@ public sealed class Node
     public long Size;       // incl. all descendants (grows while scanning)
     public long FileCount;  // incl. all descendants
     public long DirCount;   // incl. all descendants
+    public long Excluded;   // subfolders skipped by an exclusion rule, incl. all descendants
 
     // All files directly inside this folder are aggregated into one entry.
     public long OwnSize;
@@ -21,6 +22,12 @@ public sealed class Node
 
     /// <summary>Own files per document category. Replaced as a whole (never mutated) so readers need no lock.</summary>
     public volatile TypeStat[]? OwnTypes;
+
+    /// <summary>Own files per age bucket (see <see cref="AgeBuckets"/>); replaced as a whole.</summary>
+    public volatile long[]? OwnAges;
+
+    /// <summary>Bytes per age bucket of the whole subtree (updated with Interlocked like Size).</summary>
+    public long[]? AgeSub;
 
     /// <summary>Number of folders in this subtree (itself included) that are not fully scanned yet.</summary>
     public int Open;
@@ -35,11 +42,16 @@ public sealed class Node
     public bool PartialDrive;
 
     /// <summary>Takes a deleted file out of this folder's numbers and all parents'.</summary>
-    public void RemoveFile(string name, long size)
+    public void RemoveFile(string name, long size, int ageBucket = -1)
     {
         OwnSize -= size;
         OwnCount--;
         OwnTypes = FileTypes.Without(OwnTypes, FileTypes.CategoryOf(name), size);
+        if (ageBucket >= 0)
+        {
+            OwnAges = AgeBuckets.Without(OwnAges, ageBucket, size);
+            AgeBuckets.AddSub(this, ageBucket, -size);
+        }
         for (var n = this; n != null; n = n.Parent)
         {
             Interlocked.Add(ref n.Size, -size);
@@ -79,9 +91,9 @@ public sealed class Node
     }
 }
 
-public sealed class Scanner
+public sealed partial class Scanner
 {
-    private readonly record struct Entry(string? Name, bool IsDir, long Length, bool Reparse, int Cat);
+    private readonly record struct Entry(string? Name, bool IsDir, long Length, bool Reparse, int Cat, int Age);
 
     private long _files, _dirs, _bytes, _errors, _pending;
     private int _signalled;
@@ -93,6 +105,28 @@ public sealed class Scanner
     public long Errors => Interlocked.Read(ref _errors);
     public string Current => _current;
 
+    /// <summary>Folders to skip. Set before ScanAsync / RescanAsync; null = skip nothing.</summary>
+    public ExcludeRules? Excludes { get; set; }
+
+    /// <summary>Folders skipped by an exclusion rule in the current (re)scan.</summary>
+    public long Excluded => Interlocked.Read(ref _excluded);
+
+    private long _excluded;
+    private const int ExcludedListMax = 200;
+    private readonly List<string> _excludedPaths = new();
+
+    /// <summary>The first few skipped folders (for a tooltip).</summary>
+    public string[] ExcludedPaths() { lock (_excludedPaths) return _excludedPaths.ToArray(); }
+
+    private void NoteExcluded(Node dir, string path)
+    {
+        Interlocked.Increment(ref _excluded);
+        for (var n = dir; n != null; n = n.Parent)
+            Interlocked.Increment(ref n.Excluded);
+        lock (_excludedPaths)
+            if (_excludedPaths.Count < ExcludedListMax) _excludedPaths.Add(path);
+    }
+
     /// <summary>
     /// Top of the tree: always the drive (e.g. "C:\"). Available right after ScanAsync was called;
     /// fills up while the scan runs.
@@ -101,6 +135,9 @@ public sealed class Scanner
 
     /// <summary>The folder that was actually scanned (the drive itself, or a folder somewhere below it).</summary>
     public Node? ScanTarget { get; private set; }
+
+    /// <summary>The tree was built by <see cref="ScanManyAsync"/>: Root is an artificial node above several scanned paths.</summary>
+    public bool IsMulti { get; private set; }
 
     /// <summary>Bytes the scan is expected to find (used space of the drive), or 0 when unknown.</summary>
     public long ExpectedBytes { get; private set; }
@@ -157,11 +194,29 @@ public sealed class Scanner
     public Node? FindNode(string path)
     {
         var cur = Root;
-        if (cur == null || !path.StartsWith(cur.FullPath, StringComparison.OrdinalIgnoreCase)) return null;
+        if (cur == null) return null;
 
-        foreach (var part in path[cur.FullPath.Length..].Split('\\', StringSplitOptions.RemoveEmptyEntries))
+        if (IsMulti)
         {
-            cur = cur.Snapshot().FirstOrDefault(c => string.Equals(c.Name, part, StringComparison.OrdinalIgnoreCase));
+            // The artificial root has no path: pick the scanned path that contains the requested one.
+            if (path.Length == 0) return cur;
+            var p = path.TrimEnd('\\') + "\\";
+            var top = cur.Snapshot().FirstOrDefault(c => p.StartsWith(c.FullPath.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase));
+            if (top == null) return null;
+            path = path[Math.Min(path.Length, top.FullPath.TrimEnd('\\').Length)..];
+            cur = top;
+            return Descend(cur, path);
+        }
+
+        if (!path.StartsWith(cur.FullPath, StringComparison.OrdinalIgnoreCase)) return null;
+        return Descend(cur, path[cur.FullPath.Length..]);
+    }
+
+    private static Node? Descend(Node cur, string rest)
+    {
+        foreach (var part in rest.Split('\\', StringSplitOptions.RemoveEmptyEntries))
+        {
+            cur = cur.Snapshot().FirstOrDefault(c => string.Equals(c.Name, part, StringComparison.OrdinalIgnoreCase))!;
             if (cur == null) return null;
         }
         return cur;
@@ -200,6 +255,7 @@ public sealed class Scanner
     {
         // The tree always starts at the drive; a scan of a subfolder hangs below a chain of
         // placeholder nodes (one per path component), so percentages can refer to the whole drive.
+        AgeBuckets.SetReference(DateTime.UtcNow);
         var full = Path.GetFullPath(path);
         var driveRoot = Path.GetPathRoot(full) ?? full;
         var top = new Node { Name = driveRoot, FullPath = driveRoot, Open = 1 };
@@ -229,8 +285,33 @@ public sealed class Scanner
         ScanTarget = root;
         if (top.DriveTotal > 0 && !top.PartialDrive)
             ExpectedBytes = Math.Max(0, top.DriveTotal - top.DriveFree);
-        await RunAsync(root, threads, ct);
+        await RunAsync(new[] { root }, threads, ct);
         return root;
+    }
+
+    /// <summary>
+    /// Scans several paths into one tree below an artificial root node (<see cref="IsMulti"/>); its numbers are the
+    /// total. Each path is a direct child of the root (named by its full path, no drive capacity, works for UNC paths).
+    /// Callers pass at least two paths that do not contain one another (see <see cref="PathList.Reduce"/>).
+    /// </summary>
+    public async Task<Node> ScanManyAsync(IReadOnlyList<string> paths, int threads, CancellationToken ct)
+    {
+        var top = new Node { Name = "Mehrere Pfade", FullPath = "", Open = paths.Count, Scanned = true };
+        var starts = new List<Node>();
+        foreach (var p in paths)
+        {
+            var full = Path.GetFullPath(p);
+            var child = new Node { Name = full, FullPath = full, Parent = top, Open = 1 };
+            top.AddChild(child);
+            starts.Add(child);
+        }
+
+        IsMulti = true;
+        Root = top;
+        ScanTarget = top;
+        ExpectedBytes = 0;
+        await RunAsync(starts, threads, ct);
+        return top;
     }
 
     /// <summary>
@@ -251,10 +332,14 @@ public sealed class Scanner
             Interlocked.Add(ref n.Size, -node.Size);
             Interlocked.Add(ref n.FileCount, -node.FileCount);
             Interlocked.Add(ref n.DirCount, -node.DirCount);
+            Interlocked.Add(ref n.Excluded, -node.Excluded);
             Interlocked.Add(ref n.Open, 1 - oldOpen);
         }
 
-        node.Size = node.FileCount = node.DirCount = 0;
+        AgeBuckets.RemoveSubtree(node);
+        if (node.AgeSub is { } oldAges) Array.Clear(oldAges);
+        node.OwnAges = null;
+        node.Size = node.FileCount = node.DirCount = node.Excluded = 0;
         node.OwnSize = node.OwnCount = 0;
         node.OwnTypes = null;
         node.ClearChildren();
@@ -278,17 +363,19 @@ public sealed class Scanner
         Interlocked.Exchange(ref _dirs, 0);
         Interlocked.Exchange(ref _bytes, 0);
         Interlocked.Exchange(ref _errors, 0);
+        Interlocked.Exchange(ref _excluded, 0);
+        lock (_excludedPaths) _excludedPaths.Clear();
         RemoveTop(node.FullPath);
 
-        await RunAsync(node, threads, ct);
+        await RunAsync(new[] { node }, threads, ct);
     }
 
-    private async Task RunAsync(Node start, int threads, CancellationToken ct)
+    private async Task RunAsync(IReadOnlyList<Node> starts, int threads, CancellationToken ct)
     {
         using var queue = new BlockingCollection<Node>(new ConcurrentQueue<Node>());
 
-        _pending = 1;
-        queue.Add(start);
+        _pending = starts.Count;
+        foreach (var start in starts) queue.Add(start);
         Signal();
 
         var workers = Enumerable.Range(0, threads)
@@ -298,7 +385,7 @@ public sealed class Scanner
 
         await Task.WhenAll(workers);
         ct.ThrowIfCancellationRequested();
-        ReadDrive(Root!);
+        if (!IsMulti) ReadDrive(Root!);
     }
 
     private void Worker(BlockingCollection<Node> queue, CancellationToken ct)
@@ -338,6 +425,9 @@ public sealed class Scanner
         long sum = 0, count = 0, subDirs = 0;
         Span<long> typeSize = stackalloc long[FileTypes.Count];
         Span<long> typeCount = stackalloc long[FileTypes.Count];
+        Span<long> ageSize = stackalloc long[AgeBuckets.Count];
+        Span<long> ageCount = stackalloc long[AgeBuckets.Count];
+        Span<long> ageDelta = stackalloc long[AgeBuckets.Count];
 
         var options = new EnumerationOptions
         {
@@ -357,7 +447,8 @@ public sealed class Scanner
                     // Folders need a name; files only when they could make it into the largest-files list.
                     string? name = isDir || len >= Volatile.Read(ref _topMin) ? e.FileName.ToString() : null;
                     return new Entry(name, isDir, len, (e.Attributes & FileAttributes.ReparsePoint) != 0,
-                        isDir ? 0 : FileTypes.CategoryOf(e.FileName));
+                        isDir ? 0 : FileTypes.CategoryOf(e.FileName),
+                        isDir ? 0 : AgeBuckets.Of(e.LastWriteTimeUtc.UtcTicks));
                 }, options);
 
             foreach (var e in entries)
@@ -366,6 +457,12 @@ public sealed class Scanner
                 {
                     // Junctions / symlinks would double count or loop.
                     if (e.Reparse) continue;
+
+                    if (Excludes is { IsEmpty: false } rules && rules.IsExcluded(e.Name!, dir.FullPath))
+                    {
+                        NoteExcluded(dir, Path.Join(dir.FullPath, e.Name));
+                        continue;
+                    }
 
                     var child = new Node
                     {
@@ -393,6 +490,9 @@ public sealed class Scanner
                     dir.OwnCount++;
                     typeSize[e.Cat] += e.Length;
                     typeCount[e.Cat]++;
+                    ageSize[e.Age] += e.Length;
+                    ageCount[e.Age]++;
+                    ageDelta[e.Age] += e.Length;
                     if (e.Name != null)
                         OfferTop(Path.Join(dir.FullPath, e.Name), e.Length);
                 }
@@ -402,6 +502,8 @@ public sealed class Scanner
                 {
                     Flush(dir, ref sum, ref count, ref subDirs);
                     dir.OwnTypes = FileTypes.Pack(typeSize, typeCount);
+                    dir.OwnAges = AgeBuckets.Pack(ageSize, ageCount);
+                    AgeBuckets.FlushDelta(dir, ageDelta);
                     Signal();
                 }
             }
@@ -418,6 +520,8 @@ public sealed class Scanner
         {
             Flush(dir, ref sum, ref count, ref subDirs);
             dir.OwnTypes = FileTypes.Pack(typeSize, typeCount);
+            dir.OwnAges = AgeBuckets.Pack(ageSize, ageCount);
+            AgeBuckets.FlushDelta(dir, ageDelta);
             Interlocked.Increment(ref _dirs);
         }
     }
