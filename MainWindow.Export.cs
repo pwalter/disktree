@@ -17,8 +17,7 @@ public partial class MainWindow
         var scanner = _scanner;
         if (scanner?.Root == null)
         {
-            MessageBox.Show(this, "Es gibt noch nichts zu exportieren. Bitte zuerst einen Ordner scannen.", "Exportieren",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            Dialogs.Info(this, "Es gibt noch nichts zu exportieren. Bitte zuerst einen Ordner scannen.", "Exportieren");
             return;
         }
 
@@ -58,24 +57,22 @@ public partial class MainWindow
                     if (pdf) ReportPdf.Write(file, data); else ReportHtml.Write(file, data);
                 });
                 Mouse.OverrideCursor = null;
-                var open = MessageBox.Show(this,
-                    $"Bericht gespeichert:\n{file}" + (scanning ? "\n\nHinweis: Der Scan lief noch, die Zahlen sind ein Zwischenstand." : "") + "\n\nJetzt öffnen?",
-                    "Exportieren", MessageBoxButton.YesNo, MessageBoxImage.Information);
-                if (open == MessageBoxResult.Yes)
+                var open = Dialogs.Confirm(this,
+                    $"Bericht gespeichert:\n{file}" + (scanning ? "\n\nHinweis: Der Scan lief noch, die Zahlen sind ein Zwischenstand." : "") + "\n\nJetzt öffnen?", MessageBoxImage.Information, title: "Exportieren");
+                if (open)
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(file) { UseShellExecute = true });
                 return;
             }
 
             int rows = await Task.Run(() => top != null ? Exporter.WriteTopFiles(file, top) : Exporter.WriteTree(file, node!));
             Mouse.OverrideCursor = null;
-            MessageBox.Show(this,
-                $"{rows:N0} Zeilen exportiert nach:\n{file}" + (scanning ? "\n\nHinweis: Der Scan lief noch, die Zahlen sind ein Zwischenstand." : ""),
-                "Exportieren", MessageBoxButton.OK, MessageBoxImage.Information);
+            Dialogs.Info(this,
+                $"{rows:N0} Zeilen exportiert nach:\n{file}" + (scanning ? "\n\nHinweis: Der Scan lief noch, die Zahlen sind ein Zwischenstand." : ""), "Exportieren");
         }
         catch (Exception ex)
         {
             Mouse.OverrideCursor = null;
-            MessageBox.Show(this, "Der Export ist fehlgeschlagen:\n" + ex.Message, "Exportieren", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Dialogs.Warn(this, "Der Export ist fehlgeschlagen:\n" + ex.Message, "Exportieren");
         }
         finally
         {

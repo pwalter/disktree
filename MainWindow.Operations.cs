@@ -70,7 +70,7 @@ public partial class MainWindow
             catch (Exception ex)
             {
                 _opBusy = false;
-                MessageBox.Show(this, ex.Message, "DiskTree", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Dialogs.Warn(this, ex.Message);
             }
         });
 
@@ -205,9 +205,8 @@ public partial class MainWindow
         if (created && choice.RecycleOriginals && res.Done.Count > 0)
         {
             long bytes = res.Done.Sum(i => i.Size);
-            if (MessageBox.Show(this,
-                    $"{res.Done.Count:N0} vollständig archivierte Originale ({NodeVM.FormatSize(bytes)}) jetzt in den Papierkorb legen?",
-                    "DiskTree", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            if (Dialogs.Confirm(this,
+                    $"{res.Done.Count:N0} vollständig archivierte Originale ({NodeVM.FormatSize(bytes)}) jetzt in den Papierkorb legen?"))
             {
                 var hwnd = new WindowInteropHelper(this).Handle;
                 var done = res.Done.ToList();
@@ -265,9 +264,8 @@ public partial class MainWindow
         string warn = Dup.AllCopiesChecked(items.Select(i => i.Path))
             ? "\n\nAchtung: Von mindestens einer Dublettengruppe sind alle Kopien in der Auswahl. Danach gäbe es die Datei nur noch im Papierkorb."
             : "";
-        if (MessageBox.Show(this,
-                $"{what} mit zusammen {NodeVM.FormatSize(size)} in den Papierkorb verschieben?\n\n{names}{warn}",
-                "DiskTree", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        if (!Dialogs.Confirm(this,
+                $"{what} mit zusammen {NodeVM.FormatSize(size)} in den Papierkorb verschieben?\n\n{names}{warn}", MessageBoxImage.Warning))
             return;
 
         var hwnd = new WindowInteropHelper(this).Handle;
@@ -397,6 +395,6 @@ public partial class MainWindow
         string body = headline
             + (failed.Count > 0 ? "\n\nNicht bearbeitet:\n" + string.Join("\n", lines) + more : "")
             + (hint != null ? "\n\n" + hint : "");
-        MessageBox.Show(this, body, "DiskTree", MessageBoxButton.OK, failed.Count > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
+        if (failed.Count > 0) Dialogs.Warn(this, body); else Dialogs.Info(this, body);
     }
 }

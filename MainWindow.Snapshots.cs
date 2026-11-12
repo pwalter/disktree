@@ -150,7 +150,7 @@ public partial class MainWindow
     private static bool Exists(string path) => Directory.Exists(path) || File.Exists(path);
 
     private void Notice(string text) =>
-        MessageBox.Show(this, text, "DiskTree", MessageBoxButton.OK, MessageBoxImage.Information);
+        Dialogs.Info(this, text);
 
     private void SnapshotHint() =>
         Notice($"Das ist ein gespeicherter Scan vom {StampText(_scanner?.ScannedAt)}, nicht der aktuelle Stand der Platte.\n\n" +

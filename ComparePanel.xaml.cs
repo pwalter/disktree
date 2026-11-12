@@ -116,7 +116,7 @@ public partial class ComparePanel : UserControl
         if (busy) SummaryText.Text = "Vergleiche …";
     }
 
-    private static void Show(string text) => MessageBox.Show(Application.Current.MainWindow, text, "DiskTree", MessageBoxButton.OK, MessageBoxImage.Information);
+    private static void Show(string text) => Dialogs.Info(Application.Current.MainWindow, text);
 
     private void Info(string text)
     {

@@ -83,16 +83,14 @@ public partial class TargetDialog : Window
         var text = TargetBox.Text.Trim().Trim('"');
         if (text.Length == 0 || !Path.IsPathFullyQualified(text))
         {
-            MessageBox.Show(this, _zip ? "Bitte einen vollständigen Pfad für die ZIP-Datei angeben." : "Bitte einen vollständigen Zielpfad angeben.",
-                "DiskTree", MessageBoxButton.OK, MessageBoxImage.Information);
+            Dialogs.Info(this, _zip ? "Bitte einen vollständigen Pfad für die ZIP-Datei angeben." : "Bitte einen vollständigen Zielpfad angeben.");
             return;
         }
         if (_zip)
         {
             if (!text.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) text += ".zip";
             if (Directory.Exists(text) ||
-                (File.Exists(text) && MessageBox.Show(this, $"{Path.GetFileName(text)} existiert schon und würde überschrieben.\n\nTrotzdem fortfahren?",
-                    "DiskTree", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes))
+                (File.Exists(text) && !Dialogs.Confirm(this, $"{Path.GetFileName(text)} existiert schon und würde überschrieben.\n\nTrotzdem fortfahren?")))
                 return;
         }
         Result = new TargetChoice(text, (PolicyBox.SelectedItem as PolicyOption)?.Policy ?? ConflictPolicy.Ask, _zip && RecycleBox.IsChecked == true);

@@ -296,7 +296,7 @@ public partial class MainWindow : Window
         var missing = paths.Where(p => !Directory.Exists(p)).ToList();
         if (missing.Count > 0)
         {
-            MessageBox.Show(this, $"Pfad nicht gefunden:\n{string.Join("\n", missing)}", "DiskTree", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Dialogs.Warn(this, $"Pfad nicht gefunden:\n{string.Join("\n", missing)}");
             return;
         }
         paths = PathList.Reduce(paths);
@@ -812,7 +812,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "DiskTree", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Dialogs.Warn(this, ex.Message);
             return;
         }
 

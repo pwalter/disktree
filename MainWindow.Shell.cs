@@ -23,8 +23,7 @@ public partial class MainWindow
         catch (Exception ex)
         {
             ExplorerItem.IsChecked = ExplorerIntegration.IsEnabled;
-            MessageBox.Show(this, "Der Explorer-Eintrag konnte nicht geändert werden:\n" + ex.Message, "DiskTree",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            Dialogs.Warn(this, "Der Explorer-Eintrag konnte nicht geändert werden:\n" + ex.Message);
         }
     }
 
@@ -38,13 +37,11 @@ public partial class MainWindow
         catch (Exception ex)
         {
             PortableItem.IsChecked = Portable.IsPortable;
-            MessageBox.Show(this, "Der Portable-Modus konnte nicht umgeschaltet werden:\n" + ex.Message, "DiskTree",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            Dialogs.Warn(this, "Der Portable-Modus konnte nicht umgeschaltet werden:\n" + ex.Message);
             return;
         }
-        MessageBox.Show(this, enable
+        Dialogs.Info(this, enable
             ? "Portable-Modus ist aktiv: Die Einstellungen liegen jetzt neben DiskTree.exe."
-            : "Portable-Modus ist aus: Die Einstellungen liegen wieder in %AppData%\\DiskTree.",
-            "DiskTree", MessageBoxButton.OK, MessageBoxImage.Information);
+            : "Portable-Modus ist aus: Die Einstellungen liegen wieder in %AppData%\\DiskTree.");
     }
 }

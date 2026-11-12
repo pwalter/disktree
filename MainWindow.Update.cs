@@ -54,8 +54,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            if (manual) MessageBox.Show(this, "Die Suche nach Updates ist fehlgeschlagen:\n" + ex.Message, "DiskTree",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            if (manual) Dialogs.Warn(this, "Die Suche nach Updates ist fehlgeschlagen:\n" + ex.Message);
             return;
         }
 
@@ -67,8 +66,7 @@ public partial class MainWindow
         }
         else if (manual)
         {
-            MessageBox.Show(this, $"DiskTree ist aktuell (Version {Updater.CurrentText}).", "DiskTree",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            Dialogs.Info(this, $"DiskTree ist aktuell (Version {Updater.CurrentText}).");
         }
     }
 
@@ -83,16 +81,14 @@ public partial class MainWindow
         }
         if (Busy != null)
         {
-            MessageBox.Show(this, "Bitte zuerst den laufenden Scan beenden oder abwarten.", "DiskTree",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            Dialogs.Info(this, "Bitte zuerst den laufenden Scan beenden oder abwarten.");
             return;
         }
 
         string size = info.AssetSize > 0 ? $" ({NodeVM.FormatSize(info.AssetSize)})" : "";
-        var answer = MessageBox.Show(this,
-            $"Version {info.Version} herunterladen{size} und installieren?\n\nDiskTree startet danach neu und scannt den aktuellen Pfad wieder.",
-            "Update", MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (answer != MessageBoxResult.Yes) return;
+        var answer = Dialogs.Confirm(this,
+            $"Version {info.Version} herunterladen{size} und installieren?\n\nDiskTree startet danach neu und scannt den aktuellen Pfad wieder.", title: "Update");
+        if (!answer) return;
 
         _updating = true;
         UpdateButton.IsEnabled = false;
@@ -114,11 +110,10 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            var open = MessageBox.Show(this,
+            var open = Dialogs.Confirm(this,
                 "Das Update konnte nicht installiert werden:\n" + ex.Message +
-                "\n\nSoll die Download-Seite im Browser geöffnet werden?",
-                "DiskTree", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-            if (open == MessageBoxResult.Yes) OpenReleasePage(info);
+                "\n\nSoll die Download-Seite im Browser geöffnet werden?", MessageBoxImage.Warning);
+            if (open) OpenReleasePage(info);
             UpdateButton.IsEnabled = true;
             _updating = false;
             ShowVersion();

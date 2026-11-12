@@ -127,9 +127,8 @@ public partial class MainWindow
 
         if (s.Cts != null)
         {
-            var answer = MessageBox.Show(this, $"In diesem Tab läuft noch ein Scan:\n{s.Tip}\n\nScan abbrechen und den Tab schließen?",
-                "DiskTree", MessageBoxButton.YesNo, MessageBoxImage.Question);
-            if (answer != MessageBoxResult.Yes) return;
+            var answer = Dialogs.Confirm(this, $"In diesem Tab läuft noch ein Scan:\n{s.Tip}\n\nScan abbrechen und den Tab schließen?");
+            if (!answer) return;
             // The scan finishes into its own session; wait for that before the session is let go.
             s.Cts?.Cancel();
             try { await s.ScanTask; } catch { }

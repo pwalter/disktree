@@ -114,10 +114,9 @@ public partial class DuplicatesPanel : UserControl
         ShowTarget();
 
         bool network = DuplicateFinder.IsNetworkPath(root);
-        if (network && MessageBox.Show(Window.GetWindow(this),
+        if (network && !Dialogs.Confirm(Window.GetWindow(this),
                 "Der Ordner liegt auf einem Netzlaufwerk. Die Suche liest dort viele Dateien und kann lange dauern " +
-                "und das Netzwerk belasten. Sie läuft deshalb nur mit wenigen parallelen Zugriffen.\n\nTrotzdem suchen?",
-                "DiskTree", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+                "und das Netzwerk belasten. Sie läuft deshalb nur mit wenigen parallelen Zugriffen.\n\nTrotzdem suchen?"))
             return;
 
         long min = (MinBox.SelectedItem as MinOption)?.Bytes ?? 1L << 20;

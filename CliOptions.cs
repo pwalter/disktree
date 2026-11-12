@@ -133,7 +133,7 @@ public sealed class CliOptions
         }
         else
         {
-            MessageBox.Show(text, "DiskTree", MessageBoxButton.OK, error != null ? MessageBoxImage.Warning : MessageBoxImage.Information);
+            if (error != null) Dialogs.Warn(null, text); else Dialogs.Info(null, text);
         }
     }
 
