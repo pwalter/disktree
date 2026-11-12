@@ -34,7 +34,7 @@ public static class ReportHtml
         // --- head figures
         sb.Append("<section class=\"cards\">");
         Card(sb, "Erstellt am", d.Created.ToString("dd.MM.yyyy HH:mm", CultureInfo.CurrentCulture));
-        Card(sb, "Gesamtgröße", NodeVM.FormatSize(d.TotalSize));
+        Card(sb, "Gesamtgröße", SizeFormat.Format(d.TotalSize));
         Card(sb, "Dateien", N(d.Files));
         Card(sb, "Ordner", N(d.Dirs));
         if (d.Excluded > 0) Card(sb, "Übersprungene Ordner", N(d.Excluded));
@@ -46,11 +46,11 @@ public static class ReportHtml
             double pct = used * 100.0 / d.DriveTotal;
             sb.Append("<section><h2>Laufwerk ").Append(E(d.DriveName)).Append("</h2>");
             sb.Append("<div class=\"track\"><div class=\"fill\" style=\"width:").Append(F(pct)).Append("%\"></div></div>");
-            sb.Append("<p>").Append(NodeVM.FormatSize(used)).Append(" belegt von ").Append(NodeVM.FormatSize(d.DriveTotal))
+            sb.Append("<p>").Append(SizeFormat.Format(used)).Append(" belegt von ").Append(SizeFormat.Format(d.DriveTotal))
               .Append(" (").Append(ReportData.Percent(used, d.DriveTotal)).Append("), ")
-              .Append(NodeVM.FormatSize(d.DriveFree)).Append(" frei.");
+              .Append(SizeFormat.Format(d.DriveFree)).Append(" frei.");
             if (d.PartialDrive)
-                sb.Append(" Gescannt wurde nur ein Teil des Laufwerks (").Append(NodeVM.FormatSize(d.TotalSize)).Append(").");
+                sb.Append(" Gescannt wurde nur ein Teil des Laufwerks (").Append(SizeFormat.Format(d.TotalSize)).Append(").");
             sb.Append("</p></section>\n");
         }
 
@@ -64,7 +64,7 @@ public static class ReportHtml
             long max = Math.Max(1, d.Folders[0].Size);
             foreach (var f in d.Folders)
             {
-                sb.Append("<tr><td class=\"p\">").Append(E(f.Path)).Append("</td><td class=\"r\">").Append(NodeVM.FormatSize(f.Size))
+                sb.Append("<tr><td class=\"p\">").Append(E(f.Path)).Append("</td><td class=\"r\">").Append(SizeFormat.Format(f.Size))
                   .Append("</td><td class=\"r\">").Append(ReportData.Percent(f.Size, d.TotalSize))
                   .Append("</td><td class=\"bar\"><div class=\"track sm\"><div class=\"fill\" style=\"width:").Append(F(f.Size * 100.0 / max))
                   .Append("%\"></div></div></td><td class=\"r\">").Append(N(f.Files)).Append("</td></tr>");
@@ -84,7 +84,7 @@ public static class ReportHtml
             sb.Append("<table><thead><tr><th>Typ</th><th class=\"r\">Größe</th><th class=\"r\">Anteil</th><th class=\"r\">Dateien</th></tr></thead><tbody>");
             foreach (var t in d.Types)
                 sb.Append("<tr><td><span class=\"sw\" style=\"background:").Append(Hex(t.Color)).Append("\"></span>").Append(E(t.Name))
-                  .Append("</td><td class=\"r\">").Append(NodeVM.FormatSize(t.Size)).Append("</td><td class=\"r\">")
+                  .Append("</td><td class=\"r\">").Append(SizeFormat.Format(t.Size)).Append("</td><td class=\"r\">")
                   .Append(ReportData.Percent(t.Size, sum)).Append("</td><td class=\"r\">").Append(N(t.Count)).Append("</td></tr>");
             sb.Append("</tbody></table></div>");
         }
@@ -106,7 +106,7 @@ public static class ReportHtml
             {
                 var a = d.Ages[i];
                 sb.Append("<tr><td><span class=\"sw\" style=\"background:").Append(AgeColors[i % AgeColors.Length]).Append("\"></span>").Append(E(a.Name))
-                  .Append("</td><td class=\"r\">").Append(NodeVM.FormatSize(a.Size)).Append("</td><td class=\"r\">")
+                  .Append("</td><td class=\"r\">").Append(SizeFormat.Format(a.Size)).Append("</td><td class=\"r\">")
                   .Append(ReportData.Percent(a.Size, ageSum)).Append("</td><td class=\"r\">").Append(N(a.Count)).Append("</td></tr>");
             }
             sb.Append("</tbody></table>");
@@ -125,7 +125,7 @@ public static class ReportHtml
                 rank++;
                 sb.Append("<tr><td class=\"r\">").Append(rank).Append("</td><td>").Append(E(Path.GetFileName(f.Path)))
                   .Append("</td><td class=\"p\">").Append(E(Path.GetDirectoryName(f.Path) ?? ""))
-                  .Append("</td><td class=\"r\">").Append(NodeVM.FormatSize(f.Size)).Append("</td></tr>");
+                  .Append("</td><td class=\"r\">").Append(SizeFormat.Format(f.Size)).Append("</td></tr>");
             }
             sb.Append("</tbody></table>");
         }
@@ -161,11 +161,11 @@ public static class ReportHtml
                   .Append(" A").Append(F(rOut)).Append(' ').Append(F(rOut)).Append(" 0 ").Append(large).Append(" 1 ").Append(P(rOut, a1))
                   .Append(" L").Append(P(rIn, a1))
                   .Append(" A").Append(F(rIn)).Append(' ').Append(F(rIn)).Append(" 0 ").Append(large).Append(" 0 ").Append(P(rIn, a0))
-                  .Append(" Z\"><title>").Append(E(t.Name)).Append(": ").Append(NodeVM.FormatSize(t.Size)).Append("</title></path>");
+                  .Append(" Z\"><title>").Append(E(t.Name)).Append(": ").Append(SizeFormat.Format(t.Size)).Append("</title></path>");
                 a0 = a1;
             }
         }
-        sb.Append("<text x=\"100\" y=\"97\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"700\" fill=\"#222\">").Append(E(NodeVM.FormatSize(sum)))
+        sb.Append("<text x=\"100\" y=\"97\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"700\" fill=\"#222\">").Append(E(SizeFormat.Format(sum)))
           .Append("</text><text x=\"100\" y=\"114\" text-anchor=\"middle\" font-size=\"9\" fill=\"#666\">in Dateien</text></svg>");
     }
 

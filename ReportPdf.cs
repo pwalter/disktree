@@ -153,7 +153,7 @@ public static class ReportPdf
         var cards = new List<(string, string)>
         {
             ("Erstellt am", d.Created.ToString("dd.MM.yyyy HH:mm", CultureInfo.CurrentCulture)),
-            ("Gesamtgröße", NodeVM.FormatSize(d.TotalSize)),
+            ("Gesamtgröße", SizeFormat.Format(d.TotalSize)),
             ("Dateien", d.Files.ToString("N0", CultureInfo.CurrentCulture)),
             ("Ordner", d.Dirs.ToString("N0", CultureInfo.CurrentCulture)),
         };
@@ -190,8 +190,8 @@ public static class ReportPdf
         Section(c, "Laufwerk " + d.DriveName, 40);
         HBar(c, M, c.Y, PageW - 2 * M, 12, used / (double)d.DriveTotal, Blue);
         c.Y += 18;
-        var s = $"{NodeVM.FormatSize(used)} belegt von {NodeVM.FormatSize(d.DriveTotal)} ({ReportData.Percent(used, d.DriveTotal)}), {NodeVM.FormatSize(d.DriveFree)} frei.";
-        if (d.PartialDrive) s += $" Gescannt wurde nur ein Teil ({NodeVM.FormatSize(d.TotalSize)}).";
+        var s = $"{SizeFormat.Format(used)} belegt von {SizeFormat.Format(d.DriveTotal)} ({ReportData.Percent(used, d.DriveTotal)}), {SizeFormat.Format(d.DriveFree)} frei.";
+        if (d.PartialDrive) s += $" Gescannt wurde nur ein Teil ({SizeFormat.Format(d.TotalSize)}).";
         Text(c, Fit(c.G, s, c.Body, PageW - 2 * M), c.Body, Ink, M, c.Y);
         c.Y += 16;
     }
@@ -220,7 +220,7 @@ public static class ReportPdf
         {
             if (c.Y + 16 > Bottom) { c.NewPage(); Head(); }
             Text(c, Fit(c.G, f.Path, c.Body, pathW + 60, keepEnd: true), c.Body, Ink, M, c.Y);
-            Text(c, NodeVM.FormatSize(f.Size), c.Body, Ink, xSize, c.Y, true);
+            Text(c, SizeFormat.Format(f.Size), c.Body, Ink, xSize, c.Y, true);
             Text(c, ReportData.Percent(f.Size, d.TotalSize), c.Body, Ink, xPct, c.Y, true);
             HBar(c, xBar - 2, c.Y + 2, wBar - 14, 7, f.Size / (double)max, Blue);
             Text(c, f.Files.ToString("N0", CultureInfo.CurrentCulture), c.Body, Ink, xFiles, c.Y, true);
@@ -247,7 +247,7 @@ public static class ReportPdf
             start += sweep;
         }
         c.G.DrawEllipse(Brush(XColors.White), cx - 34, cy - 34, 68, 68);
-        var total = NodeVM.FormatSize(sum);
+        var total = SizeFormat.Format(sum);
         c.G.DrawString(total, c.Bold, Brush(Ink), cx, cy - 8, XStringFormats.TopCenter);
         c.G.DrawString("in Dateien", c.Small, Brush(Grey), cx, cy + 4, XStringFormats.TopCenter);
 
@@ -265,7 +265,7 @@ public static class ReportPdf
             if (y + 14 > Bottom) { c.NewPage(); y = c.Y; chartBottom = 0; }
             c.G.DrawRectangle(Brush(FromRgb(t.Color)), lx, y + 1.5, 8, 8);
             Text(c, Fit(c.G, t.Name, c.Body, xSize - 70 - lx - 14), c.Body, Ink, lx + 13, y);
-            Text(c, NodeVM.FormatSize(t.Size), c.Body, Ink, xSize, y, true);
+            Text(c, SizeFormat.Format(t.Size), c.Body, Ink, xSize, y, true);
             Text(c, ReportData.Percent(t.Size, sum), c.Body, Ink, xPct, y, true);
             Text(c, t.Count.ToString("N0", CultureInfo.CurrentCulture), c.Body, Ink, xCnt, y, true);
             y += 14;
@@ -305,7 +305,7 @@ public static class ReportPdf
             var a = d.Ages[i];
             c.G.DrawRectangle(Brush(AgeColors[i % AgeColors.Length]), M, c.Y + 1.5, 8, 8);
             Text(c, a.Name, c.Body, Ink, M + 13, c.Y);
-            Text(c, NodeVM.FormatSize(a.Size), c.Body, Ink, xSize, c.Y, true);
+            Text(c, SizeFormat.Format(a.Size), c.Body, Ink, xSize, c.Y, true);
             Text(c, ReportData.Percent(a.Size, sum), c.Body, Ink, xPct, c.Y, true);
             Text(c, a.Count.ToString("N0", CultureInfo.CurrentCulture), c.Body, Ink, xCnt, c.Y, true);
             c.Y += 14;
@@ -338,7 +338,7 @@ public static class ReportPdf
             Text(c, rank.ToString(CultureInfo.CurrentCulture), c.Body, Grey, xRank, c.Y, true);
             Text(c, Fit(c.G, Path.GetFileName(f.Path), c.Body, nameW), c.Body, Ink, xName, c.Y);
             Text(c, Fit(c.G, Path.GetDirectoryName(f.Path) ?? "", c.Small, folderW, keepEnd: true), c.Small, Grey, folderX, c.Y + 1);
-            Text(c, NodeVM.FormatSize(f.Size), c.Body, Ink, xSize, c.Y, true);
+            Text(c, SizeFormat.Format(f.Size), c.Body, Ink, xSize, c.Y, true);
             c.Y += 15;
         }
     }

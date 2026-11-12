@@ -147,7 +147,7 @@ public partial class ComparePanel : UserControl
 
         SummaryText.Text =
             $"Alt: {_oldLabel}\nNeu: {_newLabel}\nVerglichen: {r.CommonPath}\n" +
-            $"Gesamt: {NodeVM.FormatSize(r.OldTotal)} → {NodeVM.FormatSize(r.NewTotal)} ({FormatDelta(delta)})\n" +
+            $"Gesamt: {SizeFormat.Format(r.OldTotal)} → {SizeFormat.Format(r.NewTotal)} ({FormatDelta(delta)})\n" +
             $"{Count(DiffKind.Grown):N0} gewachsen · {Count(DiffKind.Shrunk):N0} geschrumpft · " +
             $"{Count(DiffKind.New):N0} neu · {Count(DiffKind.Removed):N0} entfernt";
     }
@@ -173,9 +173,9 @@ public partial class ComparePanel : UserControl
             var parent = System.IO.Path.GetDirectoryName(r.Path.TrimEnd('\\')) ?? "";
             var sizes = r.Kind switch
             {
-                DiffKind.New => $"neu · {NodeVM.FormatSize(r.NewSize)}",
-                DiffKind.Removed => $"entfernt · {NodeVM.FormatSize(r.OldSize)}",
-                _ => $"{NodeVM.FormatSize(r.OldSize)} → {NodeVM.FormatSize(r.NewSize)}",
+                DiffKind.New => $"neu · {SizeFormat.Format(r.NewSize)}",
+                DiffKind.Removed => $"entfernt · {SizeFormat.Format(r.OldSize)}",
+                _ => $"{SizeFormat.Format(r.OldSize)} → {SizeFormat.Format(r.NewSize)}",
             };
             return new DiffItem
             {
@@ -192,28 +192,21 @@ public partial class ComparePanel : UserControl
     }
 
     public static string FormatDelta(long delta) =>
-        delta == 0 ? "±0" : (delta > 0 ? "+" : "−") + NodeVM.FormatSize(Math.Abs(delta));
+        delta == 0 ? "±0" : (delta > 0 ? "+" : "−") + SizeFormat.Format(Math.Abs(delta));
 
     // Readable on both the light and the dark panel background.
     private static readonly Brush[] LightBrushes =
-        { Frozen(0xC6, 0x28, 0x28), Frozen(0x2E, 0x7D, 0x32), Frozen(0xB2, 0x5E, 0x00), Frozen(0x54, 0x6E, 0x7A) };
+        { BrushFactory.Frozen(0xC6, 0x28, 0x28), BrushFactory.Frozen(0x2E, 0x7D, 0x32), BrushFactory.Frozen(0xB2, 0x5E, 0x00), BrushFactory.Frozen(0x54, 0x6E, 0x7A) };
     private static readonly Brush[] DarkBrushes =
-        { Frozen(0xFF, 0x7B, 0x72), Frozen(0x6F, 0xCF, 0x8B), Frozen(0xF0, 0xB3, 0x5A), Frozen(0x9F, 0xB3, 0xC0) };
+        { BrushFactory.Frozen(0xFF, 0x7B, 0x72), BrushFactory.Frozen(0x6F, 0xCF, 0x8B), BrushFactory.Frozen(0xF0, 0xB3, 0x5A), BrushFactory.Frozen(0x9F, 0xB3, 0xC0) };
 
     private static Brush BrushFor(DiffKind kind, bool dark) => (dark ? DarkBrushes : LightBrushes)[(int)kind];
-
-    private static Brush Frozen(byte r, byte g, byte b)
-    {
-        var br = new SolidColorBrush(Color.FromRgb(r, g, b));
-        br.Freeze();
-        return br;
-    }
 
     // ---------------------------------------------------------------- jump to folder
 
     private void List_DoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if ((e.OriginalSource as DependencyObject) is { } src && FindItem(src) is { } item)
+        if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource)?.DataContext is DiffItem item)
             JumpRequested?.Invoke(item.Path);
     }
 
@@ -224,14 +217,5 @@ public partial class ComparePanel : UserControl
             e.Handled = true;
             JumpRequested?.Invoke(item.Path);
         }
-    }
-
-    private static DiffItem? FindItem(DependencyObject d)
-    {
-        while (d != null && d is not ListBoxItem)
-            d = d is System.Windows.Media.Visual or System.Windows.Media.Media3D.Visual3D
-                ? VisualTreeHelper.GetParent(d)
-                : LogicalTreeHelper.GetParent(d);
-        return (d as ListBoxItem)?.DataContext as DiffItem;
     }
 }

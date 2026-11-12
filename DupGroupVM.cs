@@ -16,10 +16,10 @@ public sealed class DupGroupVM : INotifyPropertyChanged
     }
 
     public long Wasted => Size * (Files.Count - 1);
-    public string Title => $"{Files.Count} × {NodeVM.FormatSize(Size)}";
+    public string Title => $"{Files.Count} × {SizeFormat.Format(Size)}";
     public string Subtitle => Files.Count > 0 ? Files[0].Name : "";
-    public string WastedText => NodeVM.FormatSize(Wasted);
-    public string Detail => $"{Files.Count} identische Dateien à {NodeVM.FormatSize(Size)}: {NodeVM.FormatSize(Wasted)} verschwendet";
+    public string WastedText => SizeFormat.Format(Wasted);
+    public string Detail => $"{Files.Count} identische Dateien à {SizeFormat.Format(Size)}: {SizeFormat.Format(Wasted)} verschwendet";
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

@@ -87,7 +87,7 @@ public partial class MainWindow
             if (c == null)
             {
                 host.UpdateLayout();
-                FindVisual<VirtualizingPanel>(host)?.BringIndexIntoViewPublic(host.Items.IndexOf(rows[i]));
+                VisualTreeHelpers.FindDescendant<VirtualizingPanel>(host)?.BringIndexIntoViewPublic(host.Items.IndexOf(rows[i]));
                 host.UpdateLayout();
                 c = host.ItemContainerGenerator.ContainerFromItem(rows[i]) as TreeViewItem;
             }
@@ -105,16 +105,5 @@ public partial class MainWindow
             }
         }
         return rows[^1];
-    }
-
-    private static T? FindVisual<T>(DependencyObject parent) where T : DependencyObject
-    {
-        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
-        {
-            var child = VisualTreeHelper.GetChild(parent, i);
-            if (child is T t) return t;
-            if (FindVisual<T>(child) is { } found) return found;
-        }
-        return null;
     }
 }

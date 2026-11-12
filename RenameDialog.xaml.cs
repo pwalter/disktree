@@ -49,7 +49,7 @@ public partial class RenameDialog : Window
         else
         {
             Title = "Mehrere umbenennen";
-            Summary.Text = $"{items.Count:N0} Elemente umbenennen · {NodeVM.FormatSize(items.Sum(i => i.Size))}";
+            Summary.Text = $"{items.Count:N0} Elemente umbenennen · {SizeFormat.Format(items.Sum(i => i.Size))}";
             SinglePanel.Visibility = Visibility.Collapsed;
             Loaded += (_, _) => { PatternBox.Focus(); PatternBox.CaretIndex = PatternBox.Text.Length; };
         }

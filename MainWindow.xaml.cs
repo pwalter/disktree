@@ -477,7 +477,7 @@ public partial class MainWindow : Window
         string percent = running && known ? $" · {fraction * 100:0} %" : "";
 
         session.Status =
-            $"{(done ? "Fertig: " : "")}{s.Dirs:N0} Ordner · {s.Files:N0} Dateien · {NodeVM.FormatSize(s.Bytes)}" +
+            $"{(done ? "Fertig: " : "")}{s.Dirs:N0} Ordner · {s.Files:N0} Dateien · {SizeFormat.Format(s.Bytes)}" +
             $" · {s.Errors:N0} nicht lesbar" + (s.Excluded > 0 ? $" · {s.Excluded:N0} ausgeschlossen" : "") +
             $" · {session.Sw.Elapsed:mm\\:ss\\.f}{percent}";
         session.StatusTip = s.Excluded > 0 ? ExcludedTooltip(s) : null;
@@ -549,9 +549,7 @@ public partial class MainWindow : Window
         {
             r = (byte)(r + (255 - r) * 0.45); g = (byte)(g + (255 - g) * 0.45); bl = (byte)(bl + (255 - bl) * 0.45);
         }
-        var b = new SolidColorBrush(Color.FromRgb(r, g, bl));
-        b.Freeze();
-        return (Brush)b;
+        return BrushFactory.Frozen(r, g, bl);
     }).ToArray();
 
     // What the chart describes: the selected folder with everything below it, or just the files of one folder.
@@ -606,16 +604,16 @@ public partial class MainWindow : Window
             .ToList();
 
         string Detail(int i) =>
-            $"{NodeVM.FormatSize(sizes[i])} · {counts[i]:N0} Dateien · {(total > 0 ? (double)sizes[i] / total : 0):P1}";
+            $"{SizeFormat.Format(sizes[i])} · {counts[i]:N0} Dateien · {(total > 0 ? (double)sizes[i] / total : 0):P1}";
 
         Pie.SetData(
             order.Select(i => new PieSlice(FileTypes.All[i].Name, sizes[i], CategoryBrushes[i], Detail(i))).ToList(),
-            NodeVM.FormatSize(total), $"{files:N0} Dateien");
+            SizeFormat.Format(total), $"{files:N0} Dateien");
         Legend.ItemsSource = order.Select(i => new LegendRow
         {
             Brush = CategoryBrushes[i],
             Name = FileTypes.All[i].Name,
-            SizeText = NodeVM.FormatSize(sizes[i]),
+            SizeText = SizeFormat.Format(sizes[i]),
             PercentText = (total > 0 ? (double)sizes[i] / total : 0).ToString("P1"),
             Detail = Detail(i),
         }).ToList();
@@ -660,7 +658,7 @@ public partial class MainWindow : Window
             Name = Path.GetFileName(f.Path),
             Folder = Path.GetDirectoryName(f.Path) ?? "",
             Size = f.Size,
-            SizeText = NodeVM.FormatSize(f.Size),
+            SizeText = SizeFormat.Format(f.Size),
         }).ToList();
 
         TopList.ItemsSource = rows;
@@ -671,7 +669,7 @@ public partial class MainWindow : Window
     private void TopList_RightDown(object sender, MouseButtonEventArgs e)
     {
         // Right click inside a multi-selection keeps it (the menu acts on all of it); elsewhere it selects just that row.
-        if (FindAncestor<ListBoxItem>(e.OriginalSource) is { IsSelected: false } item)
+        if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource) is { IsSelected: false } item)
         {
             TopList.UnselectAll();
             item.IsSelected = true;
@@ -680,14 +678,14 @@ public partial class MainWindow : Window
 
     private void TopList_RightUp(object sender, MouseButtonEventArgs e)
     {
-        if (FindAncestor<ListBoxItem>(e.OriginalSource)?.DataContext is not TopRow row) return;
+        if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource)?.DataContext is not TopRow row) return;
         e.Handled = true;
         ShowFileMenu(row, TopList.PointToScreen(e.GetPosition(TopList)));
     }
 
     private void TopList_DoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (FindAncestor<ListBoxItem>(e.OriginalSource)?.DataContext is TopRow row)
+        if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource)?.DataContext is TopRow row)
             OpenInExplorer(row.Path);
     }
 
@@ -732,12 +730,12 @@ public partial class MainWindow : Window
     // Right click selects the row under the cursor first, like in Explorer.
     private void Tree_RightDown(object sender, MouseButtonEventArgs e)
     {
-        if (FindAncestor<TreeViewItem>(e.OriginalSource) is { } item) item.IsSelected = true;
+        if (VisualTreeHelpers.FindAncestor<TreeViewItem>(e.OriginalSource) is { } item) item.IsSelected = true;
     }
 
     private void Tree_RightUp(object sender, MouseButtonEventArgs e)
     {
-        if (FindAncestor<TreeViewItem>(e.OriginalSource) is not { DataContext: NodeVM vm }) return;
+        if (VisualTreeHelpers.FindAncestor<TreeViewItem>(e.OriginalSource) is not { DataContext: NodeVM vm }) return;
         e.Handled = true;
         ShowTreeMenu(vm, Tree.PointToScreen(e.GetPosition(Tree)));
     }
@@ -798,7 +796,7 @@ public partial class MainWindow : Window
     private static void OpenInExplorer(string path)
     {
         if (!File.Exists(path) && !Directory.Exists(path)) return; // e.g. a stored scan of another machine
-        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true });
+        ShellOpen.InExplorer(path);
     }
 
     private void RunShell(string path, bool isFile, long size, NodeVM? vm, Action action)
@@ -830,13 +828,5 @@ public partial class MainWindow : Window
         _root?.Refresh();
         _ = UpdatePieAsync();
         RefreshTop();
-    }
-
-    private static T? FindAncestor<T>(object? source) where T : DependencyObject
-    {
-        var d = source as DependencyObject;
-        while (d != null && d is not T)
-            d = d is Visual or Visual3D ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d);
-        return d as T;
     }
 }

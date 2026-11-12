@@ -142,7 +142,7 @@ public partial class DuplicatesPanel : UserControl
             long wasted = found.Sum(g => g.Wasted);
             InfoText.Text = found.Count == 0
                 ? $"Keine Duplikate gefunden ({sw.Elapsed:mm\\:ss}, {finder.Errors:N0} nicht lesbar)."
-                : $"{found.Count:N0} Gruppen · {NodeVM.FormatSize(wasted)} verschwendet ({sw.Elapsed:mm\\:ss}" +
+                : $"{found.Count:N0} Gruppen · {SizeFormat.Format(wasted)} verschwendet ({sw.Elapsed:mm\\:ss}" +
                   (finder.Errors > 0 ? $", {finder.Errors:N0} nicht lesbar" : "") + ")";
         }
         catch (OperationCanceledException)
@@ -183,7 +183,7 @@ public partial class DuplicatesPanel : UserControl
             case DupPhase.FullHash:
                 Bar.IsIndeterminate = false;
                 Bar.Value = 0.3 + (p.BytesTotal > 0 ? (double)p.BytesDone / p.BytesTotal * 0.7 : 0);
-                InfoText.Text = $"Prüfe Inhalt: {NodeVM.FormatSize(p.BytesDone)} / {NodeVM.FormatSize(p.BytesTotal)}";
+                InfoText.Text = $"Prüfe Inhalt: {SizeFormat.Format(p.BytesDone)} / {SizeFormat.Format(p.BytesTotal)}";
                 break;
         }
     }
@@ -192,22 +192,22 @@ public partial class DuplicatesPanel : UserControl
 
     private void List_RightDown(object sender, MouseButtonEventArgs e)
     {
-        if (FindAncestor<TreeViewItem>(e.OriginalSource) is { } item) item.IsSelected = true;
+        if (VisualTreeHelpers.FindAncestor<TreeViewItem>(e.OriginalSource) is { } item) item.IsSelected = true;
     }
 
     private void List_RightUp(object sender, MouseButtonEventArgs e)
     {
-        if (FindAncestor<TreeViewItem>(e.OriginalSource)?.DataContext is not DupFileVM file) return;
+        if (VisualTreeHelpers.FindAncestor<TreeViewItem>(e.OriginalSource)?.DataContext is not DupFileVM file) return;
         e.Handled = true;
         ShowMenu(file, List.PointToScreen(e.GetPosition(List)));
     }
 
     private void List_DoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (FindAncestor<TreeViewItem>(e.OriginalSource)?.DataContext is DupFileVM file)
+        if (VisualTreeHelpers.FindAncestor<TreeViewItem>(e.OriginalSource)?.DataContext is DupFileVM file)
         {
             e.Handled = true;
-            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{file.Path}\"") { UseShellExecute = true });
+            ShellOpen.InExplorer(file.Path);
         }
     }
 
@@ -250,14 +250,6 @@ public partial class DuplicatesPanel : UserControl
         else group.Refresh();
 
         long wasted = _groups.Sum(g => g.Wasted);
-        InfoText.Text = _groups.Count == 0 ? "Keine Duplikate mehr." : $"{_groups.Count:N0} Gruppen · {NodeVM.FormatSize(wasted)} verschwendet";
-    }
-
-    private static T? FindAncestor<T>(object? source) where T : DependencyObject
-    {
-        var d = source as DependencyObject;
-        while (d != null && d is not T)
-            d = d is Visual or Visual3D ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d);
-        return d as T;
+        InfoText.Text = _groups.Count == 0 ? "Keine Duplikate mehr." : $"{_groups.Count:N0} Gruppen · {SizeFormat.Format(wasted)} verschwendet";
     }
 }

@@ -85,7 +85,7 @@ public partial class MainWindow
             return;
         }
 
-        string size = info.AssetSize > 0 ? $" ({NodeVM.FormatSize(info.AssetSize)})" : "";
+        string size = info.AssetSize > 0 ? $" ({SizeFormat.Format(info.AssetSize)})" : "";
         var answer = Dialogs.Confirm(this,
             $"Version {info.Version} herunterladen{size} und installieren?\n\nDiskTree startet danach neu und scannt den aktuellen Pfad wieder.", title: "Update");
         if (!answer) return;

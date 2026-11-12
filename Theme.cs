@@ -95,9 +95,7 @@ public static class Theme
 
     private static void Set(string key, Color c)
     {
-        var b = new SolidColorBrush(c);
-        b.Freeze();
-        Application.Current.Resources[key] = b;
+        Application.Current.Resources[key] = BrushFactory.Frozen(c);
     }
 
     private static Color Rgb(byte r, byte g, byte b) => Color.FromRgb(r, g, b);

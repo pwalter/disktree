@@ -5,7 +5,7 @@ namespace DiskTree;
 
 public sealed record SearchHit(string Path, string Name, string Folder, long Size, bool IsDir, Node Node)
 {
-    public string SizeText => NodeVM.FormatSize(Size);
+    public string SizeText => SizeFormat.Format(Size);
     public string Icon => IsDir ? "📁" : "📄";
 
     // Filled for file hits only (the folder search works on the scanned tree, which has no per-folder dates).

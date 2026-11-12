@@ -20,12 +20,7 @@ public partial class OwnerPanel : UserControl
     private static readonly Brush[] Palette = new[]
     {
         0x2F6FED, 0xE0A820, 0x3BA55D, 0xD9534F, 0x8E6BD8, 0x1FA8B8, 0xE8743B, 0x7A8794, 0xC24F9B, 0x5E9C2E,
-    }.Select(c =>
-    {
-        var b = new SolidColorBrush(Color.FromRgb((byte)(c >> 16), (byte)(c >> 8), (byte)c));
-        b.Freeze();
-        return (Brush)b;
-    }).ToArray();
+    }.Select(BrushFactory.Frozen).ToArray();
 
     private string? _path;
     private int _version;
@@ -136,12 +131,12 @@ public partial class OwnerPanel : UserControl
             var row = r.Rows[i];
             var brush = Palette[i % Palette.Length];
             double share = total > 0 ? (double)row.Bytes / total : 0;
-            string detail = $"{NodeVM.FormatSize(row.Bytes)} · {row.Files:N0} Dateien · {share:P1}";
-            rows.Add(new OwnerRowVM { Brush = brush, Name = row.Owner, SizeText = NodeVM.FormatSize(row.Bytes), PercentText = share.ToString("P1"), Detail = detail });
+            string detail = $"{SizeFormat.Format(row.Bytes)} · {row.Files:N0} Dateien · {share:P1}";
+            rows.Add(new OwnerRowVM { Brush = brush, Name = row.Owner, SizeText = SizeFormat.Format(row.Bytes), PercentText = share.ToString("P1"), Detail = detail });
             slices.Add(new PieSlice(row.Owner, row.Bytes, brush, detail));
         }
         OwnerList.ItemsSource = rows;
-        Pie.SetData(slices, NodeVM.FormatSize(total), $"{r.Rows.Sum(x => x.Files):N0} Dateien");
+        Pie.SetData(slices, SizeFormat.Format(total), $"{r.Rows.Sum(x => x.Files):N0} Dateien");
         Pie.Visibility = rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         SummaryText.Text = $"{r.Seen:N0} Dateien gesehen" +
             (sampled ? $", {r.Skipped:N0} kleinere übersprungen (Stichprobe)" : "") +

@@ -193,7 +193,7 @@ public sealed class TreemapView : FrameworkElement
             dc.DrawRectangle(new SolidColorBrush(Fill(top, 0)), gap, top.Rect);
 
             if (top.Header)
-                DrawText(dc, $"{top.Name}  ·  {NodeVM.FormatSize(top.Size)}", FaceBold, 11.5, ink,
+                DrawText(dc, $"{top.Name}  ·  {SizeFormat.Format(top.Size)}", FaceBold, 11.5, ink,
                     new Rect(top.Rect.Left + 5, top.Rect.Top + 1.5, top.Rect.Width - 8, HeaderHeight));
             else if (top.Kids.Count == 0 && top.Rect.Width >= 56 && top.Rect.Height >= 20)
                 DrawLabel(dc, top, ink);
@@ -225,7 +225,7 @@ public sealed class TreemapView : FrameworkElement
         var box = new Rect(r.Left + 4, r.Top + 2, r.Width - 7, r.Height - 3);
         DrawText(dc, item.Name, Face, 11.5, ink, new Rect(box.Left, box.Top, box.Width, 16));
         if (r.Height >= 36)
-            DrawText(dc, NodeVM.FormatSize(item.Size), Face, 10.5, Theme.Muted, new Rect(box.Left, box.Top + 15, box.Width, 15));
+            DrawText(dc, SizeFormat.Format(item.Size), Face, 10.5, Theme.Muted, new Rect(box.Left, box.Top + 15, box.Width, 15));
     }
 
     private void DrawText(DrawingContext dc, string text, Typeface face, double size, Color color, Rect box, bool center = false)
@@ -252,7 +252,7 @@ public sealed class TreemapView : FrameworkElement
         {
             double g = item.Node == null ? (dark ? 0.30 : 0.80) : (dark ? 0.36 : 0.86);
             if (level == 1) g += dark ? 0.04 : 0.05;
-            return Hsv(215, 0.08, g);
+            return BrushFactory.Hsv(215, 0.08, g);
         }
 
         uint hash = 2166136261;
@@ -260,23 +260,8 @@ public sealed class TreemapView : FrameworkElement
         double hue = hash % 360;
 
         return level == 0
-            ? Hsv(hue, dark ? 0.38 : 0.30, dark ? 0.40 : 0.86)
-            : Hsv(hue, dark ? 0.36 : 0.24, dark ? 0.52 : 0.94);
-    }
-
-    private static Color Hsv(double h, double s, double v)
-    {
-        double c = v * s, x = c * (1 - Math.Abs(h / 60 % 2 - 1)), m = v - c;
-        (double r, double g, double b) = (int)(h / 60) switch
-        {
-            0 => (c, x, 0.0),
-            1 => (x, c, 0.0),
-            2 => (0.0, c, x),
-            3 => (0.0, x, c),
-            4 => (x, 0.0, c),
-            _ => (c, 0.0, x),
-        };
-        return Color.FromRgb((byte)((r + m) * 255), (byte)((g + m) * 255), (byte)((b + m) * 255));
+            ? BrushFactory.Hsv(hue, dark ? 0.38 : 0.30, dark ? 0.40 : 0.86)
+            : BrushFactory.Hsv(hue, dark ? 0.36 : 0.24, dark ? 0.52 : 0.94);
     }
 
     // ---------------------------------------------------------------- mouse
@@ -326,6 +311,6 @@ public sealed class TreemapView : FrameworkElement
         string pct = total > 0 ? (item.Size / total).ToString("P1") : "–";
         string name = item.IsFiles ? $"Dateien in {item.Node!.Name}" : item.Name;
         string path = item.Node != null && !item.IsFiles ? "\n" + item.Node.FullPath : "";
-        return $"{name}{path}\n{NodeVM.FormatSize(item.Size)} · {pct} von {FocusNode?.Name}\n{item.Files:N0} Dateien";
+        return $"{name}{path}\n{SizeFormat.Format(item.Size)} · {pct} von {FocusNode?.Name}\n{item.Files:N0} Dateien";
     }
 }

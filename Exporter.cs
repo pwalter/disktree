@@ -45,7 +45,7 @@ public static class Exporter
                 n.Name.Length == 0 ? n.FullPath : n.Name,
                 n.FullPath,
                 size.ToString(CultureInfo.InvariantCulture),
-                NodeVM.FormatSize(size),
+                SizeFormat.Format(size),
                 Interlocked.Read(ref n.FileCount).ToString(CultureInfo.InvariantCulture),
                 Interlocked.Read(ref n.DirCount).ToString(CultureInfo.InvariantCulture),
                 (size * 100.0 / total).ToString("0.##", CultureInfo.CurrentCulture),
@@ -73,7 +73,7 @@ public static class Exporter
                 Path.GetDirectoryName(f.Path) ?? "",
                 f.Path,
                 f.Size.ToString(CultureInfo.InvariantCulture),
-                NodeVM.FormatSize(f.Size));
+                SizeFormat.Format(f.Size));
         }
         return rank;
     }

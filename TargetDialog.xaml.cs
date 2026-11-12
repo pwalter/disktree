@@ -26,7 +26,7 @@ public partial class TargetDialog : Window
         int dirs = items.Count(i => i.IsDir);
         string what = items.Count == 1 ? (items[0].IsDir ? "1 Ordner" : "1 Datei")
             : dirs == 0 ? $"{items.Count:N0} Dateien" : $"{items.Count:N0} Elemente ({dirs:N0} Ordner)";
-        Summary.Text = $"{what} · {NodeVM.FormatSize(size)}";
+        Summary.Text = $"{what} · {SizeFormat.Format(size)}";
         Names.Text = string.Join("\n", items.Take(40).Select(i => i.Path)) + (items.Count > 40 ? $"\n… und {items.Count - 40:N0} weitere" : "");
         TargetBox.Text = initial;
 

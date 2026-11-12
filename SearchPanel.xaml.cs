@@ -156,18 +156,10 @@ public partial class SearchPanel : UserControl
         }
     }
 
-    private static ListBoxItem? FindItem(object? source)
-    {
-        var d = source as DependencyObject;
-        while (d != null && d is not ListBoxItem)
-            d = d is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d);
-        return d as ListBoxItem;
-    }
-
     private void Results_RightDown(object sender, MouseButtonEventArgs e)
     {
         // Inside a multi-selection the right click keeps it; elsewhere it selects just that row.
-        if (FindItem(e.OriginalSource) is { IsSelected: false } item)
+        if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource) is { IsSelected: false } item)
         {
             Results.UnselectAll();
             item.IsSelected = true;
@@ -176,14 +168,14 @@ public partial class SearchPanel : UserControl
 
     private void Results_RightUp(object sender, MouseButtonEventArgs e)
     {
-        if (FindItem(e.OriginalSource)?.DataContext is not SearchHit hit) return;
+        if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource)?.DataContext is not SearchHit hit) return;
         e.Handled = true;
         ShowMenu?.Invoke(hit, Results.PointToScreen(e.GetPosition(Results)));
     }
 
     private void Results_DoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (FindItem(e.OriginalSource)?.DataContext is SearchHit hit) Navigate?.Invoke(hit);
+        if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource)?.DataContext is SearchHit hit) Navigate?.Invoke(hit);
     }
 
     private void Results_KeyDown(object sender, KeyEventArgs e)

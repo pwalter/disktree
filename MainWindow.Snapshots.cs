@@ -71,7 +71,7 @@ public partial class MainWindow
         try
         {
             await Task.Run(() => SnapshotStore.Save(file, scanner, at));
-            SetStatus(session, $"Scan gespeichert: {file} ({NodeVM.FormatSize(new FileInfo(file).Length)})");
+            SetStatus(session, $"Scan gespeichert: {file} ({SizeFormat.Format(new FileInfo(file).Length)})");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -139,7 +139,7 @@ public partial class MainWindow
         StatusText.ToolTip = null;
         SetStatus(s,
             $"Gespeicherter Scan vom {StampText(scanner.ScannedAt)}: {t.DirCount + 1:N0} Ordner · {t.FileCount:N0} Dateien · " +
-            $"{NodeVM.FormatSize(t.Size)} · {t.FullPath}");
+            $"{SizeFormat.Format(t.Size)} · {t.FullPath}");
         UpdateTitle();
         _ = UpdatePieAsync();
         RefreshTop();

@@ -17,18 +17,18 @@ public sealed class NodeVM : INotifyPropertyChanged
 
     private static readonly Brush?[] BarCache = new Brush?[202];
     private static readonly Brush?[] TextCache = new Brush?[202];
-    private static readonly Brush Gray = Frozen(Color.FromRgb(0x9A, 0xA0, 0xA8));
-    private static readonly Brush DarkGrayLight = Frozen(Color.FromRgb(0x6B, 0x72, 0x7B));
-    private static readonly Brush DarkGrayDark = Frozen(Color.FromRgb(0x9A, 0xA1, 0xAA));
-    private static readonly Brush InkLight = Frozen(Color.FromRgb(0x1F, 0x23, 0x29));
-    private static readonly Brush InkDark = Frozen(Color.FromRgb(0xE8, 0xEA, 0xED));
+    private static readonly Brush Gray = BrushFactory.Frozen(0x9A, 0xA0, 0xA8);
+    private static readonly Brush DarkGrayLight = BrushFactory.Frozen(0x6B, 0x72, 0x7B);
+    private static readonly Brush DarkGrayDark = BrushFactory.Frozen(0x9A, 0xA1, 0xAA);
+    private static readonly Brush InkLight = BrushFactory.Frozen(0x1F, 0x23, 0x29);
+    private static readonly Brush InkDark = BrushFactory.Frozen(0xE8, 0xEA, 0xED);
     private static Brush DarkGray => Theme.IsDark ? DarkGrayDark : DarkGrayLight;
     private static Brush Ink => Theme.IsDark ? InkDark : InkLight;
-    private static readonly Brush Gold = Frozen(Color.FromRgb(0xE0, 0xA8, 0x20));
-    private static readonly Brush FreeBrushLight = Frozen(Color.FromRgb(0x9C, 0xC4, 0xEE));
-    private static readonly Brush RestBrushLight = Frozen(Color.FromRgb(0xD6, 0xC8, 0xB0));
-    private static readonly Brush FreeBrushDark = Frozen(Color.FromRgb(0x3F, 0x6E, 0xA0));
-    private static readonly Brush RestBrushDark = Frozen(Color.FromRgb(0x6E, 0x62, 0x4C));
+    private static readonly Brush Gold = BrushFactory.Frozen(0xE0, 0xA8, 0x20);
+    private static readonly Brush FreeBrushLight = BrushFactory.Frozen(0x9C, 0xC4, 0xEE);
+    private static readonly Brush RestBrushLight = BrushFactory.Frozen(0xD6, 0xC8, 0xB0);
+    private static readonly Brush FreeBrushDark = BrushFactory.Frozen(0x3F, 0x6E, 0xA0);
+    private static readonly Brush RestBrushDark = BrushFactory.Frozen(0x6E, 0x62, 0x4C);
     private static Brush FreeBrush => Theme.IsDark ? FreeBrushDark : FreeBrushLight;
     private static Brush RestBrush => Theme.IsDark ? RestBrushDark : RestBrushLight;
 
@@ -71,7 +71,7 @@ public sealed class NodeVM : INotifyPropertyChanged
         Kind.Dummy => "Lade…",
         Kind.Files => $"Dateien ({_node!.FileCount:N0})",
         Kind.Dir when _node!.DriveTotal > 0 =>
-            $"{_node.Name}   {FormatSize(_node.DriveTotal)} gesamt · {FormatSize(_node.DriveFree)} frei",
+            $"{_node.Name}   {SizeFormat.Format(_node.DriveTotal)} gesamt · {SizeFormat.Format(_node.DriveFree)} frei",
         _ => _node!.Name,
     };
 
@@ -117,7 +117,7 @@ public sealed class NodeVM : INotifyPropertyChanged
     public Brush NameBrush => Kind is Kind.Files or Kind.Space ? DarkGray : Ink;
     public double NameWidth => Math.Max(60, NameColumn - Level * Indent);
 
-    public string SizeText => Kind == Kind.Dummy ? "" : IsPending ? FormatSize(Size) + " …" : FormatSize(Size);
+    public string SizeText => Kind == Kind.Dummy ? "" : IsPending ? SizeFormat.Format(Size) + " …" : SizeFormat.Format(Size);
     public string PercentText => Kind == Kind.Dummy ? "" : (Percent * 100).ToString("0.#", CultureInfo.CurrentCulture) + " %";
     public string FilesText => Kind is Kind.Dummy or Kind.Space ? "" : _node!.FileCount.ToString("N0", CultureInfo.CurrentCulture);
 
@@ -128,7 +128,7 @@ public sealed class NodeVM : INotifyPropertyChanged
         {
             if (Kind is not (Kind.Dir or Kind.Files)) return "";
             long old = Kind == Kind.Dir ? AgeBuckets.OldSize(_node!) : AgeBuckets.OldOwnSize(Parent!._node!);
-            return old <= 0 ? "–" : FormatSize(old);
+            return old <= 0 ? "–" : SizeFormat.Format(old);
         }
     }
 
@@ -395,41 +395,14 @@ public sealed class NodeVM : INotifyPropertyChanged
         }
     }
 
-    public static string FormatSize(long bytes)
-    {
-        string[] units = { "B", "KB", "MB", "GB", "TB", "PB" };
-        double v = bytes;
-        int u = 0;
-        while (v >= 1024 && u < units.Length - 1) { v /= 1024; u++; }
-        return u == 0
-            ? $"{bytes:N0} B"
-            : v.ToString(v >= 100 ? "0" : "0.0", CultureInfo.CurrentCulture) + " " + units[u];
-    }
+    /// <summary>Kept for the tests; the app uses <see cref="SizeFormat.Format"/>.</summary>
+    public static string FormatSize(long bytes) => SizeFormat.Format(bytes);
 
     // Green (small share) -> yellow -> orange -> red (large share).
     private static Brush Cached(Brush?[] cache, double percent, double s, double v)
     {
         int i = Math.Clamp((int)Math.Round(percent * 100), 0, 100);
         int slot = Theme.IsDark ? i + 101 : i; // separate entries per theme
-        return cache[slot] ??= Frozen(Hsv(130 * (1 - Math.Pow(i / 100.0, 0.6)), s, v));
-    }
-
-    private static Color Hsv(double h, double s, double v)
-    {
-        double c = v * s, x = c * (1 - Math.Abs(h / 60 % 2 - 1)), m = v - c;
-        (double r, double g, double b) = h switch
-        {
-            < 60 => (c, x, 0.0),
-            < 120 => (x, c, 0.0),
-            _ => (0.0, c, x),
-        };
-        return Color.FromRgb((byte)((r + m) * 255), (byte)((g + m) * 255), (byte)((b + m) * 255));
-    }
-
-    private static Brush Frozen(Color c)
-    {
-        var b = new SolidColorBrush(c);
-        b.Freeze();
-        return b;
+        return cache[slot] ??= BrushFactory.Frozen(BrushFactory.Hsv(130 * (1 - Math.Pow(i / 100.0, 0.6)), s, v));
     }
 }

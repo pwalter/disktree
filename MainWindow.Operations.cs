@@ -198,7 +198,7 @@ public partial class MainWindow
         }
 
         string text = created
-            ? $"ZIP erstellt: {Path.GetFileName(choice.Target)} ({NodeVM.FormatSize(new FileInfo(choice.Target).Length)}, {res.Done.Count:N0} von {items.Count:N0} Elementen vollständig)."
+            ? $"ZIP erstellt: {Path.GetFileName(choice.Target)} ({SizeFormat.Format(new FileInfo(choice.Target).Length)}, {res.Done.Count:N0} von {items.Count:N0} Elementen vollständig)."
             : "ZIP wurde nicht erstellt.";
 
         OpResult? recycled = null;
@@ -206,7 +206,7 @@ public partial class MainWindow
         {
             long bytes = res.Done.Sum(i => i.Size);
             if (Dialogs.Confirm(this,
-                    $"{res.Done.Count:N0} vollständig archivierte Originale ({NodeVM.FormatSize(bytes)}) jetzt in den Papierkorb legen?"))
+                    $"{res.Done.Count:N0} vollständig archivierte Originale ({SizeFormat.Format(bytes)}) jetzt in den Papierkorb legen?"))
             {
                 var hwnd = new WindowInteropHelper(this).Handle;
                 var done = res.Done.ToList();
@@ -265,7 +265,7 @@ public partial class MainWindow
             ? "\n\nAchtung: Von mindestens einer Dublettengruppe sind alle Kopien in der Auswahl. Danach gäbe es die Datei nur noch im Papierkorb."
             : "";
         if (!Dialogs.Confirm(this,
-                $"{what} mit zusammen {NodeVM.FormatSize(size)} in den Papierkorb verschieben?\n\n{names}{warn}", MessageBoxImage.Warning))
+                $"{what} mit zusammen {SizeFormat.Format(size)} in den Papierkorb verschieben?\n\n{names}{warn}", MessageBoxImage.Warning))
             return;
 
         var hwnd = new WindowInteropHelper(this).Handle;
@@ -378,7 +378,7 @@ public partial class MainWindow
 
     private void Report(string verb, List<OpItem> items, OpResult res, string? hint)
     {
-        string text = $"{verb}: {res.Done.Count:N0} von {items.Count:N0} ({NodeVM.FormatSize(res.DoneBytes)})";
+        string text = $"{verb}: {res.Done.Count:N0} von {items.Count:N0} ({SizeFormat.Format(res.DoneBytes)})";
         if (res.Skipped.Count > 0) text += $", {res.Skipped.Count:N0} übersprungen";
         if (res.Failed.Count > 0) text += $", {res.Failed.Count:N0} Fehler";
         StatusText.Text = text + ".";
