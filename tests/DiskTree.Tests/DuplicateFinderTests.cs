@@ -1,4 +1,5 @@
 using System.IO;
+using DiskTree.Features.Duplicates;
 using Xunit;
 
 namespace DiskTree.Tests;

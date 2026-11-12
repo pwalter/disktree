@@ -59,6 +59,28 @@ dotnet build -c Release
 powershell -ExecutionPolicy Bypass -File publish.ps1   # erzeugt dist\DiskTree.exe
 ```
 
+## Aufbau
+
+Alle Quelldateien liegen unter dem Namespace `DiskTree`, je Ordner ein Unter-Namespace (`DiskTree.Core`, `DiskTree.Features.Search` …).
+
+| Ordner | Inhalt |
+| --- | --- |
+| `Core/` | Scanner, Knoten (`Node`), Ausschlussregeln, Pfadlisten, Dateityp- und Alters-Klassen, Größenformat |
+| `Core/Snapshots/` | Gespeicherte Scans (`.disktree`): Lesen und Schreiben, Vergleich zweier Scans |
+| `Features/Search/` | Suche in Baum und Dateisystem samt Datums- und Attributfiltern |
+| `Features/Duplicates/` | Duplikate-Suche (Größe, Teil-Hash, SHA-256) und Duplikate-Tab |
+| `Features/Owner/` | Besitzer und Rechte, Speicher pro Besitzer |
+| `Features/Treemap/` | Treemap-Layout und Zeichnung |
+| `Features/Reports/` | CSV-Export sowie HTML- und PDF-Bericht |
+| `Features/FileOperations/` | Aufräumen: verschieben, ZIP, umbenennen, Papierkorb |
+| `Features/Update/` | Self-Update über GitHub-Releases |
+| `Features/Explorer/` | Eintrag im Explorer-Kontextmenü |
+| `Infrastructure/` | Einstellungen, Portable-Modus, Kommandozeile, Shell-Kontextmenü, Administrator-Neustart, Explorer öffnen |
+| `Ui/` | Hauptfenster (`MainWindow*`), Tabs, Dialoge, Diagramm, Theme, ViewModels (`NodeVM`), Hilfsklassen (`Dialogs`, `BrushFactory`, `VisualTreeHelpers`) |
+| `tests/` | xUnit-Tests (`dotnet test tests/DiskTree.Tests`) und `ui-smoke.ps1` |
+
+Im Wurzelordner bleiben `App.xaml`, `DiskTree.csproj`, `app.ico` und `publish.ps1`. Feature-Ordner enthalten vorerst Logik und die zugehörigen Ansichten (Panels) gemeinsam.
+
 ## Release veröffentlichen
 
 Jeder Push auf `main` baut beide Dateien und legt automatisch ein Release mit Prüfsummen an. Die Version ist das Datum plus laufende Nummer des Tages (`2026.11.12.1`, `2026.11.12.2`, …, deutsche Zeit).

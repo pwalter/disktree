@@ -1,0 +1,14 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+indent_style = space
+indent_size = 4
+
+[*.{csproj,yml,json}]
+indent_size = 2
+
+[*.cs]
+# File-scoped Namespaces werden bewusst nicht erzwungen.
+csharp_style_namespace_declarations = block_scoped:silent

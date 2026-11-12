@@ -1,4 +1,6 @@
 using System.IO;
+using DiskTree.Core;
+using DiskTree.Features.Search;
 using Xunit;
 
 namespace DiskTree.Tests;

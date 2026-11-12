@@ -1,4 +1,8 @@
 using System.Windows;
+using DiskTree.Features.Explorer;
+using DiskTree.Features.Update;
+using DiskTree.Infrastructure;
+using DiskTree.Ui;
 
 namespace DiskTree;
 
@@ -17,7 +21,7 @@ public partial class App : Application
             return;
         }
 
-        DiskTree.Portable.ForcedByFlag = Options.Portable;
+        Portable.ForcedByFlag = Options.Portable;
         Updater.CleanupOld();
         ExplorerIntegration.RefreshIfStale();
         Theme.Init(AppSettings.Load().Theme);

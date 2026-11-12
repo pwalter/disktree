@@ -1,0 +1,101 @@
+<Window x:Class="DiskTree.Ui.RenameDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:DiskTree.Ui"
+        Title="Umbenennen" Width="640" Height="520" MinWidth="520" MinHeight="300" SizeToContent="Manual"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource WindowBg}" Foreground="{DynamicResource Ink}" FontFamily="Segoe UI" FontSize="13">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="Summary" FontWeight="SemiBold" FontSize="14" TextWrapping="Wrap" />
+
+        <!-- one item: just the new name -->
+        <StackPanel x:Name="SinglePanel" Grid.Row="1" Margin="0,10,0,0">
+            <TextBlock Text="Neuer Name" Margin="0,0,0,4" />
+            <TextBox x:Name="NameBox" Height="30" VerticalContentAlignment="Center" TextChanged="Input_Changed" />
+        </StackPanel>
+
+        <!-- several items: pattern or search / replace -->
+        <StackPanel x:Name="MultiPanel" Grid.Row="2" Margin="0,10,0,0">
+            <StackPanel Orientation="Horizontal">
+                <RadioButton x:Name="PatternRadio" Content="Muster" IsChecked="True" Checked="Input_Changed" Margin="0,0,16,0" />
+                <RadioButton x:Name="ReplaceRadio" Content="Suchen und ersetzen" Checked="Input_Changed" />
+            </StackPanel>
+
+            <Grid x:Name="PatternPanel" Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="70" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="Muster" Margin="0,0,0,4" />
+                    <TextBox x:Name="PatternBox" Height="30" VerticalContentAlignment="Center" Text="{}{name}_{n}" TextChanged="Input_Changed" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="Zähler ab" VerticalAlignment="Bottom" Margin="12,0,6,6" Foreground="{DynamicResource Muted}" />
+                <TextBox x:Name="StartBox" Grid.Column="2" Height="30" VerticalContentAlignment="Center" VerticalAlignment="Bottom" Text="1"
+                         TextChanged="Input_Changed" />
+            </Grid>
+            <TextBlock x:Name="PatternHint" Margin="0,4,0,0" FontSize="11" Foreground="{DynamicResource Subtle}" TextWrapping="Wrap"
+                       Text="{}{name} Name ohne Endung · {n} Zähler, {n:3} mit führenden Nullen · {date} Änderungsdatum. Dateiendungen bleiben erhalten." />
+
+            <Grid x:Name="ReplacePanel" Margin="0,8,0,0" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="Suchen" Margin="0,0,0,4" />
+                    <TextBox x:Name="FindBox" Height="30" VerticalContentAlignment="Center" TextChanged="Input_Changed" />
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Ersetzen durch" Margin="0,0,0,4" />
+                    <TextBox x:Name="ReplBox" Height="30" VerticalContentAlignment="Center" TextChanged="Input_Changed" />
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+
+        <Border x:Name="PreviewBorder" Grid.Row="3" Margin="0,12,0,0" Background="{DynamicResource PanelBg}"
+                BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1" CornerRadius="6">
+            <ListBox x:Name="Preview" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource Ink}"
+                     HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled" Padding="2">
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type local:PreviewRow}">
+                        <Grid Margin="0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding Old}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Muted}" ToolTip="{Binding Old}" />
+                            <TextBlock Grid.Column="1" Text="→" Margin="8,0" Foreground="{DynamicResource Subtle}" />
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="{Binding New}" TextTrimming="CharacterEllipsis" ToolTip="{Binding New}" />
+                                <TextBlock Text="{Binding Problem}" FontSize="11" Foreground="#D6453D" Visibility="{Binding ProblemVisibility}" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+
+        <Grid Grid.Row="4" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="Status" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,0,12,0" />
+            <Button x:Name="OkButton" Grid.Column="1" Content="Umbenennen" MinWidth="100" Height="30" Padding="14,0" IsDefault="True" Click="Ok_Click" />
+            <Button Grid.Column="2" Content="Abbrechen" Width="90" Height="30" Margin="8,0,0,0" IsCancel="True" />
+        </Grid>
+    </Grid>
+</Window>

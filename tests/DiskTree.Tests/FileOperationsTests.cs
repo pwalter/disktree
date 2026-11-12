@@ -1,5 +1,6 @@
 using System.IO;
 using System.IO.Compression;
+using DiskTree.Features.FileOperations;
 using Xunit;
 
 namespace DiskTree.Tests;

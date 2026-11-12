@@ -1,0 +1,89 @@
+<UserControl x:Class="DiskTree.Ui.ScanTabs"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:DiskTree.Ui">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="B2V" />
+
+        <!-- Small flat button: the close cross of a tab and the "+" -->
+        <Style x:Key="TabGlyphButton" TargetType="Button">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource Muted}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="4" Width="{TemplateBinding Width}" Height="{TemplateBinding Height}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" TextElement.Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource TrackBg}" />
+                                <Setter Property="Foreground" Value="{DynamicResource Ink}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <DataTemplate x:Key="TabTemplate" DataType="{x:Type local:ScanSession}">
+            <Border x:Name="Bd" MinWidth="96" MaxWidth="210" Margin="0,0,2,0" Padding="9,5,3,5" Cursor="Hand"
+                    CornerRadius="6,6,0,0" Background="Transparent" BorderBrush="Transparent" BorderThickness="1,1,1,0"
+                    ToolTip="{Binding Tip}" Focusable="False"
+                    MouseLeftButtonDown="Tab_Down" MouseUp="Tab_Up">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <!-- running scan in this tab -->
+                    <Ellipse Width="7" Height="7" Margin="0,0,6,0" VerticalAlignment="Center" Fill="{DynamicResource Accent}"
+                             Visibility="{Binding IsBusy, Converter={StaticResource B2V}}" ToolTip="Scan läuft" />
+                    <TextBlock x:Name="Caption" Grid.Column="1" Text="{Binding Title}" TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center" Foreground="{DynamicResource Muted}" />
+                    <Button Grid.Column="2" Content="✕" FontSize="10" Width="20" Height="20" Margin="4,0,0,0"
+                            Style="{StaticResource TabGlyphButton}" Click="Close_Click" ToolTip="Tab schließen (Strg+W)" />
+                    <Rectangle x:Name="Mark" Grid.ColumnSpan="3" Height="2" VerticalAlignment="Top" Margin="-9,-5,-3,0"
+                               Fill="{DynamicResource Accent}" Visibility="Collapsed" />
+                </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PanelBg}" />
+                    <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource PanelBorder}" />
+                    <Setter TargetName="Caption" Property="Foreground" Value="{DynamicResource Ink}" />
+                    <Setter TargetName="Caption" Property="FontWeight" Value="SemiBold" />
+                    <Setter TargetName="Mark" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsActive}" Value="False" />
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource TrackBg}" />
+                </MultiDataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <!-- With many tabs the strip scrolls (mouse wheel); the "+" stays next to the last tab. -->
+        <ScrollViewer x:Name="Scroller" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
+                      PreviewMouseWheel="Scroller_Wheel" Focusable="False">
+            <ItemsControl x:Name="Items" ItemTemplate="{StaticResource TabTemplate}" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+        </ScrollViewer>
+        <Button Grid.Column="1" Content="+" FontSize="16" Width="26" Height="26" Margin="4,0,0,2" VerticalAlignment="Center"
+                Style="{StaticResource TabGlyphButton}" Click="New_Click" ToolTip="Neuer Scan-Tab (Strg+T)" />
+    </Grid>
+</UserControl>

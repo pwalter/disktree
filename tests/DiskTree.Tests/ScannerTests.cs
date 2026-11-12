@@ -1,5 +1,8 @@
 using System.Diagnostics;
 using System.IO;
+using DiskTree.Core;
+using DiskTree.Features.FileOperations;
+using DiskTree.Ui;
 using Xunit;
 
 namespace DiskTree.Tests;
