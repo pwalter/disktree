@@ -140,8 +140,7 @@ public partial class MainWindow : Window
     private void Admin_Click(object sender, RoutedEventArgs e)
     {
         // Hand the current path over so the elevated instance starts scanning it right away.
-        var path = NormalizePath(PathBox.Text);
-        var args = Directory.Exists(path) ? new[] { path } : Array.Empty<string>();
+        var args = PathList.Parse(PathBox.Text).Where(Directory.Exists).ToArray();
 
         if (AdminHelper.RestartElevated(args))
             Application.Current.Shutdown();
@@ -159,13 +158,13 @@ public partial class MainWindow : Window
         if (dlg.ShowDialog(this) == true) PathBox.Text = dlg.FolderName;
     }
 
-    // Dropping a folder (or a file: its folder) on the window scans it.
+    // Dropping folders (or files: their folders) on the window scans them; several at once are scanned together.
     private async void Window_Drop(object sender, DragEventArgs e)
     {
         if (e.Data.GetData(DataFormats.FileDrop) is not string[] { Length: > 0 } files) return;
-        var path = files[0];
-        if (File.Exists(path)) path = Path.GetDirectoryName(path)!;
-        await ScanPathAsync(path);
+        var paths = files.Select(f => File.Exists(f) ? Path.GetDirectoryName(f)! : f)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        await ScanPathAsync(paths.Count == 1 ? paths[0] : PathList.Join(paths));
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -210,14 +209,17 @@ public partial class MainWindow : Window
     {
         if (_cts != null) return;
 
-        var path = NormalizePath(PathBox.Text);
-        if (!Directory.Exists(path))
+        var paths = PathList.Parse(PathBox.Text);
+        if (paths.Count == 0) paths.Add(""); // reports "Pfad nicht gefunden" like before
+        var missing = paths.Where(p => !Directory.Exists(p)).ToList();
+        if (missing.Count > 0)
         {
-            MessageBox.Show(this, $"Pfad nicht gefunden:\n{path}", "DiskTree", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, $"Pfad nicht gefunden:\n{string.Join("\n", missing)}", "DiskTree", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
-        path = Path.GetFullPath(path);
-        _settings.LastPath = path;
+        paths = PathList.Reduce(paths);
+        var path = paths[0];
+        _settings.LastPath = PathList.Join(paths);
 
         await RunAsync(ct =>
         {
@@ -231,7 +233,9 @@ public partial class MainWindow : Window
 
             // ScanAsync creates the tree (drive -> ... -> scanned folder) and starts the workers synchronously,
             // so the tree can be shown right away and fills up while the scan is running.
-            var scan = scanner.ScanAsync(path, (int)ThreadsBox.SelectedItem, ct);
+            var scan = paths.Count > 1
+                ? scanner.ScanManyAsync(paths, (int)ThreadsBox.SelectedItem, ct)
+                : scanner.ScanAsync(path, (int)ThreadsBox.SelectedItem, ct);
             _scanTarget = scanner.ScanTarget;
             _root = new NodeVM(scanner.Root!, Kind.Dir, null, 0) { IsExpanded = true };
             Tree.ItemsSource = new[] { _root };
@@ -241,7 +245,9 @@ public partial class MainWindow : Window
     }
 
     private Task RescanAsync(Node? node) =>
-        node == null || _scanner == null ? Task.CompletedTask : _scanTask = StartRescan(node);
+        node == null || _scanner == null ? Task.CompletedTask
+        : _scanner.IsMulti && node == _scanner.Root ? BeginScan() // the artificial root: scan all paths again
+        : _scanTask = StartRescan(node);
 
     /// <summary>
     /// Scans one folder of the existing tree again, in place. Its row and everything above it get new numbers,
@@ -579,7 +585,8 @@ public partial class MainWindow : Window
     }
 
     // The "Dateien" row stands for a whole folder's files, so it gets no menu: "Löschen" there would hit the folder.
-    private static bool CanUseShell(NodeVM vm) => vm.Kind is Kind.Dir or Kind.File;
+    // The artificial "Mehrere Pfade" root has no path either.
+    private static bool CanUseShell(NodeVM vm) => vm.Kind is Kind.Dir or Kind.File && vm.Path.Length > 0;
 
     private void ShowTreeMenu(NodeVM vm, Point screenPos)
     {

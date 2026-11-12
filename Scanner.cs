@@ -102,6 +102,9 @@ public sealed class Scanner
     /// <summary>The folder that was actually scanned (the drive itself, or a folder somewhere below it).</summary>
     public Node? ScanTarget { get; private set; }
 
+    /// <summary>The tree was built by <see cref="ScanManyAsync"/>: Root is an artificial node above several scanned paths.</summary>
+    public bool IsMulti { get; private set; }
+
     /// <summary>Bytes the scan is expected to find (used space of the drive), or 0 when unknown.</summary>
     public long ExpectedBytes { get; private set; }
 
@@ -157,11 +160,29 @@ public sealed class Scanner
     public Node? FindNode(string path)
     {
         var cur = Root;
-        if (cur == null || !path.StartsWith(cur.FullPath, StringComparison.OrdinalIgnoreCase)) return null;
+        if (cur == null) return null;
 
-        foreach (var part in path[cur.FullPath.Length..].Split('\\', StringSplitOptions.RemoveEmptyEntries))
+        if (IsMulti)
         {
-            cur = cur.Snapshot().FirstOrDefault(c => string.Equals(c.Name, part, StringComparison.OrdinalIgnoreCase));
+            // The artificial root has no path: pick the scanned path that contains the requested one.
+            if (path.Length == 0) return cur;
+            var p = path.TrimEnd('\\') + "\\";
+            var top = cur.Snapshot().FirstOrDefault(c => p.StartsWith(c.FullPath.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase));
+            if (top == null) return null;
+            path = path[Math.Min(path.Length, top.FullPath.TrimEnd('\\').Length)..];
+            cur = top;
+            return Descend(cur, path);
+        }
+
+        if (!path.StartsWith(cur.FullPath, StringComparison.OrdinalIgnoreCase)) return null;
+        return Descend(cur, path[cur.FullPath.Length..]);
+    }
+
+    private static Node? Descend(Node cur, string rest)
+    {
+        foreach (var part in rest.Split('\\', StringSplitOptions.RemoveEmptyEntries))
+        {
+            cur = cur.Snapshot().FirstOrDefault(c => string.Equals(c.Name, part, StringComparison.OrdinalIgnoreCase))!;
             if (cur == null) return null;
         }
         return cur;
@@ -229,8 +250,33 @@ public sealed class Scanner
         ScanTarget = root;
         if (top.DriveTotal > 0 && !top.PartialDrive)
             ExpectedBytes = Math.Max(0, top.DriveTotal - top.DriveFree);
-        await RunAsync(root, threads, ct);
+        await RunAsync(new[] { root }, threads, ct);
         return root;
+    }
+
+    /// <summary>
+    /// Scans several paths into one tree below an artificial root node (<see cref="IsMulti"/>); its numbers are the
+    /// total. Each path is a direct child of the root (named by its full path, no drive capacity, works for UNC paths).
+    /// Callers pass at least two paths that do not contain one another (see <see cref="PathList.Reduce"/>).
+    /// </summary>
+    public async Task<Node> ScanManyAsync(IReadOnlyList<string> paths, int threads, CancellationToken ct)
+    {
+        var top = new Node { Name = "Mehrere Pfade", FullPath = "", Open = paths.Count, Scanned = true };
+        var starts = new List<Node>();
+        foreach (var p in paths)
+        {
+            var full = Path.GetFullPath(p);
+            var child = new Node { Name = full, FullPath = full, Parent = top, Open = 1 };
+            top.AddChild(child);
+            starts.Add(child);
+        }
+
+        IsMulti = true;
+        Root = top;
+        ScanTarget = top;
+        ExpectedBytes = 0;
+        await RunAsync(starts, threads, ct);
+        return top;
     }
 
     /// <summary>
@@ -280,15 +326,15 @@ public sealed class Scanner
         Interlocked.Exchange(ref _errors, 0);
         RemoveTop(node.FullPath);
 
-        await RunAsync(node, threads, ct);
+        await RunAsync(new[] { node }, threads, ct);
     }
 
-    private async Task RunAsync(Node start, int threads, CancellationToken ct)
+    private async Task RunAsync(IReadOnlyList<Node> starts, int threads, CancellationToken ct)
     {
         using var queue = new BlockingCollection<Node>(new ConcurrentQueue<Node>());
 
-        _pending = 1;
-        queue.Add(start);
+        _pending = starts.Count;
+        foreach (var start in starts) queue.Add(start);
         Signal();
 
         var workers = Enumerable.Range(0, threads)
@@ -298,7 +344,7 @@ public sealed class Scanner
 
         await Task.WhenAll(workers);
         ct.ThrowIfCancellationRequested();
-        ReadDrive(Root!);
+        if (!IsMulti) ReadDrive(Root!);
     }
 
     private void Worker(BlockingCollection<Node> queue, CancellationToken ct)
