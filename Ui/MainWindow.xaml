@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:DiskTree"
         Title="DiskTree" Width="1340" Height="780" MinWidth="1100" MinHeight="420"
-        Icon="app.ico" AllowDrop="True" Drop="Window_Drop" PreviewKeyDown="Window_PreviewKeyDown"
+        Icon="/app.ico" AllowDrop="True" Drop="Window_Drop" PreviewKeyDown="Window_PreviewKeyDown"
         Background="{DynamicResource WindowBg}" Foreground="{DynamicResource Ink}" FontFamily="Segoe UI" FontSize="13">
 
     <Window.TaskbarItemInfo>
