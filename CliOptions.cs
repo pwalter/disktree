@@ -22,6 +22,7 @@ public sealed class CliOptions
         "                        Name mit * und ? (*.tmp) oder kompletter Pfad (C:\\Windows\\Temp)\n" +
         "      --admin           Direkt als Administrator neu starten (UAC-Abfrage), ohne Rückfrage\n" +
         "      --no-admin-prompt Die Frage nach Administratorrechten in diesem Start überspringen\n" +
+        "      --no-update-check Beim Start nicht nach einer neuen Version suchen\n" +
         "  -h, --help, /?        Diese Hilfe\n" +
         "\n" +
         "Beispiele:\n" +
@@ -37,6 +38,7 @@ public sealed class CliOptions
     public List<string> Excludes { get; } = new();
     public bool Admin { get; private set; }
     public bool NoAdminPrompt { get; private set; }
+    public bool NoUpdateCheck { get; private set; }
     public bool Help { get; private set; }
     public string? Error { get; private set; }
 
@@ -55,6 +57,9 @@ public sealed class CliOptions
                     break;
                 case "--admin" or "/admin":
                     o.Admin = true;
+                    break;
+                case "--no-update-check":
+                    o.NoUpdateCheck = true;
                     break;
                 case "--no-admin-prompt":
                     o.NoAdminPrompt = true;

@@ -75,6 +75,7 @@ public partial class MainWindow : Window
         Theme.Changed += () => { _root?.RefreshTheme(); _ = UpdatePieAsync(); };
         ShowThemeButton();
         InitTabChips();
+        InitUpdate();
         ShowExcludeButton();
         InitAge();
         Loaded += OnLoaded;

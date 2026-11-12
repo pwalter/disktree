@@ -25,6 +25,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Lets the self updater know which download (full or slim) matches the running build. -->
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>SelfContained</_Parameter1>
+      <_Parameter2>$(SelfContained)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
     <Resource Include="app.ico" />
     <Compile Remove="tests\**" />
     <Page Remove="tests\**" />
