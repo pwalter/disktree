@@ -130,10 +130,12 @@
 
         <!-- Toolbar -->
         <Grid Grid.Row="0" Grid.ColumnSpan="2" Margin="0,0,0,10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -153,19 +155,23 @@
             <Button x:Name="ScanButton" Grid.Column="4" Content="Scannen" Height="32" MinWidth="110" Margin="16,0,0,0"
                     Style="{StaticResource ToolButton}" Click="Scan_Click" IsDefault="True"
                     ToolTip="Scannen / Abbrechen (Esc). F5 scannt den markierten Ordner neu." />
-            <Button x:Name="ThemeButton" Grid.Column="5" Height="32" MinWidth="96" Margin="16,0,0,0"
-                    Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="Theme_Click"
-                    ToolTip="Darstellung: Windows folgen / Hell / Dunkel" />
-            <Button x:Name="ExcludeButton" Grid.Column="6" Content="Ausschlüsse…" Height="32" Margin="16,0,0,0"
-                    Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="Exclude_Click"
-                    ToolTip="Ordner, die der Scan überspringt (gilt ab dem nächsten Scan)" />
-            <StackPanel Grid.Column="6" Orientation="Horizontal" Margin="16,0,0,0">
-                <Button x:Name="SnapshotSaveButton" Content="💾 Scan speichern…" Height="32"
+            <!-- second toolbar row: files, exclusions, appearance -->
+            <StackPanel Grid.Row="1" Grid.ColumnSpan="5" Orientation="Horizontal" Margin="0,8,0,0">
+                <Button x:Name="SnapshotSaveButton" Content="💾 Scan speichern…" Height="30"
                         Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="SaveSnapshot_Click"
                         ToolTip="Den Scan als .disktree-Datei speichern (später ohne Neuscan wieder öffnen oder vergleichen)" />
-                <Button Content="📂 Scan öffnen…" Height="32" Margin="6,0,0,0"
+                <Button Content="📂 Scan öffnen…" Height="30" Margin="6,0,0,0"
                         Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="OpenSnapshot_Click"
                         ToolTip="Gespeicherten Scan öffnen (oder .disktree-Datei auf das Fenster ziehen)" />
+                <Button x:Name="ExportButton" Content="Exportieren…" Height="30" Margin="6,0,0,0"
+                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="Export_Click"
+                        ToolTip="Baum oder größte Dateien als CSV (Excel) exportieren" />
+                <Button x:Name="ExcludeButton" Content="Ausschlüsse…" Height="30" Margin="16,0,0,0"
+                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="Exclude_Click"
+                        ToolTip="Ordner, die der Scan überspringt (gilt ab dem nächsten Scan)" />
+                <Button x:Name="ThemeButton" Height="30" MinWidth="96" Margin="6,0,0,0"
+                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="Theme_Click"
+                        ToolTip="Darstellung: Windows folgen / Hell / Dunkel" />
             </StackPanel>
         </Grid>
 
