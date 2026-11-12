@@ -21,7 +21,7 @@ public partial class SearchPanel : UserControl
     /// <summary>Keys the host handles for the selection (F2, Delete on several hits); returns true if it used the key.</summary>
     public Func<Key, bool>? ExtraKeyDown { get; set; }
 
-    public IReadOnlyList<SearchHit> SelectedHits => Results.SelectedItems.OfType<SearchHit>().ToList();
+    public IReadOnlyList<SearchHit> SelectedHits => Results.SelectedItems.OfType<SearchHitRow>().Select(r => r.Hit).ToList();
 
     public SearchPanel()
     {
@@ -47,8 +47,8 @@ public partial class SearchPanel : UserControl
     /// <summary>Removes hits that are gone from disk (after a delete through the shell menu).</summary>
     public void PruneMissing()
     {
-        if (Results.ItemsSource is not List<SearchHit> list) return;
-        var rest = list.Where(h => h.IsDir ? System.IO.Directory.Exists(h.Path) : System.IO.File.Exists(h.Path)).ToList();
+        if (Results.ItemsSource is not List<SearchHitRow> list) return;
+        var rest = list.Where(r => r.Hit.IsDir ? System.IO.Directory.Exists(r.Hit.Path) : System.IO.File.Exists(r.Hit.Path)).ToList();
         if (rest.Count != list.Count) Results.ItemsSource = rest;
     }
 
@@ -134,7 +134,7 @@ public partial class SearchPanel : UserControl
         try
         {
             var result = await Task.Run(() => SearchEngine.Run(query, progress, ct), ct);
-            Results.ItemsSource = result.Hits;
+            Results.ItemsSource = result.Hits.Select(h => new SearchHitRow(h)).ToList();
             StatusText.Text = result.Hits.Count == 0
                 ? $"Keine Treffer ({result.FoldersVisited:N0} Ordner geprüft)."
                 : $"{result.Hits.Count:N0} Treffer" + (result.Truncated ? $" (auf {SearchEngine.MaxHits:N0} begrenzt, Suche eingrenzen)" : "")
@@ -169,19 +169,19 @@ public partial class SearchPanel : UserControl
 
     private void Results_RightUp(object sender, MouseButtonEventArgs e)
     {
-        if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource)?.DataContext is not SearchHit hit) return;
+        if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource)?.DataContext is not SearchHitRow { Hit: var hit }) return;
         e.Handled = true;
         ShowMenu?.Invoke(hit, Results.PointToScreen(e.GetPosition(Results)));
     }
 
     private void Results_DoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource)?.DataContext is SearchHit hit) Navigate?.Invoke(hit);
+        if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource)?.DataContext is SearchHitRow row) Navigate?.Invoke(row.Hit);
     }
 
     private void Results_KeyDown(object sender, KeyEventArgs e)
     {
-        if (Results.SelectedItem is not SearchHit hit) return;
+        if (Results.SelectedItem is not SearchHitRow { Hit: var hit }) return;
         if (ExtraKeyDown?.Invoke(e.Key) == true) { e.Handled = true; return; }
         if (e.Key == Key.Enter)
         {

@@ -99,7 +99,7 @@
                  PreviewMouseRightButtonDown="Results_RightDown" MouseRightButtonUp="Results_RightUp"
                  MouseDoubleClick="Results_DoubleClick" PreviewKeyDown="Results_KeyDown">
             <ListBox.ItemTemplate>
-                <DataTemplate DataType="{x:Type local:SearchHit}">
+                <DataTemplate DataType="{x:Type local:SearchHitRow}">
                     <Grid Margin="0,3" ToolTip="{Binding ToolTipText}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
