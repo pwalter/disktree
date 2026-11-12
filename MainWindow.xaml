@@ -122,8 +122,8 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="370" />
+            <ColumnDefinition Width="*" MinWidth="560" />
+            <ColumnDefinition Width="370" MinWidth="300" />
         </Grid.ColumnDefinitions>
 
         <!-- Toolbar -->
@@ -178,10 +178,16 @@
                 <TreeView.ItemContainerStyle>
                     <Style TargetType="TreeViewItem">
                         <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                        <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
                     </Style>
                 </TreeView.ItemContainerStyle>
             </TreeView>
         </Border>
+
+        <!-- Drag to make the side panel (treemap) wider -->
+        <GridSplitter Grid.Row="1" Grid.RowSpan="2" Grid.Column="0" Width="10" HorizontalAlignment="Right"
+                      VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext"
+                      ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Ziehen, um das Seitenpanel zu verbreitern" />
 
         <!-- Side panel: file types / largest files -->
         <Border Grid.Row="1" Grid.RowSpan="2" Grid.Column="1" Background="{DynamicResource PanelBg}" BorderBrush="{DynamicResource PanelBorder}"
@@ -201,6 +207,9 @@
                             <ItemsControl x:Name="Legend" ItemTemplate="{StaticResource LegendRow}" />
                         </ScrollViewer>
                     </Grid>
+                </TabItem>
+                <TabItem Header="Treemap">
+                    <local:TreemapPanel x:Name="Treemap" Margin="0,2,0,0" NodeClicked="Treemap_NodeClicked" />
                 </TabItem>
                 <TabItem Header="Größte Dateien">
                     <ListBox x:Name="TopList" BorderThickness="0" Background="Transparent"
