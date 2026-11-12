@@ -243,15 +243,15 @@ public sealed class NodeVM : INotifyPropertyChanged
             if (_free == null)
             {
                 _free = new NodeVM(new Node { Name = FreeName }, Kind.Space, this, Level + 1);
-                _rest = new NodeVM(new Node
-                {
-                    Name = _node.PartialDrive ? "Rest des Laufwerks (nicht gescannt)" : "Nicht erfasst (Systemdateien, fehlende Rechte)",
-                }, Kind.Space, this, Level + 1);
+                _rest = new NodeVM(new Node(), Kind.Space, this, Level + 1);
                 Children.Add(_free);
                 Children.Add(_rest);
             }
             _free._node!.Size = _node.DriveFree;
-            _rest!._node!.Size = Math.Max(0, _node.DriveTotal - _node.DriveFree - _node.Size);
+            _rest!._node!.Name = _node.PartialDrive
+                ? "Rest des Laufwerks (nicht gescannt)"
+                : "Nicht erfasst (Systemdateien, fehlende Rechte" + (_node.Excluded > 0 ? $", {_node.Excluded:N0} ausgeschlossen" : "") + ")";
+            _rest._node!.Size = Math.Max(0, _node.DriveTotal - _node.DriveFree - _node.Size);
         }
 
         // With only a subfolder scanned, the drive's free/unscanned rows go first: below the (expanded) scanned

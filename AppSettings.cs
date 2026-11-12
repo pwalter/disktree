@@ -12,6 +12,8 @@ public sealed class AppSettings
     public double Height { get; set; }
     public bool Maximized { get; set; }
     public ThemeSetting Theme { get; set; } = ThemeSetting.System;
+    /// <summary>Folder patterns the scan skips (see <see cref="ExcludeRules"/>).</summary>
+    public List<string> Excludes { get; set; } = new();
 
     private static readonly string FilePath =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DiskTree", "settings.json");
