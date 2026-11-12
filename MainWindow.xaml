@@ -212,6 +212,9 @@
                              MouseDoubleClick="TopList_DoubleClick"
                              PreviewKeyDown="TopList_KeyDown" />
                 </TabItem>
+                <TabItem Header="Besitzer">
+                    <local:OwnerPanel x:Name="OwnerTab" Margin="0,4,0,0" />
+                </TabItem>
             </TabControl>
         </Border>
 
