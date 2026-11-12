@@ -611,7 +611,7 @@ public partial class MainWindow : Window
         Pie.SetData(
             order.Select(i => new PieSlice(FileTypes.All[i].Name, sizes[i], CategoryBrushes[i], Detail(i))).ToList(),
             NodeVM.FormatSize(total), $"{files:N0} Dateien");
-        Legend.ItemsSource = order.Select(i => new TypeRow
+        Legend.ItemsSource = order.Select(i => new LegendRow
         {
             Brush = CategoryBrushes[i],
             Name = FileTypes.All[i].Name,
@@ -842,22 +842,4 @@ public partial class MainWindow : Window
             d = d is Visual or Visual3D ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d);
         return d as T;
     }
-}
-
-public sealed class TypeRow
-{
-    public required Brush Brush { get; init; }
-    public required string Name { get; init; }
-    public required string SizeText { get; init; }
-    public required string PercentText { get; init; }
-    public required string Detail { get; init; }
-}
-
-public sealed class TopRow
-{
-    public required string Path { get; init; }
-    public required string Name { get; init; }
-    public required string Folder { get; init; }
-    public required long Size { get; init; }
-    public required string SizeText { get; init; }
 }

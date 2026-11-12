@@ -1,22 +1,5 @@
 namespace DiskTree;
 
-public enum DiffKind { Grown, Shrunk, New, Removed }
-
-/// <summary>One folder that differs between two scans.</summary>
-public sealed record DiffRow(string Path, string Name, DiffKind Kind, long OldSize, long NewSize, long OldFiles, long NewFiles)
-{
-    public long Delta => NewSize - OldSize;
-}
-
-public sealed class CompareResult
-{
-    public required List<DiffRow> Rows { get; init; }
-    /// <summary>The folder both scans cover; only what is below it was compared.</summary>
-    public required string CommonPath { get; init; }
-    public long OldTotal { get; init; }
-    public long NewTotal { get; init; }
-}
-
 /// <summary>Compares two scans by folder path: which folders grew, shrank, are new or were removed.</summary>
 public static class SnapshotCompare
 {

@@ -3,27 +3,6 @@ using System.IO.Enumeration;
 
 namespace DiskTree;
 
-public sealed partial record SearchHit(string Path, string Name, string Folder, long Size, bool IsDir, Node Node)
-{
-    public string SizeText => NodeVM.FormatSize(Size);
-    public string Icon => IsDir ? "📁" : "📄";
-}
-
-public sealed class SearchQuery
-{
-    public required Node Scope { get; init; }
-    public string Text { get; init; } = "";
-    public long MinSize { get; init; }
-    /// <summary>Lower-case extensions including the dot (".mp4"); empty = any.</summary>
-    public string[] Extensions { get; init; } = [];
-    /// <summary>Search files on disk instead of folders in the scanned tree.</summary>
-    public bool Files { get; init; }
-    /// <summary>Date / attribute conditions (files only); null = none.</summary>
-    public FileFilter? Filter { get; init; }
-}
-
-public sealed record SearchResult(List<SearchHit> Hits, bool Truncated, int FoldersVisited);
-
 /// <summary>
 /// Folder search walks the in-memory node tree. File search (names / extensions) enumerates the folders of the
 /// tree from disk, because the scanner does not keep single files.

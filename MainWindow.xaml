@@ -37,7 +37,7 @@
             </Setter>
         </Style>
 
-        <DataTemplate x:Key="LegendRow" DataType="{x:Type local:TypeRow}">
+        <DataTemplate x:Key="LegendRow" DataType="{x:Type local:LegendRow}">
             <Grid Margin="0,3">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />

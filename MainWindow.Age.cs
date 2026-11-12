@@ -76,7 +76,7 @@ public partial class MainWindow
         AgePie.SetData(
             rows.Select(i => new PieSlice(AgeBuckets.Names[i], sizes[i], AgeBrushes[i], Detail(i))).ToList(),
             NodeVM.FormatSize(total), $"{files:N0} Dateien");
-        AgeLegend.ItemsSource = Enumerable.Range(0, AgeBuckets.Count).Select(i => new TypeRow
+        AgeLegend.ItemsSource = Enumerable.Range(0, AgeBuckets.Count).Select(i => new LegendRow
         {
             Brush = AgeBrushes[i],
             Name = AgeBuckets.Names[i],
