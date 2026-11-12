@@ -62,6 +62,8 @@ public partial class MainWindow : Window
             AdminButton.Visibility = Visibility.Collapsed;
         }
 
+        Theme.Changed += () => _root?.RefreshTheme();
+        ShowThemeButton();
         Loaded += OnLoaded;
         Closing += OnClosing;
     }
@@ -113,6 +115,27 @@ public partial class MainWindow : Window
         _settings.LastPath = PathBox.Text.Trim().Trim('"');
         _settings.Save();
     }
+
+    private void Theme_Click(object sender, RoutedEventArgs e)
+    {
+        // Windows -> Hell -> Dunkel -> Windows ...
+        _settings.Theme = _settings.Theme switch
+        {
+            ThemeSetting.System => ThemeSetting.Light,
+            ThemeSetting.Light => ThemeSetting.Dark,
+            _ => ThemeSetting.System,
+        };
+        Theme.Setting = _settings.Theme;
+        ShowThemeButton();
+    }
+
+    private void ShowThemeButton() =>
+        ThemeButton.Content = _settings.Theme switch
+        {
+            ThemeSetting.Light => "☀ Hell",
+            ThemeSetting.Dark => "🌙 Dunkel",
+            _ => "🌗 Windows",
+        };
 
     private void Admin_Click(object sender, RoutedEventArgs e)
     {
@@ -238,9 +261,13 @@ public partial class MainWindow : Window
 
         await RunAsync(ct =>
         {
+            // The previous scan's last change event may never have been acknowledged (the UI had already
+            // finished); without this the scanner stays silent and the row would not update.
+            scanner.Acknowledge();
             var scan = scanner.RescanAsync(node, (int)ThreadsBox.SelectedItem, ct);
             _root?.FindDescendant(node)?.ResetForRescan();
             _scanTarget = scanner.ScanTarget;
+            _root?.Refresh(); // spinner and "…" right away
             return scan;
         });
     }
@@ -301,7 +328,12 @@ public partial class MainWindow : Window
         // Let more changes pile up, then acknowledge first so anything arriving during the redraw
         // raises a new event instead of being lost.
         await Task.Delay(RefreshDelay);
-        if (scanner != _scanner || _root == null || _cts == null) return;
+        if (scanner != _scanner) return;
+        if (_root == null || _cts == null)
+        {
+            scanner.Acknowledge(); // nothing to show now, but do not swallow the next scan's events
+            return;
+        }
 
         scanner.Acknowledge();
         UpdateStatus(running: true);
