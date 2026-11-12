@@ -256,6 +256,9 @@
                 <TabItem x:Name="SearchTab" Header="Suche">
                     <local:SearchPanel x:Name="SearchPane" />
                 </TabItem>
+                <TabItem Header="Duplikate">
+                    <local:DuplicatesPanel x:Name="Dup" />
+                </TabItem>
             </TabControl>
         </Border>
 

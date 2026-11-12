@@ -16,6 +16,8 @@ public sealed class AppSettings
     public ThemeSetting Theme { get; set; } = ThemeSetting.System;
     /// <summary>Folder patterns the scan skips (see <see cref="ExcludeRules"/>).</summary>
     public List<string> Excludes { get; set; } = new();
+    /// <summary>Duplicate search ignores files smaller than this.</summary>
+    public long DuplicateMinBytes { get; set; } = 1 << 20;
 
     private static readonly string FilePath =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DiskTree", "settings.json");
