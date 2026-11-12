@@ -135,6 +135,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <ComboBox x:Name="PathBox" IsEditable="True" Height="32" VerticalContentAlignment="Center"
                       FontSize="14" />
@@ -153,6 +154,9 @@
             <Button x:Name="ThemeButton" Grid.Column="5" Height="32" MinWidth="96" Margin="16,0,0,0"
                     Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="Theme_Click"
                     ToolTip="Darstellung: Windows folgen / Hell / Dunkel" />
+            <Button x:Name="ExcludeButton" Grid.Column="6" Content="Ausschlüsse…" Height="32" Margin="16,0,0,0"
+                    Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="Exclude_Click"
+                    ToolTip="Ordner, die der Scan überspringt (gilt ab dem nächsten Scan)" />
         </Grid>
 
         <!-- Column header -->

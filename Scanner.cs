@@ -14,6 +14,7 @@ public sealed class Node
     public long Size;       // incl. all descendants (grows while scanning)
     public long FileCount;  // incl. all descendants
     public long DirCount;   // incl. all descendants
+    public long Excluded;   // subfolders skipped by an exclusion rule, incl. all descendants
 
     // All files directly inside this folder are aggregated into one entry.
     public long OwnSize;
@@ -92,6 +93,28 @@ public sealed class Scanner
     public long Bytes => Interlocked.Read(ref _bytes);
     public long Errors => Interlocked.Read(ref _errors);
     public string Current => _current;
+
+    /// <summary>Folders to skip. Set before ScanAsync / RescanAsync; null = skip nothing.</summary>
+    public ExcludeRules? Excludes { get; set; }
+
+    /// <summary>Folders skipped by an exclusion rule in the current (re)scan.</summary>
+    public long Excluded => Interlocked.Read(ref _excluded);
+
+    private long _excluded;
+    private const int ExcludedListMax = 200;
+    private readonly List<string> _excludedPaths = new();
+
+    /// <summary>The first few skipped folders (for a tooltip).</summary>
+    public string[] ExcludedPaths() { lock (_excludedPaths) return _excludedPaths.ToArray(); }
+
+    private void NoteExcluded(Node dir, string path)
+    {
+        Interlocked.Increment(ref _excluded);
+        for (var n = dir; n != null; n = n.Parent)
+            Interlocked.Increment(ref n.Excluded);
+        lock (_excludedPaths)
+            if (_excludedPaths.Count < ExcludedListMax) _excludedPaths.Add(path);
+    }
 
     /// <summary>
     /// Top of the tree: always the drive (e.g. "C:\"). Available right after ScanAsync was called;
@@ -297,10 +320,11 @@ public sealed class Scanner
             Interlocked.Add(ref n.Size, -node.Size);
             Interlocked.Add(ref n.FileCount, -node.FileCount);
             Interlocked.Add(ref n.DirCount, -node.DirCount);
+            Interlocked.Add(ref n.Excluded, -node.Excluded);
             Interlocked.Add(ref n.Open, 1 - oldOpen);
         }
 
-        node.Size = node.FileCount = node.DirCount = 0;
+        node.Size = node.FileCount = node.DirCount = node.Excluded = 0;
         node.OwnSize = node.OwnCount = 0;
         node.OwnTypes = null;
         node.ClearChildren();
@@ -324,6 +348,8 @@ public sealed class Scanner
         Interlocked.Exchange(ref _dirs, 0);
         Interlocked.Exchange(ref _bytes, 0);
         Interlocked.Exchange(ref _errors, 0);
+        Interlocked.Exchange(ref _excluded, 0);
+        lock (_excludedPaths) _excludedPaths.Clear();
         RemoveTop(node.FullPath);
 
         await RunAsync(new[] { node }, threads, ct);
@@ -412,6 +438,12 @@ public sealed class Scanner
                 {
                     // Junctions / symlinks would double count or loop.
                     if (e.Reparse) continue;
+
+                    if (Excludes is { IsEmpty: false } rules && rules.IsExcluded(e.Name!, dir.FullPath))
+                    {
+                        NoteExcluded(dir, Path.Join(dir.FullPath, e.Name));
+                        continue;
+                    }
 
                     var child = new Node
                     {

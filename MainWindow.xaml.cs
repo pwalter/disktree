@@ -64,6 +64,7 @@ public partial class MainWindow : Window
 
         Theme.Changed += () => _root?.RefreshTheme();
         ShowThemeButton();
+        ShowExcludeButton();
         Loaded += OnLoaded;
         Closing += OnClosing;
     }
@@ -114,6 +115,24 @@ public partial class MainWindow : Window
         _settings.Threads = ThreadsBox.SelectedItem is int t ? t : 16;
         _settings.LastPath = PathBox.Text.Trim().Trim('"');
         _settings.Save();
+    }
+
+    // ---- exclusions: saved ones plus those from the command line (--exclude) ----
+    private ExcludeRules CurrentExcludes() => new(_settings.Excludes.Concat(App.Options.Excludes));
+
+    private void ShowExcludeButton()
+    {
+        int n = _settings.Excludes.Count + App.Options.Excludes.Count;
+        ExcludeButton.Content = n > 0 ? $"Ausschlüsse ({n})…" : "Ausschlüsse…";
+    }
+
+    private void Exclude_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new ExcludeDialog(_settings.Excludes) { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+        _settings.Excludes = dlg.Result;
+        _settings.Save();
+        ShowExcludeButton();
     }
 
     private void Theme_Click(object sender, RoutedEventArgs e)
@@ -223,7 +242,7 @@ public partial class MainWindow : Window
 
         await RunAsync(ct =>
         {
-            var scanner = _scanner = new Scanner();
+            var scanner = _scanner = new Scanner { Excludes = CurrentExcludes() };
             // Event instead of polling: the scanner reports changes from its worker threads, the UI reacts.
             scanner.Changed += () => Dispatcher.InvokeAsync(() => OnScannerChanged(scanner), DispatcherPriority.Background);
             _root = null;
@@ -270,6 +289,7 @@ public partial class MainWindow : Window
             // The previous scan's last change event may never have been acknowledged (the UI had already
             // finished); without this the scanner stays silent and the row would not update.
             scanner.Acknowledge();
+            scanner.Excludes = CurrentExcludes(); // the same rules as the scan (incl. changes made since)
             var scan = scanner.RescanAsync(node, (int)ThreadsBox.SelectedItem, ct);
             _root?.FindDescendant(node)?.ResetForRescan();
             _scanTarget = scanner.ScanTarget;
@@ -353,6 +373,13 @@ public partial class MainWindow : Window
             RefreshTop();
     }
 
+    private static string ExcludedTooltip(Scanner s)
+    {
+        var paths = s.ExcludedPaths();
+        var text = "Ausgeschlossene Ordner (nicht gescannt):\n" + string.Join("\n", paths.Take(15));
+        return s.Excluded > 15 ? text + $"\n… und {s.Excluded - 15:N0} weitere" : text;
+    }
+
     private void UpdateStatus(bool running, bool done = false)
     {
         if (_scanner == null) return;
@@ -364,7 +391,9 @@ public partial class MainWindow : Window
 
         StatusText.Text =
             $"{(done ? "Fertig: " : "")}{s.Dirs:N0} Ordner · {s.Files:N0} Dateien · {NodeVM.FormatSize(s.Bytes)}" +
-            $" · {s.Errors:N0} nicht lesbar · {_sw.Elapsed:mm\\:ss\\.f}{percent}";
+            $" · {s.Errors:N0} nicht lesbar" + (s.Excluded > 0 ? $" · {s.Excluded:N0} ausgeschlossen" : "") +
+            $" · {_sw.Elapsed:mm\\:ss\\.f}{percent}";
+        StatusText.ToolTip = s.Excluded > 0 ? ExcludedTooltip(s) : null;
         CurrentText.Text = running ? s.Current : "";
 
         if (running)
