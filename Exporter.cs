@@ -4,7 +4,7 @@ using System.Text;
 
 namespace DiskTree;
 
-public enum ExportKind { Subtree, WholeScan, TopFiles }
+public enum ExportKind { Subtree, WholeScan, TopFiles, ReportHtml, ReportPdf }
 
 /// <summary>
 /// CSV export (semicolon separated, UTF-8 with BOM, so German Excel opens it directly).
