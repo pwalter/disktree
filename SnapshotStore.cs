@@ -18,6 +18,8 @@ public sealed class LoadedSnapshot
     public long ExpectedBytes { get; init; }
     public required SnapshotInfo Info { get; init; }
     public int Version { get; init; }
+    /// <summary>Timestamp the age buckets were built from (absent in older files = last modified).</summary>
+    public AgeStamp AgeStamp { get; init; }
 }
 
 /// <summary>
@@ -76,6 +78,7 @@ public static class SnapshotStore
         json.WriteString("target", target.FullPath);
         json.WriteString("machine", Environment.MachineName);
         json.WriteNumber("expected", expected);
+        json.WriteString("ageStamp", AgeStamps.ToKey(AgeStamps.Current));
         json.WriteEndObject();
         EndLine();
 
@@ -208,6 +211,7 @@ public static class SnapshotStore
                 ExpectedBytes = Num(h, "expected"),
                 Info = new SnapshotInfo(at, targetPath, Str(h, "machine") ?? ""),
                 Version = version,
+                AgeStamp = AgeStamps.FromKey(Str(h, "ageStamp")),
             };
         }
         catch (JsonException ex)

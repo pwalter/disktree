@@ -3,7 +3,7 @@ using System.IO.Enumeration;
 
 namespace DiskTree;
 
-public sealed record SearchHit(string Path, string Name, string Folder, long Size, bool IsDir, Node Node)
+public sealed partial record SearchHit(string Path, string Name, string Folder, long Size, bool IsDir, Node Node)
 {
     public string SizeText => NodeVM.FormatSize(Size);
     public string Icon => IsDir ? "📁" : "📄";
@@ -18,6 +18,8 @@ public sealed class SearchQuery
     public string[] Extensions { get; init; } = [];
     /// <summary>Search files on disk instead of folders in the scanned tree.</summary>
     public bool Files { get; init; }
+    /// <summary>Date / attribute conditions (files only); null = none.</summary>
+    public FileFilter? Filter { get; init; }
 }
 
 public sealed record SearchResult(List<SearchHit> Hits, bool Truncated, int FoldersVisited);
@@ -71,15 +73,23 @@ public static class SearchEngine
         var options = new EnumerationOptions { AttributesToSkip = 0, IgnoreInaccessible = true };
         try
         {
-            var entries = new FileSystemEnumerable<(string Name, long Length)>(node.FullPath,
-                (ref FileSystemEntry e) => (e.FileName.ToString(), e.IsDirectory ? -1L : e.Length), options);
-            foreach (var (name, len) in entries)
+            var entries = new FileSystemEnumerable<(string Name, long Length, FileAttributes Attr, long Modified, long Created, long Accessed)>(node.FullPath,
+                (ref FileSystemEntry e) => (e.FileName.ToString(), e.IsDirectory ? -1L : e.Length, e.Attributes,
+                    e.LastWriteTimeUtc.UtcTicks, e.CreationTimeUtc.UtcTicks, e.LastAccessTimeUtc.UtcTicks), options);
+            var filter = q.Filter is { IsEmpty: false } f ? f : null;
+            foreach (var (name, len, attr, modified, created, accessed) in entries)
             {
                 if (len < 0 || len < q.MinSize) continue;
                 if (q.Text.Length > 0 && !name.Contains(q.Text, StringComparison.OrdinalIgnoreCase)) continue;
                 if (q.Extensions.Length > 0 && !q.Extensions.Contains(System.IO.Path.GetExtension(name).ToLowerInvariant())) continue;
+                if (filter != null && !filter.Matches(attr, modified, created, accessed)) continue;
                 if (hits.Count >= MaxHits) return false;
-                hits.Add(new SearchHit(System.IO.Path.Join(node.FullPath, name), name, node.FullPath, len, false, node));
+                hits.Add(new SearchHit(System.IO.Path.Join(node.FullPath, name), name, node.FullPath, len, false, node)
+                {
+                    Modified = modified, Created = created, Accessed = accessed, Attributes = attr,
+                    ShownStamp = filter?.Stamp,
+                    ShowAttributes = filter is { Attributes.Length: > 0 },
+                });
             }
         }
         catch { /* folder vanished or is not readable */ }

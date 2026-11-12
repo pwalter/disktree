@@ -256,6 +256,7 @@ public sealed partial class Scanner
         // The tree always starts at the drive; a scan of a subfolder hangs below a chain of
         // placeholder nodes (one per path component), so percentages can refer to the whole drive.
         AgeBuckets.SetReference(DateTime.UtcNow);
+        AgeStamps.BeginScan();
         var full = Path.GetFullPath(path);
         var driveRoot = Path.GetPathRoot(full) ?? full;
         var top = new Node { Name = driveRoot, FullPath = driveRoot, Open = 1 };
@@ -296,6 +297,8 @@ public sealed partial class Scanner
     /// </summary>
     public async Task<Node> ScanManyAsync(IReadOnlyList<string> paths, int threads, CancellationToken ct)
     {
+        AgeBuckets.SetReference(DateTime.UtcNow);
+        AgeStamps.BeginScan();
         var top = new Node { Name = "Mehrere Pfade", FullPath = "", Open = paths.Count, Scanned = true };
         var starts = new List<Node>();
         foreach (var p in paths)
@@ -429,6 +432,7 @@ public sealed partial class Scanner
         Span<long> ageCount = stackalloc long[AgeBuckets.Count];
         Span<long> ageDelta = stackalloc long[AgeBuckets.Count];
 
+        var stamp = AgeStamps.Current;
         var options = new EnumerationOptions
         {
             AttributesToSkip = 0, // include hidden + system
@@ -448,7 +452,7 @@ public sealed partial class Scanner
                     string? name = isDir || len >= Volatile.Read(ref _topMin) ? e.FileName.ToString() : null;
                     return new Entry(name, isDir, len, (e.Attributes & FileAttributes.ReparsePoint) != 0,
                         isDir ? 0 : FileTypes.CategoryOf(e.FileName),
-                        isDir ? 0 : AgeBuckets.Of(e.LastWriteTimeUtc.UtcTicks));
+                        isDir ? 0 : AgeBuckets.Of(AgeStamps.TicksOf(ref e, stamp)));
                 }, options);
 
             foreach (var e in entries)

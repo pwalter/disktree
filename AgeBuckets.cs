@@ -40,7 +40,7 @@ public static class AgeBuckets
     /// <summary>Bucket of an existing file, or -1 if it cannot be read.</summary>
     public static int OfFile(string path)
     {
-        try { return Of(File.GetLastWriteTimeUtc(path).Ticks); }
+        try { return Of(AgeStamps.TicksOfFile(path, AgeStamps.Current)); }
         catch { return -1; }
     }
 
