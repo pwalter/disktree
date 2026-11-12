@@ -54,7 +54,7 @@
                          Margin="8,0,0,0" Background="{DynamicResource TrackBg}" BorderThickness="0" />
         </Grid>
 
-        <ListBox x:Name="Results" Grid.Row="4" BorderThickness="0" Background="Transparent"
+        <ListBox x:Name="Results" Grid.Row="4" BorderThickness="0" Background="Transparent" SelectionMode="Extended"
                  HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                  PreviewMouseRightButtonDown="Results_RightDown" MouseRightButtonUp="Results_RightUp"
                  MouseDoubleClick="Results_DoubleClick" PreviewKeyDown="Results_KeyDown">
