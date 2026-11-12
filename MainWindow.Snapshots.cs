@@ -117,6 +117,7 @@ public partial class MainWindow
         }
 
         var scanner = Scanner.FromSnapshot(snap, file);
+        OnSnapshotAgeStamp(snap.AgeStamp);
         _scanner = scanner;
         _scanTarget = scanner.ScanTarget;
         _root = new NodeVM(scanner.Root!, Kind.Dir, null, 0) { IsExpanded = true };

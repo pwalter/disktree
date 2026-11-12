@@ -48,6 +48,7 @@ public partial class SearchPanel : UserControl
         bool files = ModeBox.SelectedIndex == 1;
         ExtBox.IsEnabled = files;
         ExtLabel.Opacity = files ? 1 : 0.5;
+        MoreFilters.IsEnabled = files; // date / attribute filters need files
     }
 
     private void Box_KeyDown(object sender, KeyEventArgs e)
@@ -93,16 +94,25 @@ public partial class SearchPanel : UserControl
                 .Select(x => "." + x.TrimStart('*', '.').ToLowerInvariant()).ToArray()
             : [];
         var text = NameBox.Text.Trim();
-
-        if (text.Length == 0 && minSize == 0 && exts.Length == 0)
+        string? filterError = null;
+        var filter = files ? BuildFilter(out filterError) : null;
+        if (filterError != null)
         {
-            StatusText.Text = "Name, Mindestgröße oder Endung angeben.";
+            StatusText.Text = filterError;
+            MoreFilters.IsExpanded = true;
             return;
         }
 
-        var query = new SearchQuery { Scope = scope, Text = text, MinSize = minSize, Extensions = exts, Files = files };
+        if (text.Length == 0 && minSize == 0 && exts.Length == 0 && filter == null)
+        {
+            StatusText.Text = "Name, Mindestgröße, Endung oder einen weiteren Filter angeben.";
+            return;
+        }
+
+        var query = new SearchQuery { Scope = scope, Text = text, MinSize = minSize, Extensions = exts, Files = files, Filter = filter };
         ScopeText.Text = "In: " + scope.FullPath;
 
+        MoreFilters.IsExpanded = false; // make room for the hits; the header says how many filters are active
         _cts = new CancellationTokenSource();
         var ct = _cts.Token;
         GoButton.Content = "Abbrechen";

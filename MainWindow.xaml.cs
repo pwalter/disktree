@@ -79,6 +79,7 @@ public partial class MainWindow : Window
         InitUpdate();
         ShowExcludeButton();
         InitAge();
+        InitAgeStamp();
         Loaded += OnLoaded;
         Closing += OnClosing;
     }
