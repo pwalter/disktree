@@ -62,6 +62,18 @@ jobs:
       - name: Build
         run: dotnet build DiskTree.csproj -c Release -p:Version=${{ steps.ver.outputs.version }}
 
+      # A red test stops the job here, so nothing gets published or released.
+      - name: Test
+        run: dotnet test tests/DiskTree.Tests -c Release -p:Version=${{ steps.ver.outputs.version }} --logger "trx;LogFileName=test-results.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: tests/DiskTree.Tests/TestResults/*.trx
+          if-no-files-found: ignore
+
       # One self-contained exe: runs on any Windows x64 machine, nothing to install.
       - name: Publish single exe (self-contained)
         run: dotnet publish DiskTree.csproj -c Release -p:SelfContained=true -p:Version=${{ steps.ver.outputs.version }} -o out/full
