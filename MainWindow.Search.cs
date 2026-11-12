@@ -23,12 +23,12 @@ public partial class MainWindow
         Dispatcher.BeginInvoke(SearchPane.FocusInput, System.Windows.Threading.DispatcherPriority.Input);
     }
 
-    // Search below the selected folder (for a file or the "Dateien" row: its folder), otherwise below the scan root.
+    // Search below the selected folder (for a file or the "Dateien" row: its folder), otherwise below the scanned folder.
     private Node? SearchScope() => Tree.SelectedItem switch
     {
         NodeVM { Kind: Kind.Dir, Node: { } n } => n,
         NodeVM { Kind: Kind.Files or Kind.File, Parent.Node: { } n } => n,
-        _ => _root?.Node,
+        _ => _scanTarget ?? _root?.Node,
     };
 
     private void ShowSearchMenu(SearchHit hit, Point screenPos)

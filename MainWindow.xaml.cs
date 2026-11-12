@@ -72,8 +72,9 @@ public partial class MainWindow : Window
         Dup.ShellDeleteRequested += (path, size) => RunShell(path, isFile: true, size, null,
             () => ShellContextMenu.InvokeVerb(this, path, "delete"));
 
-        Theme.Changed += () => _root?.RefreshTheme();
+        Theme.Changed += () => { _root?.RefreshTheme(); _ = UpdatePieAsync(); };
         ShowThemeButton();
+        InitTabChips();
         ShowExcludeButton();
         InitAge();
         Loaded += OnLoaded;
@@ -144,6 +145,33 @@ public partial class MainWindow : Window
         _settings.Excludes = dlg.Result;
         _settings.Save();
         ShowExcludeButton();
+    }
+
+    // ---------------------------------------------------------------- side panel tab chips
+
+    private bool _chipSync;
+
+    private void InitTabChips()
+    {
+        foreach (TabItem t in SideTabs.Items) TabChips.Items.Add(t.Header);
+        SideTabs.SelectedIndex = 0;
+        TabChips.SelectedIndex = 0;
+        // Programmatic selection (Ctrl+F, treemap ...) and clicks on the chips stay in step.
+        SideTabs.SelectionChanged += (s, e) =>
+        {
+            if (!ReferenceEquals(e.OriginalSource, SideTabs) || _chipSync) return;
+            _chipSync = true;
+            TabChips.SelectedIndex = SideTabs.SelectedIndex;
+            _chipSync = false;
+        };
+    }
+
+    private void TabChips_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_chipSync || TabChips.SelectedIndex < 0) return;
+        _chipSync = true;
+        SideTabs.SelectedIndex = TabChips.SelectedIndex;
+        _chipSync = false;
     }
 
     private void Theme_Click(object sender, RoutedEventArgs e)
@@ -481,9 +509,19 @@ public partial class MainWindow : Window
     private bool _pieBusy;
     private long _pieLastTick;
 
-    private static readonly Brush[] CategoryBrushes = FileTypes.All.Select(c =>
+    private static readonly Brush[] CategoryBrushesLight = MakeCategoryBrushes(false);
+    private static readonly Brush[] CategoryBrushesDark = MakeCategoryBrushes(true);
+    private static Brush[] CategoryBrushes => Theme.IsDark ? CategoryBrushesDark : CategoryBrushesLight;
+
+    // On the dark panel the darkest categories (e.g. programs, #3F4A57) would vanish: lighten them a little.
+    private static Brush[] MakeCategoryBrushes(bool dark) => FileTypes.All.Select(c =>
     {
-        var b = new SolidColorBrush(Color.FromRgb((byte)(c.Color >> 16), (byte)(c.Color >> 8), (byte)c.Color));
+        byte r = (byte)(c.Color >> 16), g = (byte)(c.Color >> 8), bl = (byte)c.Color;
+        if (dark && 0.299 * r + 0.587 * g + 0.114 * bl < 110)
+        {
+            r = (byte)(r + (255 - r) * 0.45); g = (byte)(g + (255 - g) * 0.45); bl = (byte)(bl + (255 - bl) * 0.45);
+        }
+        var b = new SolidColorBrush(Color.FromRgb(r, g, bl));
         b.Freeze();
         return (Brush)b;
     }).ToArray();

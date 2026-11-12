@@ -147,7 +147,7 @@
                     Style="{StaticResource ToolButton}" Padding="0" Click="Browse_Click" ToolTip="Ordner wählen" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
                 <TextBlock Text="Threads" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                <ComboBox x:Name="ThreadsBox" Width="60" Height="28" />
+                <ComboBox x:Name="ThreadsBox" Width="76" Height="28" />
             </StackPanel>
             <Button x:Name="AdminButton" Grid.Column="3" Content="🛡 Als Administrator neu starten" Height="32" Margin="16,0,0,0"
                     Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="Admin_Click"
@@ -213,7 +213,52 @@
         <!-- Side panel: file types / largest files -->
         <Border Grid.Row="1" Grid.RowSpan="2" Grid.Column="1" Background="{DynamicResource PanelBg}" BorderBrush="{DynamicResource PanelBorder}"
                 BorderThickness="1" CornerRadius="6" Padding="10,6,10,10">
-            <TabControl x:Name="SideTabs" SelectionChanged="SideTabs_SelectionChanged" BorderThickness="0" Background="Transparent" Padding="0,8,0,0">
+            <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <!-- Tab headers as wrapping chips: eight tabs do not fit in one row, and a TabControl would reshuffle its rows. -->
+            <ListBox x:Name="TabChips" Margin="0,0,0,6" BorderThickness="0" Background="Transparent"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="TabChips_SelectionChanged">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Margin" Value="0,0,4,4" />
+                        <Setter Property="Padding" Value="10,4" />
+                        <Setter Property="Foreground" Value="{DynamicResource Ink}" />
+                        <Setter Property="Cursor" Value="Hand" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <Border x:Name="Bd" CornerRadius="12" Padding="{TemplateBinding Padding}" Background="Transparent"
+                                            BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1">
+                                        <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource TrackBg}" />
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Accent}" />
+                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                            <Setter Property="Foreground" Value="White" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+            </ListBox>
+            <TabControl x:Name="SideTabs" Grid.Row="1" SelectionChanged="SideTabs_SelectionChanged" BorderThickness="0" Background="Transparent" Padding="0">
+                <TabControl.Template>
+                    <ControlTemplate TargetType="TabControl">
+                        <ContentPresenter ContentSource="SelectedContent" />
+                    </ControlTemplate>
+                </TabControl.Template>
                 <TabItem Header="Dateitypen">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -228,9 +273,6 @@
                             <ItemsControl x:Name="Legend" ItemTemplate="{StaticResource LegendRow}" />
                         </ScrollViewer>
                     </Grid>
-                </TabItem>
-                <TabItem Header="Treemap">
-                    <local:TreemapPanel x:Name="Treemap" Margin="0,2,0,0" NodeClicked="Treemap_NodeClicked" />
                 </TabItem>
                 <TabItem Header="Größte Dateien">
                     <ListBox x:Name="TopList" BorderThickness="0" Background="Transparent"
@@ -265,8 +307,8 @@
                         </ScrollViewer>
                     </Grid>
                 </TabItem>
-                <TabItem Header="Vergleich">
-                    <local:ComparePanel x:Name="Compare" />
+                <TabItem Header="Treemap">
+                    <local:TreemapPanel x:Name="Treemap" Margin="0,2,0,0" NodeClicked="Treemap_NodeClicked" />
                 </TabItem>
                 <TabItem x:Name="SearchTab" Header="Suche">
                     <local:SearchPanel x:Name="SearchPane" />
@@ -277,7 +319,11 @@
                 <TabItem Header="Besitzer">
                     <local:OwnerPanel x:Name="OwnerTab" Margin="0,4,0,0" />
                 </TabItem>
+                <TabItem Header="Vergleich">
+                    <local:ComparePanel x:Name="Compare" />
+                </TabItem>
             </TabControl>
+            </Grid>
         </Border>
 
         <!-- Status -->

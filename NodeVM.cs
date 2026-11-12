@@ -25,8 +25,12 @@ public sealed class NodeVM : INotifyPropertyChanged
     private static Brush DarkGray => Theme.IsDark ? DarkGrayDark : DarkGrayLight;
     private static Brush Ink => Theme.IsDark ? InkDark : InkLight;
     private static readonly Brush Gold = Frozen(Color.FromRgb(0xE0, 0xA8, 0x20));
-    private static readonly Brush FreeBrush = Frozen(Color.FromRgb(0x9C, 0xC4, 0xEE));
-    private static readonly Brush RestBrush = Frozen(Color.FromRgb(0xD6, 0xC8, 0xB0));
+    private static readonly Brush FreeBrushLight = Frozen(Color.FromRgb(0x9C, 0xC4, 0xEE));
+    private static readonly Brush RestBrushLight = Frozen(Color.FromRgb(0xD6, 0xC8, 0xB0));
+    private static readonly Brush FreeBrushDark = Frozen(Color.FromRgb(0x3F, 0x6E, 0xA0));
+    private static readonly Brush RestBrushDark = Frozen(Color.FromRgb(0x6E, 0x62, 0x4C));
+    private static Brush FreeBrush => Theme.IsDark ? FreeBrushDark : FreeBrushLight;
+    private static Brush RestBrush => Theme.IsDark ? RestBrushDark : RestBrushLight;
 
     private readonly Node? _node;
     private readonly Dictionary<Node, NodeVM> _byNode = new();

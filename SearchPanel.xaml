@@ -24,7 +24,7 @@
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="4,0,4,6">
             <TextBlock Text="Suche nach" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="0,0,6,0" />
-            <ComboBox x:Name="ModeBox" Width="90" Height="26" SelectedIndex="0" SelectionChanged="Mode_Changed">
+            <ComboBox x:Name="ModeBox" Width="112" Height="26" SelectedIndex="0" SelectionChanged="Mode_Changed">
                 <ComboBoxItem Content="Ordnern" />
                 <ComboBoxItem Content="Dateien" />
             </ComboBox>
@@ -34,7 +34,7 @@
             <TextBlock Text="Größe ≥" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="0,0,6,0" />
             <TextBox x:Name="SizeBox" Width="60" Height="26" VerticalContentAlignment="Center" KeyDown="Box_KeyDown"
                      ToolTip="Mindestgröße, leer = egal" />
-            <ComboBox x:Name="UnitBox" Width="62" Height="26" Margin="6,0,0,0" SelectedIndex="0">
+            <ComboBox x:Name="UnitBox" Width="78" Height="26" Margin="6,0,0,0" SelectedIndex="0">
                 <ComboBoxItem Content="MB" />
                 <ComboBoxItem Content="GB" />
             </ComboBox>

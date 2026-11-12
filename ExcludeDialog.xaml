@@ -46,7 +46,7 @@
             </Grid.ColumnDefinitions>
             <Button Content="Entfernen" Height="30" Padding="14,0" Click="Remove_Click" />
             <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="12,0" Foreground="{DynamicResource Subtle}"
-                       FontSize="11" TextTrimming="CharacterEllipsis"
+                       FontSize="11" TextWrapping="Wrap"
                        Text="z. B. node_modules · *.tmp · C:\Windows\Temp" />
             <Button Grid.Column="2" Content="OK" Width="80" Height="30" IsDefault="True" Click="Ok_Click" />
             <Button Grid.Column="3" Content="Abbrechen" Width="90" Height="30" Margin="8,0,0,0" IsCancel="True" />

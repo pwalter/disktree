@@ -44,6 +44,7 @@
                 <Style TargetType="TreeViewItem">
                     <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Foreground" Value="{DynamicResource Ink}" />
                 </Style>
             </TreeView.ItemContainerStyle>
             <TreeView.Resources>
