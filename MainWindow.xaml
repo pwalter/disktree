@@ -120,6 +120,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -175,8 +176,11 @@
             </StackPanel>
         </Grid>
 
+        <!-- Scan tabs (MainWindow.Tabs.cs): several scans open at once -->
+        <local:ScanTabs x:Name="ScanTabBar" Grid.Row="1" Margin="0,0,10,2" />
+
         <!-- Column header -->
-        <Grid Grid.Row="1" Margin="21,0,28,4">
+        <Grid Grid.Row="2" Margin="21,0,28,4">
             <StackPanel Orientation="Horizontal" TextElement.Foreground="{DynamicResource Muted}" TextElement.FontWeight="SemiBold">
                 <TextBlock Text="Name" Width="{x:Static local:NodeVM.NameColumn}" Padding="24,0,0,0" />
                 <TextBlock Text="Anteil" Width="166" Padding="8,0,0,0" />
@@ -187,7 +191,7 @@
         </Grid>
 
         <!-- Tree -->
-        <Border Grid.Row="2" Margin="0,0,10,0" Background="{DynamicResource PanelBg}" BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1" CornerRadius="6">
+        <Border Grid.Row="3" Margin="0,0,10,0" Background="{DynamicResource PanelBg}" BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1" CornerRadius="6">
             <TreeView x:Name="Tree" BorderThickness="0" Background="Transparent" Padding="2,4"
                       ScrollViewer.HorizontalScrollBarVisibility="Auto"
                       VirtualizingPanel.IsVirtualizing="True"
@@ -206,12 +210,12 @@
         </Border>
 
         <!-- Drag to make the side panel (treemap) wider -->
-        <GridSplitter Grid.Row="1" Grid.RowSpan="2" Grid.Column="0" Width="10" HorizontalAlignment="Right"
+        <GridSplitter Grid.Row="1" Grid.RowSpan="3" Grid.Column="0" Width="10" HorizontalAlignment="Right"
                       VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext"
                       ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Ziehen, um das Seitenpanel zu verbreitern" />
 
         <!-- Side panel: file types / largest files -->
-        <Border Grid.Row="1" Grid.RowSpan="2" Grid.Column="1" Background="{DynamicResource PanelBg}" BorderBrush="{DynamicResource PanelBorder}"
+        <Border Grid.Row="1" Grid.RowSpan="3" Grid.Column="1" Background="{DynamicResource PanelBg}" BorderBrush="{DynamicResource PanelBorder}"
                 BorderThickness="1" CornerRadius="6" Padding="10,6,10,10">
             <Grid>
             <Grid.RowDefinitions>
@@ -350,7 +354,7 @@
         </Border>
 
         <!-- Status -->
-        <Grid Grid.Row="3" Grid.ColumnSpan="2" Margin="2,8,2,0">
+        <Grid Grid.Row="4" Grid.ColumnSpan="2" Margin="2,8,2,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />

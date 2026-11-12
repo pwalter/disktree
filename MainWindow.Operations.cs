@@ -128,7 +128,7 @@ public partial class MainWindow
     {
         if (IsSnapshotMode) { SnapshotHint(); return null; }
         if (_opBusy) return null;
-        if (_cts != null)
+        if (Busy != null)
         {
             Notice("Ein Scan läuft noch. Die Aktion ist erst möglich, wenn er fertig oder abgebrochen ist.");
             return null;

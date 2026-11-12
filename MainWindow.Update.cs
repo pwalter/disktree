@@ -81,7 +81,7 @@ public partial class MainWindow
             OpenReleasePage(info);
             return;
         }
-        if (_cts != null)
+        if (Busy != null)
         {
             MessageBox.Show(this, "Bitte zuerst den laufenden Scan beenden oder abwarten.", "DiskTree",
                 MessageBoxButton.OK, MessageBoxImage.Information);

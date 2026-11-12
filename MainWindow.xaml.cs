@@ -17,12 +17,7 @@ public partial class MainWindow : Window
     private static readonly TimeSpan RefreshDelay = TimeSpan.FromMilliseconds(120);
 
     private readonly AppSettings _settings = AppSettings.Load();
-    private readonly Stopwatch _sw = new();
-    private CancellationTokenSource? _cts;
-    private Scanner? _scanner;
-    private NodeVM? _root;
-    private Node? _scanTarget;
-    private Task _scanTask = Task.CompletedTask;
+    // Scan state (_scanner, _root, _cts ...) belongs to the active scan tab: see MainWindow.Tabs.cs.
 
     public MainWindow()
     {
@@ -62,6 +57,7 @@ public partial class MainWindow : Window
             AdminButton.Visibility = Visibility.Collapsed;
         }
 
+        InitTabs();
         InitSnapshots();
         InitSearch();
         InitOps();
@@ -123,6 +119,7 @@ public partial class MainWindow : Window
 
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
+        foreach (var tab in _tabs) tab.Cts?.Cancel(); // scans of all tabs stop with the window
         var bounds = WindowState == WindowState.Maximized ? RestoreBounds : new Rect(0, 0, ActualWidth, ActualHeight);
         _settings.Maximized = WindowState == WindowState.Maximized;
         _settings.Width = bounds.Width;
@@ -230,11 +227,14 @@ public partial class MainWindow : Window
         }
         var paths = files.Select(f => File.Exists(f) ? Path.GetDirectoryName(f)! : f)
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        await ScanPathAsync(paths.Count == 1 ? paths[0] : PathList.Join(paths));
+        // With Ctrl or Shift held the folder opens in a new tab instead of replacing the scan of the current one.
+        bool newTab = (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) != 0;
+        await ScanPathAsync(paths.Count == 1 ? paths[0] : PathList.Join(paths), newTab);
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (TabKey(e)) { e.Handled = true; return; }
         if (e.Key == Key.F5 && _cts == null)
         {
             e.Handled = true;
@@ -262,23 +262,34 @@ public partial class MainWindow : Window
         return path.Length == 2 && path[1] == ':' ? path + "\\" : path;
     }
 
-    private Task BeginScan() => _scanTask = StartScan();
-
-    /// <summary>Scans another folder; a running scan is cancelled first.</summary>
-    private async Task ScanPathAsync(string path)
+    private Task BeginScan()
     {
-        if (_cts != null)
+        var s = _cur;
+        return s.ScanTask = StartScan(s);
+    }
+
+    /// <summary>Scans another folder (in a new tab if asked); a running scan of the tab is cancelled first.</summary>
+    private async Task ScanPathAsync(string path, bool newTab = false)
+    {
+        if (TabsLocked) return;
+        if (Busy is { } other && (newTab || other != _cur)) { NoticeBusy(other); return; }
+        if (newTab && !_cur.IsEmpty) NewTab();
+
+        var s = _cur;
+        if (s.Cts != null)
         {
-            _cts.Cancel();
-            await _scanTask;
+            s.Cts.Cancel();
+            await s.ScanTask;
         }
+        if (_cur != s) ActivateTab(s); // the user switched tabs while the old scan stopped
         PathBox.Text = path;
         await BeginScan();
     }
 
-    private async Task StartScan()
+    private async Task StartScan(ScanSession s)
     {
-        if (_cts != null) return;
+        if (s.Cts != null) return;
+        if (Busy is { } other) { NoticeBusy(other); return; }
 
         var paths = PathList.Parse(PathBox.Text);
         if (paths.Count == 0) paths.Add(""); // reports "Pfad nicht gefunden" like before
@@ -292,14 +303,15 @@ public partial class MainWindow : Window
         var path = paths[0];
         _settings.LastPath = PathList.Join(paths);
 
-        await RunAsync(ct =>
+        await RunAsync(s, ct =>
         {
-            var scanner = _scanner = new Scanner { Excludes = CurrentExcludes() };
+            var scanner = s.Scanner = new Scanner { Excludes = CurrentExcludes() };
             OnNewScanner(scanner);
             // Event instead of polling: the scanner reports changes from its worker threads, the UI reacts.
-            scanner.Changed += () => Dispatcher.InvokeAsync(() => OnScannerChanged(scanner), DispatcherPriority.Background);
-            _root = null;
-            _scanTarget = null;
+            scanner.Changed += () => Dispatcher.InvokeAsync(() => OnScannerChanged(s, scanner), DispatcherPriority.Background);
+            s.Root = null;
+            s.ScanTarget = null;
+            s.SelectedVm = null;
             Tree.ItemsSource = null;
             TopList.ItemsSource = null;
 
@@ -308,88 +320,105 @@ public partial class MainWindow : Window
             var scan = paths.Count > 1
                 ? scanner.ScanManyAsync(paths, (int)ThreadsBox.SelectedItem, ct)
                 : scanner.ScanAsync(path, (int)ThreadsBox.SelectedItem, ct);
-            _scanTarget = scanner.ScanTarget;
-            _root = new NodeVM(scanner.Root!, Kind.Dir, null, 0) { IsExpanded = true };
-            Treemap.Reset(_scanTarget ?? scanner.Root);
-            Tree.ItemsSource = new[] { _root };
+            s.AgeStamp = AgeStamps.Current; // the scan has adopted the user's choice by now
+            SetTabTitle(s, paths);
+            s.ScanTarget = scanner.ScanTarget;
+            s.Root = new NodeVM(scanner.Root!, Kind.Dir, null, 0) { IsExpanded = true };
+            Treemap.Reset(s.ScanTarget ?? scanner.Root);
+            Tree.ItemsSource = new[] { s.Root };
             ExpandToScanTarget();
             return scan;
         });
     }
 
-    private Task RescanAsync(Node? node) =>
-        node == null || _scanner == null ? Task.CompletedTask
-        : _scanner.IsMulti && node == _scanner.Root ? BeginScan() // the artificial root: scan all paths again
-        : _scanTask = StartRescan(node);
+    private Task RescanAsync(Node? node)
+    {
+        if (node == null || _scanner == null) return Task.CompletedTask;
+        if (_scanner.IsMulti && node == _scanner.Root) return BeginScan(); // the artificial root: scan all paths again
+        var s = _cur;
+        return s.ScanTask = StartRescan(s, node);
+    }
 
     /// <summary>
     /// Scans one folder of the existing tree again, in place. Its row and everything above it get new numbers,
     /// the rest of the tree is untouched.
     /// </summary>
-    private async Task StartRescan(Node node)
+    private async Task StartRescan(ScanSession s, Node node)
     {
-        var scanner = _scanner!;
+        var scanner = s.Scanner!;
         if (!CanRescan(node)) return;
+        if (Busy is { } other && other != s) { NoticeBusy(other); return; }
 
-        // A running scan has to stop first. (_scanTask still is the old scan here: this method runs
+        // A running scan has to stop first. (s.ScanTask still is the old scan here: this method runs
         // synchronously up to the first await, before RescanAsync assigns its own task.)
-        if (_cts != null)
+        if (s.Cts != null)
         {
-            _cts.Cancel();
-            await _scanTask;
+            s.Cts.Cancel();
+            await s.ScanTask;
         }
 
-        await RunAsync(ct =>
+        await RunAsync(s, ct =>
         {
             // The previous scan's last change event may never have been acknowledged (the UI had already
             // finished); without this the scanner stays silent and the row would not update.
             scanner.Acknowledge();
             scanner.Excludes = CurrentExcludes(); // the same rules as the scan (incl. changes made since)
             var scan = scanner.RescanAsync(node, (int)ThreadsBox.SelectedItem, ct);
-            _root?.FindDescendant(node)?.ResetForRescan();
-            _scanTarget = scanner.ScanTarget;
-            _root?.Refresh(); // spinner and "…" right away
+            s.Root?.FindDescendant(node)?.ResetForRescan();
+            s.ScanTarget = scanner.ScanTarget;
+            if (s == _cur) s.Root?.Refresh(); // spinner and "…" right away
             return scan;
         });
     }
 
     /// <summary>
     /// Shared by scan and rescan: <paramref name="begin"/> starts the scan, sets the UI up and returns the scan task;
-    /// this method shows the progress and the result.
+    /// this method shows the progress and the result. It only touches window controls while <paramref name="s"/> is
+    /// the active tab: the user may switch tabs while the scan runs.
     /// </summary>
-    private async Task RunAsync(Func<CancellationToken, Task> begin)
+    private async Task RunAsync(ScanSession s, Func<CancellationToken, Task> begin)
     {
-        _cts = new CancellationTokenSource();
-        ScanButton.Content = "Abbrechen";
-        _sw.Restart();
+        var cts = s.Cts = new CancellationTokenSource();
+        if (s == _cur) ScanButton.Content = "Abbrechen";
+        s.Sw.Restart();
 
         try
         {
-            await begin(_cts.Token);
-            _sw.Stop();
-            _root?.Refresh();
-            UpdateStatus(running: false, done: true);
-            _ = UpdatePieAsync();
-            RefreshTop();
+            await begin(cts.Token);
+            s.Sw.Stop();
+            FinishScan(s, canceled: false);
         }
         catch (OperationCanceledException)
         {
-            _sw.Stop();
-            _root?.Refresh();
-            UpdateStatus(running: false);
-            StatusText.Text = "Abgebrochen – " + StatusText.Text;
-            _ = UpdatePieAsync();
-            RefreshTop();
+            s.Sw.Stop();
+            FinishScan(s, canceled: true);
         }
         finally
         {
-            _cts.Dispose();
-            _cts = null;
-            ScanButton.Content = "Scannen";
-            CurrentText.Text = "";
-            ScanProgress.Visibility = Visibility.Collapsed;
-            TaskbarInfo.ProgressState = TaskbarItemProgressState.None;
+            cts.Dispose();
+            s.Cts = null;
+            s.CurrentLine = "";
+            s.ProgressVisible = false;
+            if (s == _cur)
+            {
+                ScanButton.Content = "Scannen";
+                CurrentText.Text = "";
+                ScanProgress.Visibility = Visibility.Collapsed;
+            }
+            UpdateTaskbar();
         }
+    }
+
+    private void FinishScan(ScanSession s, bool canceled)
+    {
+        if (s.Scanner == null) return; // the tab was closed meanwhile
+        bool active = s == _cur;
+        if (active) s.Root?.Refresh(); // an inactive tab catches up when it is shown
+        UpdateStatus(s, running: false, done: !canceled);
+        if (canceled) SetStatus(s, "Abgebrochen – " + s.Status);
+        if (!active) return;
+        _ = UpdatePieAsync();
+        RefreshTop();
     }
 
     // When a subfolder is scanned the tree starts at the drive: open the chain down to the scanned folder.
@@ -404,21 +433,23 @@ public partial class MainWindow : Window
         if (vm != null) vm.IsExpanded = true;
     }
 
-    private async Task OnScannerChanged(Scanner scanner)
+    private async Task OnScannerChanged(ScanSession s, Scanner scanner)
     {
         // Let more changes pile up, then acknowledge first so anything arriving during the redraw
         // raises a new event instead of being lost.
         await Task.Delay(RefreshDelay);
-        if (scanner != _scanner) return;
-        if (_root == null || _cts == null)
+        if (scanner != s.Scanner) return;
+        if (s.Root == null || s.Cts == null)
         {
             scanner.Acknowledge(); // nothing to show now, but do not swallow the next scan's events
             return;
         }
 
         scanner.Acknowledge();
-        UpdateStatus(running: true);
-        _root.Refresh();
+        UpdateStatus(s, running: true);
+        if (s != _cur) return; // a background tab only keeps its numbers; the tree is brought up to date when shown
+
+        s.Root.Refresh();
 
         // Chart and top list have to walk / copy a lot, so they are refreshed less often than the tree.
         long now = Environment.TickCount64;
@@ -435,36 +466,30 @@ public partial class MainWindow : Window
         return s.Excluded > 15 ? text + $"\n… und {s.Excluded - 15:N0} weitere" : text;
     }
 
-    private void UpdateStatus(bool running, bool done = false)
+    /// <summary>Computes the status line of a session from its scanner and stores it there; the window shows it if the tab is active.</summary>
+    private void UpdateStatus(ScanSession session, bool running, bool done = false)
     {
-        if (_scanner == null) return;
-        var s = _scanner;
+        if (session.Scanner == null) return;
+        var s = session.Scanner;
 
         bool known = s.ExpectedBytes > 0;
         double fraction = known ? Math.Min(0.99, (double)s.Bytes / s.ExpectedBytes) : 0;
         string percent = running && known ? $" · {fraction * 100:0} %" : "";
 
-        StatusText.Text =
+        session.Status =
             $"{(done ? "Fertig: " : "")}{s.Dirs:N0} Ordner · {s.Files:N0} Dateien · {NodeVM.FormatSize(s.Bytes)}" +
             $" · {s.Errors:N0} nicht lesbar" + (s.Excluded > 0 ? $" · {s.Excluded:N0} ausgeschlossen" : "") +
-            $" · {_sw.Elapsed:mm\\:ss\\.f}{percent}";
-        StatusText.ToolTip = s.Excluded > 0 ? ExcludedTooltip(s) : null;
-        CurrentText.Text = running ? s.Current : "";
+            $" · {session.Sw.Elapsed:mm\\:ss\\.f}{percent}";
+        session.StatusTip = s.Excluded > 0 ? ExcludedTooltip(s) : null;
+        session.CurrentLine = running ? s.Current : "";
 
-        if (running)
-        {
-            // A drive scan knows roughly how much there is to find (used space); a folder scan does not.
-            ScanProgress.Visibility = Visibility.Visible;
-            ScanProgress.IsIndeterminate = !known;
-            if (known) ScanProgress.Value = fraction;
-            TaskbarInfo.ProgressState = known ? TaskbarItemProgressState.Normal : TaskbarItemProgressState.Indeterminate;
-            if (known) TaskbarInfo.ProgressValue = fraction;
-        }
-        else
-        {
-            ScanProgress.Visibility = Visibility.Collapsed;
-            TaskbarInfo.ProgressState = TaskbarItemProgressState.None;
-        }
+        // A drive scan knows roughly how much there is to find (used space); a folder scan does not.
+        session.ProgressVisible = running;
+        session.ProgressKnown = known;
+        session.ProgressFraction = fraction;
+
+        if (session == _cur) ApplyStatus(session);
+        else UpdateTaskbar();
     }
 
     // ---------------------------------------------------------------- file-type chart
@@ -782,6 +807,7 @@ public partial class MainWindow : Window
     private void RunShell(string path, bool isFile, long size, NodeVM? vm, Action action)
     {
         if (IsSnapshotMode) { SnapshotHint(); return; }
+        if (Busy is { } other && other != _cur) { NoticeBusy(other); return; } // the age buckets depend on the running scan's timestamp
         int ageBucket = isFile ? AgeBuckets.OfFile(path) : -1; // read before the file is gone
         try
         {

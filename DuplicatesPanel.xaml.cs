@@ -63,6 +63,15 @@ public partial class DuplicatesPanel : UserControl
         foreach (var f in _groups.SelectMany(g => g.Files).ToList()) Prune(f);
     }
 
+    /// <summary>The host switched to another scan: stop a running search and drop the groups of the old folder.</summary>
+    public void Reset()
+    {
+        _cts?.Cancel();
+        _groups.Clear();
+        InfoText.Text = "";
+        if (IsVisible) ShowTarget();
+    }
+
     public DuplicatesPanel()
     {
         InitializeComponent();
