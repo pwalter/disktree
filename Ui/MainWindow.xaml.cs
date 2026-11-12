@@ -618,16 +618,10 @@ public partial class MainWindow : Window
     {
         var sizes = new long[FileTypes.Count];
         var counts = new long[FileTypes.Count];
-        var stack = new Stack<Node>();
-        stack.Push(start);
-
-        while (stack.Count > 0)
+        foreach (var n in ownOnly ? [start] : start.Walk())
         {
-            var n = stack.Pop();
             if (n.OwnTypes is { } types)
                 foreach (var t in types) { sizes[t.Cat] += t.Size; counts[t.Cat] += t.Count; }
-            if (!ownOnly)
-                foreach (var c in n.Snapshot()) stack.Push(c);
         }
         return (sizes, counts);
     }

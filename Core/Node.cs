@@ -78,6 +78,23 @@ public sealed class Node
         return cur;
     }
 
+    /// <summary>
+    /// This node and all folders below it, depth first without recursion (deep trees). The order is the one the
+    /// hand-written loops had: a node comes before its children, the children of a node last child first.
+    /// Children are read when the node has been handled, so folders that appear while a scan runs are still seen.
+    /// </summary>
+    public IEnumerable<Node> Walk()
+    {
+        var stack = new Stack<Node>();
+        stack.Push(this);
+        while (stack.Count > 0)
+        {
+            var n = stack.Pop();
+            yield return n;
+            foreach (var c in n.Snapshot()) stack.Push(c);
+        }
+    }
+
     public bool HasChildren
     {
         get { lock (_children) return _children.Count > 0 || OwnCount > 0; }

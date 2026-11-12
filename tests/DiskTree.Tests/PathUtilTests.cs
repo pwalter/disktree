@@ -57,6 +57,25 @@ public class FindNodeTests : TestBase
         Assert.Null(a.FindRelative(@"b\nope"));
     }
 
+    [Fact]
+    public void Walk_VisitsNodeBeforeChildren_LastChildFirst()
+    {
+        var root = new Node { Name = "r" };
+        Node Add(Node parent, string name)
+        {
+            var n = new Node { Name = name, Parent = parent };
+            parent.AddChild(n);
+            return n;
+        }
+        var a = Add(root, "a");
+        Add(root, "b");
+        Add(a, "c");
+        Add(a, "d");
+
+        Assert.Equal(new[] { "r", "b", "a", "d", "c" }, root.Walk().Select(n => n.Name));
+        Assert.Equal(new[] { "r" }, new Node { Name = "r" }.Walk().Select(n => n.Name));
+    }
+
     private static Scanner NetworkScanner()
     {
         // A tree that starts at a folder of a network share (no drive capacity), like a scan of \\srv\share\a.

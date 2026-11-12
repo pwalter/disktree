@@ -94,16 +94,10 @@ public partial class MainWindow
     {
         var sizes = new long[AgeBuckets.Count];
         var counts = new long[AgeBuckets.Count];
-        var stack = new Stack<Node>();
-        stack.Push(start);
-
-        while (stack.Count > 0)
+        foreach (var n in ownOnly ? [start] : start.Walk())
         {
-            var n = stack.Pop();
             if (n.OwnAges is { } a)
                 for (int i = 0; i < AgeBuckets.Count; i++) { sizes[i] += a[i]; counts[i] += a[AgeBuckets.Count + i]; }
-            if (!ownOnly)
-                foreach (var c in n.Snapshot()) stack.Push(c);
         }
         return (sizes, counts);
     }
