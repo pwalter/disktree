@@ -10,10 +10,10 @@ public sealed class CliOptions
         "DiskTree – Speicherplatz-Analyse\n" +
         "\n" +
         "Aufruf:\n" +
-        "  DiskTree.exe [Pfad] [Optionen]\n" +
+        "  DiskTree.exe [Pfad ...] [Optionen]\n" +
         "\n" +
         "  Pfad                  Laufwerk oder Ordner, der sofort nach dem Start gescannt wird\n" +
-        "                        (z. B. C:\\ oder \"D:\\Daten\")\n" +
+        "                        (z. B. C:\\ oder \"D:\\Daten\"); mehrere Pfade werden gemeinsam gescannt\n" +
         "\n" +
         "Optionen:\n" +
         "  -t, --threads N       Anzahl der Scan-Threads (1-256, Standard: zuletzt benutzt, sonst 16)\n" +
@@ -23,9 +23,12 @@ public sealed class CliOptions
         "\n" +
         "Beispiele:\n" +
         "  DiskTree.exe C:\\\n" +
-        "  DiskTree.exe \"D:\\Daten\" --threads 32 --admin\n";
+        "  DiskTree.exe \"D:\\Daten\" --threads 32 --admin\n" +
+        "  DiskTree.exe \"D:\\Daten\" \"E:\\Backup\" \\\\server\\share\\Ordner\n";
 
-    public string? Path { get; private set; }
+    public List<string> Paths { get; } = new();
+    /// <summary>All paths as the text for the path box (semicolon separated), or null if none was given.</summary>
+    public string? Path => Paths.Count == 0 ? null : string.Join(PathList.Separator, Paths);
     public int? Threads { get; private set; }
     public bool Admin { get; private set; }
     public bool NoAdminPrompt { get; private set; }
@@ -65,11 +68,9 @@ public sealed class CliOptions
                     }
                     else if (a.StartsWith('-') || (a.StartsWith('/') && a.Length <= 3 && !a.Contains('\\')))
                         return o.Fail($"Unbekannte Option: {a}");
-                    else if (o.Path != null)
-                        return o.Fail("Es kann nur ein Pfad angegeben werden.");
                     else
                         // "C:\" on a command line arrives as C:" (the backslash escapes the quote); clean that up.
-                        o.Path = a.Trim().Trim('"');
+                        o.Paths.Add(a.Trim().Trim('"'));
                     break;
             }
         }
@@ -79,8 +80,9 @@ public sealed class CliOptions
     /// <summary>The arguments to hand to the elevated instance (everything except --admin).</summary>
     public IEnumerable<string> ForwardArgs(string? pathOverride = null)
     {
-        var path = pathOverride ?? Path;
-        if (!string.IsNullOrEmpty(path)) yield return path;
+        var paths = pathOverride != null ? new List<string> { pathOverride } : Paths;
+        foreach (var p in paths)
+            if (!string.IsNullOrEmpty(p)) yield return p;
         if (Threads is { } t) { yield return "--threads"; yield return t.ToString(); }
     }
 
