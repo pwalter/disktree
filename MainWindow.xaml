@@ -275,7 +275,7 @@
                     </Grid>
                 </TabItem>
                 <TabItem Header="Größte Dateien">
-                    <ListBox x:Name="TopList" BorderThickness="0" Background="Transparent"
+                    <ListBox x:Name="TopList" BorderThickness="0" Background="Transparent" SelectionMode="Extended"
                              ItemTemplate="{StaticResource TopFileRow}"
                              HorizontalContentAlignment="Stretch"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"

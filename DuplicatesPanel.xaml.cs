@@ -39,6 +39,30 @@ public partial class DuplicatesPanel : UserControl
     /// <summary>The user pressed Delete on a file (path, size). The host runs the shell's delete.</summary>
     public event Action<string, long>? ShellDeleteRequested;
 
+    /// <summary>Keys the host handles for the selection (F2, Delete on several files); returns true if it used the key.</summary>
+    public Func<Key, bool>? ExtraKeyDown { get; set; }
+
+    /// <summary>The files with a check mark; if none is checked, the selected file.</summary>
+    public IReadOnlyList<(string Path, long Size)> SelectedFiles()
+    {
+        var checkedFiles = _groups.SelectMany(g => g.Files).Where(f => f.IsChecked).Select(f => (f.Path, f.Group.Size)).ToList();
+        if (checkedFiles.Count > 0) return checkedFiles;
+        return List.SelectedItem is DupFileVM sel ? new[] { (sel.Path, sel.Group.Size) } : [];
+    }
+
+    /// <summary>True if the given paths contain every copy of at least one duplicate group.</summary>
+    public bool AllCopiesChecked(IEnumerable<string> paths)
+    {
+        var set = new HashSet<string>(paths, StringComparer.OrdinalIgnoreCase);
+        return _groups.Any(g => g.Files.Count > 0 && g.Files.All(f => set.Contains(f.Path)));
+    }
+
+    /// <summary>Drops files that are gone from disk (after move / delete / rename), and groups that are no duplicates any more.</summary>
+    public void PruneMissing()
+    {
+        foreach (var f in _groups.SelectMany(g => g.Files).ToList()) Prune(f);
+    }
+
     public DuplicatesPanel()
     {
         InitializeComponent();
@@ -182,6 +206,7 @@ public partial class DuplicatesPanel : UserControl
     private void List_KeyDown(object sender, KeyEventArgs e)
     {
         if (List.SelectedItem is not DupFileVM file) return;
+        if (ExtraKeyDown?.Invoke(e.Key) == true) { e.Handled = true; return; }
 
         if (e.Key == Key.Delete)
         {
@@ -262,6 +287,8 @@ public sealed class DupFileVM
     public string Path { get; }
     public string Name { get; }
     public string Folder { get; }
+    /// <summary>Check mark for choosing several files for move / ZIP / delete.</summary>
+    public bool IsChecked { get; set; }
 
     public DupFileVM(DupGroupVM group, string path)
     {

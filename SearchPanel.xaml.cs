@@ -17,6 +17,10 @@ public partial class SearchPanel : UserControl
     /// <summary>Show the Windows shell menu for the hit at a screen position.</summary>
     public Action<SearchHit, Point>? ShowMenu { get; set; }
     public Action<SearchHit>? DeleteHit { get; set; }
+    /// <summary>Keys the host handles for the selection (F2, Delete on several hits); returns true if it used the key.</summary>
+    public Func<Key, bool>? ExtraKeyDown { get; set; }
+
+    public IReadOnlyList<SearchHit> SelectedHits => Results.SelectedItems.OfType<SearchHit>().ToList();
 
     public SearchPanel()
     {
@@ -143,7 +147,12 @@ public partial class SearchPanel : UserControl
 
     private void Results_RightDown(object sender, MouseButtonEventArgs e)
     {
-        if (FindItem(e.OriginalSource) is { } item) item.IsSelected = true;
+        // Inside a multi-selection the right click keeps it; elsewhere it selects just that row.
+        if (FindItem(e.OriginalSource) is { IsSelected: false } item)
+        {
+            Results.UnselectAll();
+            item.IsSelected = true;
+        }
     }
 
     private void Results_RightUp(object sender, MouseButtonEventArgs e)
@@ -161,6 +170,7 @@ public partial class SearchPanel : UserControl
     private void Results_KeyDown(object sender, KeyEventArgs e)
     {
         if (Results.SelectedItem is not SearchHit hit) return;
+        if (ExtraKeyDown?.Invoke(e.Key) == true) { e.Handled = true; return; }
         if (e.Key == Key.Enter)
         {
             e.Handled = true;
