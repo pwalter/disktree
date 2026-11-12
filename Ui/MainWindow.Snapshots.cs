@@ -122,7 +122,7 @@ public partial class MainWindow
         SetStatus(origin, before);
         if (TabsLocked) return;
         var s = _cur.IsEmpty ? _cur : NewTab();
-        var scanner = Scanner.FromSnapshot(snap, file);
+        var scanner = Scanner.FromSnapshot(snap);
         OnSnapshotAgeStamp(snap.AgeStamp); // the tab's choice follows the file (the scanner already carries it in Ages)
         s.SelectedVm = null;
         _scanner = scanner;

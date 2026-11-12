@@ -388,9 +388,6 @@ public sealed class NodeVM : INotifyPropertyChanged
         }
     }
 
-    /// <summary>Kept for the tests; the app uses <see cref="SizeFormat.Format"/>.</summary>
-    public static string FormatSize(long bytes) => SizeFormat.Format(bytes);
-
     // Green (small share) -> yellow -> orange -> red (large share).
     private static Brush Cached(Brush?[] cache, double percent, double s, double v)
     {

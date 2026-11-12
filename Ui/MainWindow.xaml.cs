@@ -256,12 +256,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private static string NormalizePath(string text)
-    {
-        var path = text.Trim().Trim('"');
-        return path.Length == 2 && path[1] == ':' ? path + "\\" : path;
-    }
-
     private Task BeginScan()
     {
         var s = _cur;

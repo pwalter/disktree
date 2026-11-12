@@ -105,7 +105,7 @@ public class AgeClassifierTests : TestBase
         var file = T.Sub("x.disktree");
         SnapshotStore.Save(file, s, DateTime.UtcNow);
 
-        var loaded = Scanner.FromSnapshot(SnapshotStore.Load(file), file);
+        var loaded = Scanner.FromSnapshot(SnapshotStore.Load(file));
 
         Assert.Equal(AgeStamp.Accessed, loaded.Ages.Stamp);
     }

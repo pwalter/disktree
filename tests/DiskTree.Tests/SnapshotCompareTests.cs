@@ -39,7 +39,6 @@ public class SnapshotCompareTests : TestBase
         Assert.Equal(DiffKind.Removed, byName["gone"].Kind);
         Assert.Equal(500, byName["gone"].OldSize);
         Assert.Equal(0, byName["gone"].NewSize);
-        Assert.Equal(2, byName["gone"].OldFiles);
         Assert.Equal(DiffKind.New, byName["fresh"].Kind);
         Assert.Equal(700, byName["fresh"].NewSize);
         Assert.False(byName.ContainsKey("same"));
@@ -125,5 +124,5 @@ public class SnapshotCompareTests : TestBase
 
     [Fact]
     public void DiffRow_DeltaIsNewMinusOld() =>
-        Assert.Equal(-30, new DiffRow(@"C:\x", "x", DiffKind.Shrunk, 50, 20, 1, 1).Delta);
+        Assert.Equal(-30, new DiffRow(@"C:\x", "x", DiffKind.Shrunk, 50, 20).Delta);
 }

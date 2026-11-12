@@ -210,7 +210,7 @@ public class ScannerTests : TestBase
     public async Task Scan_WithoutRules_ExcludesNothing()
     {
         T.File(@"node_modules\x.js", 5);
-        var s = await Scan.Run(T.Path, ExcludeRules.None);
+        var s = await Scan.Run(T.Path, new ExcludeRules(Array.Empty<string>()));
         Assert.Equal(5, s.ScanTarget!.Size);
         Assert.Equal(0, s.Excluded);
     }

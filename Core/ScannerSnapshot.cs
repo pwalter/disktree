@@ -9,13 +9,10 @@ public sealed partial class Scanner
     /// <summary>True when the tree comes from a .disktree file and not from the disk (it may be out of date).</summary>
     public bool IsSnapshot { get; private set; }
 
-    /// <summary>The file the tree was loaded from, when it is a snapshot.</summary>
-    public string? SnapshotFile { get; set; }
-
     /// <summary>When the data was read from the disk (start of the scan, or the time stored in the file).</summary>
     public DateTime? ScannedAt { get; set; }
 
-    public static Scanner FromSnapshot(LoadedSnapshot s, string? file)
+    public static Scanner FromSnapshot(LoadedSnapshot s)
     {
         var scanner = new Scanner
         {
@@ -24,7 +21,6 @@ public sealed partial class Scanner
             ExpectedBytes = s.ExpectedBytes,
             AgeStamp = s.AgeStamp,
             IsSnapshot = true,
-            SnapshotFile = file,
             ScannedAt = s.Info.ScannedAt == default ? null : s.Info.ScannedAt,
         };
         lock (scanner._topLock)

@@ -104,11 +104,10 @@ public sealed partial class Scanner
     /// <summary>Forgets a deleted file or everything below a deleted folder.</summary>
     public void RemoveTop(string path)
     {
-        var prefix = path.TrimEnd('\\') + "\\";
         lock (_topLock)
         {
             _top.RemoveAll(f => string.Equals(f.Path, path, StringComparison.OrdinalIgnoreCase)
-                                || f.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+                                || PathUtil.IsUnder(path, f.Path));
             Volatile.Write(ref _topMin, _top.Count >= TopCount ? _top.Min(f => f.Size) : 1 << 20);
         }
     }
@@ -123,26 +122,16 @@ public sealed partial class Scanner
         {
             // The artificial root has no path: pick the scanned path that contains the requested one.
             if (path.Length == 0) return cur;
-            var p = path.TrimEnd('\\') + "\\";
-            var top = cur.Snapshot().FirstOrDefault(c => p.StartsWith(c.FullPath.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase));
+            var top = cur.Snapshot().FirstOrDefault(c => PathUtil.IsSameOrUnder(c.FullPath, path));
             if (top == null) return null;
-            path = path[Math.Min(path.Length, top.FullPath.TrimEnd('\\').Length)..];
-            cur = top;
-            return Descend(cur, path);
+            return top.FindRelative(path[Math.Min(path.Length, top.FullPath.TrimEnd('\\').Length)..]);
         }
 
+        // Known flaw, left as it is on purpose (fixed separately): the prefix is compared WITHOUT a separator
+        // boundary, so below a root like "\\srv\share\a" the path "\\srv\share\ab" is taken for a path inside it.
+        // (Drive roots end in a backslash and are not affected.) See ScannerTests.FindNode_SiblingWithSamePrefix.
         if (!path.StartsWith(cur.FullPath, StringComparison.OrdinalIgnoreCase)) return null;
-        return Descend(cur, path[cur.FullPath.Length..]);
-    }
-
-    private static Node? Descend(Node cur, string rest)
-    {
-        foreach (var part in rest.Split('\\', StringSplitOptions.RemoveEmptyEntries))
-        {
-            cur = cur.Snapshot().FirstOrDefault(c => string.Equals(c.Name, part, StringComparison.OrdinalIgnoreCase))!;
-            if (cur == null) return null;
-        }
-        return cur;
+        return cur.FindRelative(path[cur.FullPath.Length..]);
     }
 
     /// <summary>(Re-)reads capacity and free space of the drive node.</summary>

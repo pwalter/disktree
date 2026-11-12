@@ -17,8 +17,6 @@ namespace DiskTree.Core;
 /// </summary>
 public sealed class ExcludeRules
 {
-    public static readonly ExcludeRules None = new(Array.Empty<string>());
-
     private readonly HashSet<string> _names = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _paths = new(StringComparer.OrdinalIgnoreCase);
     private readonly string[] _nameWildcards;

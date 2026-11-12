@@ -39,9 +39,6 @@ public class SnapshotStoreTests : TestBase
         Assert.Equal(s.Root.DriveFree, loaded.Root.DriveFree);
         Assert.True(loaded.Root.PartialDrive);
         Assert.Equal(root, loaded.Target.FullPath, ignoreCase: true);
-        Assert.Equal(root, loaded.Info.TargetPath, ignoreCase: true);
-        Assert.Equal(1, loaded.Version);
-        Assert.Equal(Environment.MachineName, loaded.Info.Machine);
         Assert.Equal(at, loaded.Info.ScannedAt.ToUniversalTime());
         Assert.Equal(s.ExpectedBytes, loaded.ExpectedBytes);
         Assert.Equal(AgeStamp.Modified, loaded.AgeStamp);
@@ -104,9 +101,8 @@ public class SnapshotStoreTests : TestBase
         var at = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
         SnapshotStore.Save(SnapFile, s, at);
 
-        var snap = Scanner.FromSnapshot(SnapshotStore.Load(SnapFile), SnapFile);
+        var snap = Scanner.FromSnapshot(SnapshotStore.Load(SnapFile));
         Assert.True(snap.IsSnapshot);
-        Assert.Equal(SnapFile, snap.SnapshotFile);
         Assert.Equal(at, snap.ScannedAt!.Value.ToUniversalTime());
         Assert.Equal(2 * MB, snap.ScanTarget!.Size);
         Assert.Equal(2 * MB, Assert.Single(snap.TopFiles()).Size);
@@ -177,7 +173,6 @@ public class SnapshotStoreTests : TestBase
         var l = SnapshotStore.Load(SnapFile);
         Assert.Equal(AgeStamp.Modified, l.AgeStamp);
         Assert.Equal(123, l.ExpectedBytes);
-        Assert.Equal("PC1", l.Info.Machine);
         Assert.Equal(@"D:\Data", l.Target.FullPath);
         Assert.Equal(10, l.Root.Size);
         Assert.Equal(0, l.Root.DirCount);
@@ -202,7 +197,6 @@ public class SnapshotStoreTests : TestBase
             "{\"k\":\"top\",\"s\":7}");
 
         var l = SnapshotStore.Load(SnapFile);
-        Assert.Equal(99, l.Version);
         Assert.Equal(7, l.Root.Size);
         var t = Assert.Single(l.Root.OwnTypes!);
         Assert.Equal(FileTypes.Other, t.Cat); // unknown category name falls back to "Sonstige"

@@ -46,7 +46,7 @@ public static class FileOperations
     public static List<OpItem> Normalize(IEnumerable<OpItem> items)
     {
         var list = items.GroupBy(i => i.Path.TrimEnd('\\'), StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();
-        var dirs = list.Where(i => i.IsDir).Select(i => i.Path.TrimEnd('\\') + "\\").ToList();
+        var dirs = list.Where(i => i.IsDir).Select(i => PathUtil.EnsureTrailingBackslash(i.Path)).ToList();
         return list.Where(i => !dirs.Any(d => i.Path.StartsWith(d, StringComparison.OrdinalIgnoreCase)))
             .OrderBy(i => i.Parent, StringComparer.OrdinalIgnoreCase)
             .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
@@ -116,17 +116,17 @@ public static class FileOperations
             return res;
         }
 
-        var dest = destDir.TrimEnd('\\') + "\\";
+        var dest = PathUtil.EnsureTrailingBackslash(destDir);
         foreach (var item in items)
         {
             try
             {
-                if (string.Equals((item.Parent ?? "").TrimEnd('\\') + "\\", dest, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(PathUtil.EnsureTrailingBackslash(item.Parent ?? ""), dest, StringComparison.OrdinalIgnoreCase))
                 {
                     res.Skipped.Add((item, "liegt schon in diesem Ordner"));
                     continue;
                 }
-                if (item.IsDir && dest.StartsWith(item.Path.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase))
+                if (item.IsDir && PathUtil.IsSameOrUnder(item.Path, dest))
                     throw new IOException("Ein Ordner kann nicht in sich selbst verschoben werden.");
 
                 var target = dest + item.Name;

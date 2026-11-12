@@ -63,6 +63,21 @@ public sealed class Node
         lock (_children) return _children.ToArray();
     }
 
+    /// <summary>
+    /// The folder below this one that a relative path ("a\b", case-insensitive) leads to; this node for an empty path;
+    /// null if a part is missing.
+    /// </summary>
+    public Node? FindRelative(string relative)
+    {
+        var cur = this;
+        foreach (var part in relative.Split('\\', StringSplitOptions.RemoveEmptyEntries))
+        {
+            cur = cur.Snapshot().FirstOrDefault(c => string.Equals(c.Name, part, StringComparison.OrdinalIgnoreCase))!;
+            if (cur == null) return null;
+        }
+        return cur;
+    }
+
     public bool HasChildren
     {
         get { lock (_children) return _children.Count > 0 || OwnCount > 0; }
