@@ -798,11 +798,8 @@ public partial class MainWindow : Window
     private static void OpenInExplorer(string path)
     {
         if (!File.Exists(path) && !Directory.Exists(path)) return; // e.g. a stored scan of another machine
-        OpenInExplorerCore(path);
-    }
-
-    private static void OpenInExplorerCore(string path) =>
         Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true });
+    }
 
     private void RunShell(string path, bool isFile, long size, NodeVM? vm, Action action)
     {

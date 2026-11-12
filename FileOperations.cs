@@ -27,7 +27,6 @@ public sealed class OpResult
     public Dictionary<string, string> NewPaths { get; } = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>An existing target was replaced: sizes in the destination folder changed in a way that needs a rescan.</summary>
     public bool Replaced { get; set; }
-    public bool Cancelled { get; set; }
 
     public long DoneBytes => Done.Sum(i => i.Size);
 }
