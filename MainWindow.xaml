@@ -159,6 +159,14 @@
             <Button x:Name="ExcludeButton" Grid.Column="6" Content="Ausschlüsse…" Height="32" Margin="16,0,0,0"
                     Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="Exclude_Click"
                     ToolTip="Ordner, die der Scan überspringt (gilt ab dem nächsten Scan)" />
+            <StackPanel Grid.Column="6" Orientation="Horizontal" Margin="16,0,0,0">
+                <Button x:Name="SnapshotSaveButton" Content="💾 Scan speichern…" Height="32"
+                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="SaveSnapshot_Click"
+                        ToolTip="Den Scan als .disktree-Datei speichern (später ohne Neuscan wieder öffnen oder vergleichen)" />
+                <Button Content="📂 Scan öffnen…" Height="32" Margin="6,0,0,0"
+                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="OpenSnapshot_Click"
+                        ToolTip="Gespeicherten Scan öffnen (oder .disktree-Datei auf das Fenster ziehen)" />
+            </StackPanel>
         </Grid>
 
         <!-- Column header -->
@@ -241,6 +249,9 @@
                             <ItemsControl x:Name="AgeLegend" ItemTemplate="{StaticResource LegendRow}" />
                         </ScrollViewer>
                     </Grid>
+                </TabItem>
+                <TabItem Header="Vergleich">
+                    <local:ComparePanel x:Name="Compare" />
                 </TabItem>
             </TabControl>
         </Border>

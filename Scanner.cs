@@ -91,7 +91,7 @@ public sealed class Node
     }
 }
 
-public sealed class Scanner
+public sealed partial class Scanner
 {
     private readonly record struct Entry(string? Name, bool IsDir, long Length, bool Reparse, int Cat, int Age);
 
