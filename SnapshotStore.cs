@@ -112,6 +112,14 @@ public static class SnapshotStore
                 }
                 json.WriteEndArray();
             }
+            if (n.OwnAges is { Length: > 0 } ages)
+            {
+                // Age buckets of the folder's own files: sizes [0..4], counts [5..9] (see AgeBuckets.Pack).
+                json.WriteStartArray("ag");
+                foreach (var v in ages) json.WriteNumberValue(v);
+                json.WriteEndArray();
+            }
+            Num(json, "x", Interlocked.Read(ref n.Excluded));
             Num(json, "dt", n.DriveTotal);
             Num(json, "df", n.DriveFree);
             if (n.PartialDrive) json.WriteBoolean("pd", true);
@@ -229,6 +237,7 @@ public static class SnapshotStore
             DirCount = Num(e, "d"),
             OwnSize = Num(e, "os"),
             OwnCount = Num(e, "oc"),
+            Excluded = Num(e, "x"),
             DriveTotal = Num(e, "dt"),
             DriveFree = Num(e, "df"),
             PartialDrive = e.TryGetProperty("pd", out var pd) && pd.ValueKind == JsonValueKind.True,
@@ -248,6 +257,17 @@ public static class SnapshotStore
                 counts[cat] += item[2].GetInt64();
             }
             node.OwnTypes = FileTypes.Pack(sizes, counts);
+        }
+
+        if (e.TryGetProperty("ag", out var ag) && ag.ValueKind == JsonValueKind.Array && ag.GetArrayLength() >= AgeBuckets.Count * 2)
+        {
+            var own = new long[AgeBuckets.Count * 2];
+            for (int i = 0; i < own.Length; i++) own[i] = ag[i].GetInt64();
+            node.OwnAges = own;
+            parent?.AddChild(node); // AddSub walks up through Parent, so the parent must know us first
+            for (int b = 0; b < AgeBuckets.Count; b++)
+                if (own[b] != 0) AgeBuckets.AddSub(node, b, own[b]);
+            return node;
         }
 
         parent?.AddChild(node);
