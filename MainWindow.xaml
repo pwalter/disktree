@@ -345,10 +345,15 @@
                     Style="{StaticResource ToolButton}" Background="Transparent" Foreground="{DynamicResource Muted}"
                     ToolTip="Version und Updates (Rechtsklick: Einstellungen)">
                 <Button.ContextMenu>
-                    <ContextMenu>
+                    <ContextMenu Opened="UpdateMenu_Opened">
                         <MenuItem Header="Nach Updates suchen" Click="CheckUpdate_Click" />
                         <MenuItem x:Name="AutoUpdateItem" Header="Beim Start automatisch suchen" IsCheckable="True" Click="AutoUpdate_Click" />
                         <MenuItem Header="Alle Versionen im Browser öffnen" Click="OpenReleases_Click" />
+                        <Separator />
+                        <MenuItem x:Name="ExplorerItem" Header="Im Explorer-Kontextmenü anzeigen" IsCheckable="True" Click="ExplorerItem_Click"
+                                  ToolTip="Fügt „Mit DiskTree analysieren“ zum Rechtsklick auf Ordner, Laufwerke und Ordnerhintergrund hinzu (nur für diesen Benutzer, ohne Administratorrechte). Unter Windows 11 unter „Weitere Optionen anzeigen“." />
+                        <MenuItem x:Name="PortableItem" Header="Portable-Modus (Einstellungen neben der exe)" IsCheckable="True" Click="PortableItem_Click"
+                                  ToolTip="Speichert settings.json neben der exe statt in %AppData%\DiskTree (Marker-Datei DiskTree.portable). Ein Explorer-Menü-Eintrag zeigt weiter auf den Pfad dieser exe und liegt in der Registry des Benutzers." />
                     </ContextMenu>
                 </Button.ContextMenu>
             </Button>

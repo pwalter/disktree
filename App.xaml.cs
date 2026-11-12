@@ -17,7 +17,9 @@ public partial class App : Application
             return;
         }
 
+        DiskTree.Portable.ForcedByFlag = Options.Portable;
         Updater.CleanupOld();
+        ExplorerIntegration.RefreshIfStale();
         Theme.Init(AppSettings.Load().Theme);
         base.OnStartup(e);
     }
