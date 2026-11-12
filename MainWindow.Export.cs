@@ -29,15 +29,17 @@ public partial class MainWindow
         var kind = ExportDialog.Ask(this, selected, scanning);
         if (kind == null) return;
 
+        bool report = kind is ExportKind.ReportHtml or ExportKind.ReportPdf;
+        bool pdf = kind == ExportKind.ReportPdf;
         Node? node = kind == ExportKind.Subtree ? selected : kind == ExportKind.WholeScan ? whole : null;
         var dlg = new SaveFileDialog
         {
             Title = "Exportieren",
-            Filter = "CSV-Datei (*.csv)|*.csv",
-            DefaultExt = ".csv",
+            Filter = pdf ? "PDF-Datei (*.pdf)|*.pdf" : report ? "HTML-Datei (*.html)|*.html" : "CSV-Datei (*.csv)|*.csv",
+            DefaultExt = pdf ? ".pdf" : report ? ".html" : ".csv",
             AddExtension = true,
             OverwritePrompt = true,
-            FileName = Exporter.DefaultFileName(kind.Value, node),
+            FileName = report ? ReportBuilder.DefaultFileName(pdf ? "pdf" : "html") : Exporter.DefaultFileName(kind.Value, node),
         };
         if (dlg.ShowDialog(this) != true) return;
 
@@ -48,6 +50,22 @@ public partial class MainWindow
         Mouse.OverrideCursor = Cursors.Wait;
         try
         {
+            if (report)
+            {
+                await Task.Run(() =>
+                {
+                    var data = ReportBuilder.Build(scanner, scanning);
+                    if (pdf) ReportPdf.Write(file, data); else ReportHtml.Write(file, data);
+                });
+                Mouse.OverrideCursor = null;
+                var open = MessageBox.Show(this,
+                    $"Bericht gespeichert:\n{file}" + (scanning ? "\n\nHinweis: Der Scan lief noch, die Zahlen sind ein Zwischenstand." : "") + "\n\nJetzt öffnen?",
+                    "Exportieren", MessageBoxButton.YesNo, MessageBoxImage.Information);
+                if (open == MessageBoxResult.Yes)
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(file) { UseShellExecute = true });
+                return;
+            }
+
             int rows = await Task.Run(() => top != null ? Exporter.WriteTopFiles(file, top) : Exporter.WriteTree(file, node!));
             Mouse.OverrideCursor = null;
             MessageBox.Show(this,
@@ -81,6 +99,8 @@ internal static class ExportDialog
         };
         var rbAll = new RadioButton { Content = "Gesamter Scan", Margin = new Thickness(0, 0, 0, 8) };
         var rbTop = new RadioButton { Content = "Liste der größten Dateien", Margin = new Thickness(0, 0, 0, 8) };
+        var rbHtml = new RadioButton { Content = "Bericht (HTML) – Speicherplatz-Bericht für den gesamten Scan", Margin = new Thickness(0, 0, 0, 8) };
+        var rbPdf = new RadioButton { Content = "Bericht (PDF) – Speicherplatz-Bericht für den gesamten Scan", Margin = new Thickness(0, 0, 0, 8) };
         (selected != null ? rbSub : rbAll).IsChecked = true;
 
         var panel = new StackPanel { Margin = new Thickness(20, 18, 20, 16) };
@@ -88,6 +108,8 @@ internal static class ExportDialog
         panel.Children.Add(rbSub);
         panel.Children.Add(rbAll);
         panel.Children.Add(rbTop);
+        panel.Children.Add(rbHtml);
+        panel.Children.Add(rbPdf);
         if (scanning)
         {
             var hint = new TextBlock { Text = "Der Scan läuft noch. Exportiert wird der aktuelle Zwischenstand.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
@@ -119,6 +141,10 @@ internal static class ExportDialog
         ok.Click += (_, _) => win.DialogResult = true;
 
         if (win.ShowDialog() != true) return null;
-        return rbSub.IsChecked == true ? ExportKind.Subtree : rbTop.IsChecked == true ? ExportKind.TopFiles : ExportKind.WholeScan;
+        return rbSub.IsChecked == true ? ExportKind.Subtree
+            : rbTop.IsChecked == true ? ExportKind.TopFiles
+            : rbHtml.IsChecked == true ? ExportKind.ReportHtml
+            : rbPdf.IsChecked == true ? ExportKind.ReportPdf
+            : ExportKind.WholeScan;
     }
 }
