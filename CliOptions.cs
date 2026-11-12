@@ -23,6 +23,7 @@ public sealed class CliOptions
         "      --admin           Direkt als Administrator neu starten (UAC-Abfrage), ohne Rückfrage\n" +
         "      --no-admin-prompt Die Frage nach Administratorrechten in diesem Start überspringen\n" +
         "      --no-update-check Beim Start nicht nach einer neuen Version suchen\n" +
+        "      --portable        Einstellungen neben der exe speichern (oder Datei DiskTree.portable anlegen)\n" +
         "  -h, --help, /?        Diese Hilfe\n" +
         "\n" +
         "Beispiele:\n" +
@@ -39,6 +40,7 @@ public sealed class CliOptions
     public bool Admin { get; private set; }
     public bool NoAdminPrompt { get; private set; }
     public bool NoUpdateCheck { get; private set; }
+    public bool Portable { get; private set; }
     public bool Help { get; private set; }
     public string? Error { get; private set; }
 
@@ -60,6 +62,9 @@ public sealed class CliOptions
                     break;
                 case "--no-update-check":
                     o.NoUpdateCheck = true;
+                    break;
+                case "--portable":
+                    o.Portable = true;
                     break;
                 case "--no-admin-prompt":
                     o.NoAdminPrompt = true;
@@ -106,6 +111,7 @@ public sealed class CliOptions
             if (!string.IsNullOrEmpty(p)) yield return p;
         if (Threads is { } t) { yield return "--threads"; yield return t.ToString(); }
         foreach (var x in Excludes) { yield return "--exclude"; yield return x; }
+        if (DiskTree.Portable.ForcedByFlag) yield return "--portable";
     }
 
     private CliOptions Fail(string message)

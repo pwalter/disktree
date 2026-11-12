@@ -9,8 +9,7 @@ namespace DiskTree;
 
 public static class AdminHelper
 {
-    private static readonly string SuppressFile =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DiskTree", "no-admin-prompt");
+    private static string SuppressFile => Path.Combine(Portable.DataDir, "no-admin-prompt");
 
     public static bool IsAdmin
     {

@@ -21,8 +21,7 @@ public sealed class AppSettings
     /// <summary>Duplicate search ignores files smaller than this.</summary>
     public long DuplicateMinBytes { get; set; } = 1 << 20;
 
-    private static readonly string FilePath =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DiskTree", "settings.json");
+    private static string FilePath => Portable.SettingsIn(Portable.DataDir);
 
     public static AppSettings Load()
     {
