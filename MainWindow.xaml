@@ -275,7 +275,7 @@
                     </Grid>
                 </TabItem>
                 <TabItem Header="Größte Dateien">
-                    <ListBox x:Name="TopList" BorderThickness="0" Background="Transparent"
+                    <ListBox x:Name="TopList" BorderThickness="0" Background="Transparent" SelectionMode="Extended"
                              ItemTemplate="{StaticResource TopFileRow}"
                              HorizontalContentAlignment="Stretch"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -285,8 +285,12 @@
                              PreviewKeyDown="TopList_KeyDown" />
                 </TabItem>
                 <TabItem x:Name="AgeTab" Header="Alter">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
                     <Grid>
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -295,17 +299,36 @@
                         </Grid.RowDefinitions>
                         <TextBlock x:Name="AgeTitle" Text="Alter (zuletzt geändert)" FontWeight="SemiBold" FontSize="14"
                                    TextTrimming="CharacterEllipsis" Margin="4,0" />
+                        <!-- Which timestamp the scan sums up; code in MainWindow.AgeStamp.cs -->
                         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="4,8,4,0">
+                            <TextBlock Text="Zeitstempel" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
+                            <ComboBox x:Name="AgeStampBox" Width="150" Height="26" Margin="8,0,0,0"
+                                      ToolTip="Welches Datum der Dateien ausgewertet wird. Ein Wechsel erfordert einen Neuscan." />
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="4,6,4,0">
                             <TextBlock Text="Als „alt“ zählt ab" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
                             <ComboBox x:Name="AgeThresholdBox" Width="96" Height="26" Margin="8,0,0,0"
                                       ToolTip="Schwellwert für die Spalte „Älter“ im Baum und die Zusammenfassung hier" />
                         </StackPanel>
-                        <local:PieChart x:Name="AgePie" Grid.Row="2" Height="240" Margin="0,8" />
-                        <TextBlock x:Name="AgeSummary" Grid.Row="3" Margin="4,0,4,6" TextWrapping="Wrap" />
-                        <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto" Margin="4,0">
+                        <Border x:Name="AgeSwitchNotice" Grid.Row="3" Visibility="Collapsed" Margin="4,8,4,0" Padding="8,6" CornerRadius="4"
+                                Background="{DynamicResource TrackBg}" BorderBrush="#4C8DF6" BorderThickness="3,0,0,0">
+                            <StackPanel>
+                                <TextBlock x:Name="AgeSwitchText" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource Ink}" />
+                                <Button x:Name="AgeRescanButton" Content="Jetzt neu scannen" HorizontalAlignment="Left" Margin="0,6,0,0"
+                                        Padding="10,3" Click="AgeRescan_Click" />
+                            </StackPanel>
+                        </Border>
+                        <Border x:Name="AgeAccessNotice" Grid.Row="4" Visibility="Collapsed" Margin="4,8,4,0" Padding="8,6" CornerRadius="4"
+                                Background="{DynamicResource TrackBg}" BorderBrush="#E8B923" BorderThickness="3,0,0,0">
+                            <TextBlock x:Name="AgeAccessText" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource Ink}" />
+                        </Border>
+                        <local:PieChart x:Name="AgePie" Grid.Row="5" Height="240" Margin="0,8" />
+                        <TextBlock x:Name="AgeSummary" Grid.Row="6" Margin="4,0,4,6" TextWrapping="Wrap" />
+                        <ScrollViewer Grid.Row="7" VerticalScrollBarVisibility="Auto" Margin="4,0">
                             <ItemsControl x:Name="AgeLegend" ItemTemplate="{StaticResource LegendRow}" />
                         </ScrollViewer>
                     </Grid>
+                    </ScrollViewer>
                 </TabItem>
                 <TabItem Header="Treemap">
                     <local:TreemapPanel x:Name="Treemap" Margin="0,2,0,0" NodeClicked="Treemap_NodeClicked" />
@@ -345,10 +368,15 @@
                     Style="{StaticResource ToolButton}" Background="Transparent" Foreground="{DynamicResource Muted}"
                     ToolTip="Version und Updates (Rechtsklick: Einstellungen)">
                 <Button.ContextMenu>
-                    <ContextMenu>
+                    <ContextMenu Opened="UpdateMenu_Opened">
                         <MenuItem Header="Nach Updates suchen" Click="CheckUpdate_Click" />
                         <MenuItem x:Name="AutoUpdateItem" Header="Beim Start automatisch suchen" IsCheckable="True" Click="AutoUpdate_Click" />
                         <MenuItem Header="Alle Versionen im Browser öffnen" Click="OpenReleases_Click" />
+                        <Separator />
+                        <MenuItem x:Name="ExplorerItem" Header="Im Explorer-Kontextmenü anzeigen" IsCheckable="True" Click="ExplorerItem_Click"
+                                  ToolTip="Fügt „Mit DiskTree analysieren“ zum Rechtsklick auf Ordner, Laufwerke und Ordnerhintergrund hinzu (nur für diesen Benutzer, ohne Administratorrechte). Unter Windows 11 unter „Weitere Optionen anzeigen“." />
+                        <MenuItem x:Name="PortableItem" Header="Portable-Modus (Einstellungen neben der exe)" IsCheckable="True" Click="PortableItem_Click"
+                                  ToolTip="Speichert settings.json neben der exe statt in %AppData%\DiskTree (Marker-Datei DiskTree.portable). Ein Explorer-Menü-Eintrag zeigt weiter auf den Pfad dieser exe und liegt in der Registry des Benutzers." />
                     </ContextMenu>
                 </Button.ContextMenu>
             </Button>

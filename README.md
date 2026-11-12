@@ -20,7 +20,10 @@ Speicherplatz-Analyse für Windows, ähnlich wie TreeSize: Pfad oder Laufwerk an
 - **Besitzer und Rechte:** Besitzer und ACL des markierten Ordners, Speicher pro Besitzer (auf Knopfdruck).
 - **Ausschlüsse:** Ordner (Name, Muster wie `*.tmp` oder Pfad) vom Scan ausnehmen, auch per `--exclude`.
 - **Self-Update:** DiskTree sucht beim Start nach einer neuen Version (unten rechts in der Statusleiste), lädt sie von den GitHub-Releases, prüft die SHA-256-Prüfsumme und startet neu. Abschaltbar per Rechtsklick auf die Versionsanzeige oder mit `--no-update-check`.
-- **Export** als CSV (Excel-tauglich): Baum oder größte Dateien.
+- **Export** als CSV (Excel-tauglich), außerdem **Bericht** als HTML oder PDF (größte Ordner, Dateitypen, Alter, größte Dateien).
+- **Aufräumen:** mehrere Dateien markieren (Größte Dateien, Suche, Duplikate) und verschieben, in ZIP archivieren, umbenennen (F2, auch per Muster) oder in den Papierkorb legen – immer mit Bestätigung.
+- **Filter** nach Zugriffs-, Erstell- und Änderungsdatum sowie Dateiattributen (versteckt, System, komprimiert, Cloud-Platzhalter …); der Alters-Tab kann nach jedem der drei Zeitstempel auswerten.
+- **Explorer-Kontextmenü** „Mit DiskTree analysieren“ (Rechtsklick auf die Versionsanzeige schaltet es ein) und **Portable-Modus** (`DiskTree.portable` neben die exe legen oder `--portable`).
 - **Scans speichern und öffnen** (`.disktree`) und **vergleichen**: welche Ordner sind gewachsen, geschrumpft, neu oder entfernt.
 
 ## Download
@@ -40,6 +43,8 @@ DiskTree.exe [Pfad] [Optionen]
   Pfad                  Laufwerk oder Ordner, der sofort gescannt wird (mehrere Pfade möglich)
   -t, --threads N       Anzahl der Scan-Threads (1-256)
   -x, --exclude MUSTER  Ordner beim Scan überspringen (mehrfach möglich)
+      --portable        Einstellungen neben der exe speichern
+      --no-update-check Beim Start nicht nach einer neuen Version suchen
       --admin           Direkt als Administrator neu starten
       --no-admin-prompt Die Frage nach Administratorrechten überspringen
   -h, --help, /?        Hilfe

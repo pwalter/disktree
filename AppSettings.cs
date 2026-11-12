@@ -13,6 +13,8 @@ public sealed class AppSettings
     public bool Maximized { get; set; }
     /// <summary>Files at least this many months old count as "old" (age column / chart); one of AgeBuckets.LimitMonths.</summary>
     public int AgeThresholdMonths { get; set; } = 24;
+    /// <summary>Timestamp the next scan builds the age buckets from (see AgeStamps).</summary>
+    public AgeStamp AgeStamp { get; set; } = AgeStamp.Modified;
     /// <summary>Look for a newer release at start (see Updater).</summary>
     public bool AutoCheckUpdates { get; set; } = true;
     public ThemeSetting Theme { get; set; } = ThemeSetting.System;
@@ -21,8 +23,7 @@ public sealed class AppSettings
     /// <summary>Duplicate search ignores files smaller than this.</summary>
     public long DuplicateMinBytes { get; set; } = 1 << 20;
 
-    private static readonly string FilePath =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DiskTree", "settings.json");
+    private static string FilePath => Portable.SettingsIn(Portable.DataDir);
 
     public static AppSettings Load()
     {

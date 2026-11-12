@@ -64,6 +64,7 @@ public partial class MainWindow : Window
 
         InitSnapshots();
         InitSearch();
+        InitOps();
         // Duplicate finder tab (DuplicatesPanel.xaml.cs): searches the selected folder, uses the shell menu from here.
         Dup.Settings = _settings;
         Dup.RootProvider = DuplicateRoot;
@@ -78,6 +79,7 @@ public partial class MainWindow : Window
         InitUpdate();
         ShowExcludeButton();
         InitAge();
+        InitAgeStamp();
         Loaded += OnLoaded;
         Closing += OnClosing;
     }
@@ -626,7 +628,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var selected = (TopList.SelectedItem as TopRow)?.Path;
+        var selected = TopList.SelectedItems.Cast<TopRow>().Select(r => r.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var rows = _scanner.TopFiles().Select(f => new TopRow
         {
             Path = f.Path,
@@ -637,13 +639,18 @@ public partial class MainWindow : Window
         }).ToList();
 
         TopList.ItemsSource = rows;
-        if (selected != null)
-            TopList.SelectedItem = rows.FirstOrDefault(r => r.Path == selected);
+        foreach (var r in rows)
+            if (selected.Contains(r.Path)) TopList.SelectedItems.Add(r);
     }
 
     private void TopList_RightDown(object sender, MouseButtonEventArgs e)
     {
-        if (FindAncestor<ListBoxItem>(e.OriginalSource) is { } item) item.IsSelected = true;
+        // Right click inside a multi-selection keeps it (the menu acts on all of it); elsewhere it selects just that row.
+        if (FindAncestor<ListBoxItem>(e.OriginalSource) is { IsSelected: false } item)
+        {
+            TopList.UnselectAll();
+            item.IsSelected = true;
+        }
     }
 
     private void TopList_RightUp(object sender, MouseButtonEventArgs e)
@@ -662,6 +669,7 @@ public partial class MainWindow : Window
     private void TopList_KeyDown(object sender, KeyEventArgs e)
     {
         if (TopList.SelectedItem is not TopRow row) return;
+        if (OpsKey(e.Key)) { e.Handled = true; return; } // F2, Delete on several rows
 
         if (e.Key == Key.Delete)
         {
@@ -712,6 +720,7 @@ public partial class MainWindow : Window
     private void Tree_KeyDown(object sender, KeyEventArgs e)
     {
         if (Tree.SelectedItem is not NodeVM vm) return;
+        if (OpsTreeKey(e.Key, vm)) { e.Handled = true; return; }
 
         if (e.Key == Key.Delete && CanUseShell(vm))
         {
@@ -756,6 +765,7 @@ public partial class MainWindow : Window
 
         list.Add(("Übergeordneten Ordner öffnen", () => OpenInExplorer(path)));
         list.Add(("Pfad kopieren", () => Clipboard.SetText(path)));
+        list.AddRange(OpExtras(path, isDir)); // move / ZIP / rename / delete (MainWindow.Operations.cs)
         return list;
     }
 

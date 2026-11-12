@@ -53,13 +53,14 @@ public partial class MainWindow
     {
         if (!AgeTab.IsSelected) return; // only worth the walk while it is visible
         int version = ++_ageVersion;
+        UpdateAgeNotices();
 
         if (node == null)
         {
             AgePie.SetData(Array.Empty<PieSlice>(), "", "");
             AgeLegend.ItemsSource = null;
             AgeSummary.Text = "";
-            AgeTitle.Text = "Alter (zuletzt geändert)";
+            AgeTitle.Text = $"Alter ({AgeStamps.Lower[(int)AgeStamps.Current]})";
             return;
         }
 
@@ -87,9 +88,10 @@ public partial class MainWindow
         long old = 0, oldFiles = 0;
         for (int i = AgeBuckets.OldFrom; i < AgeBuckets.Count; i++) { old += sizes[i]; oldFiles += counts[i]; }
         AgeSummary.Text = total > 0
-            ? $"Älter als {AgeBuckets.ThresholdText(AgeBuckets.ThresholdMonths)}: {NodeVM.FormatSize(old)} ({Share(old):P0}) in {oldFiles:N0} Dateien"
+            ? $"Älter als {AgeBuckets.ThresholdText(AgeBuckets.ThresholdMonths)} ({AgeStamps.Lower[(int)AgeStamps.Current]}): {NodeVM.FormatSize(old)} ({Share(old):P0}) in {oldFiles:N0} Dateien"
             : "";
-        AgeTitle.Text = "Alter – " + title;
+        AgeTitle.Text = $"Alter ({AgeStamps.Lower[(int)AgeStamps.Current]}) – " + title;
+        AgeTitle.ToolTip = AgeTitle.Text;
     }
 
     private static (long[] Sizes, long[] Counts) SumAges(Node start, bool ownOnly)

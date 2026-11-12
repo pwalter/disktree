@@ -63,10 +63,18 @@
                     </Grid>
                 </HierarchicalDataTemplate>
                 <DataTemplate DataType="{x:Type local:DupFileVM}">
-                    <StackPanel Margin="0,2" ToolTip="{Binding Path}">
-                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding Folder}" FontSize="11" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
+                    <Grid Margin="0,2" ToolTip="{Binding Path}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,6,0"
+                                  ToolTip="Für Verschieben, ZIP oder Löschen mehrerer Dateien markieren" />
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Folder}" FontSize="11" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Grid>
                 </DataTemplate>
             </TreeView.Resources>
         </TreeView>

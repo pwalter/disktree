@@ -17,6 +17,10 @@ public partial class SearchPanel : UserControl
     /// <summary>Show the Windows shell menu for the hit at a screen position.</summary>
     public Action<SearchHit, Point>? ShowMenu { get; set; }
     public Action<SearchHit>? DeleteHit { get; set; }
+    /// <summary>Keys the host handles for the selection (F2, Delete on several hits); returns true if it used the key.</summary>
+    public Func<Key, bool>? ExtraKeyDown { get; set; }
+
+    public IReadOnlyList<SearchHit> SelectedHits => Results.SelectedItems.OfType<SearchHit>().ToList();
 
     public SearchPanel()
     {
@@ -44,6 +48,7 @@ public partial class SearchPanel : UserControl
         bool files = ModeBox.SelectedIndex == 1;
         ExtBox.IsEnabled = files;
         ExtLabel.Opacity = files ? 1 : 0.5;
+        MoreFilters.IsEnabled = files; // date / attribute filters need files
     }
 
     private void Box_KeyDown(object sender, KeyEventArgs e)
@@ -89,16 +94,25 @@ public partial class SearchPanel : UserControl
                 .Select(x => "." + x.TrimStart('*', '.').ToLowerInvariant()).ToArray()
             : [];
         var text = NameBox.Text.Trim();
-
-        if (text.Length == 0 && minSize == 0 && exts.Length == 0)
+        string? filterError = null;
+        var filter = files ? BuildFilter(out filterError) : null;
+        if (filterError != null)
         {
-            StatusText.Text = "Name, Mindestgröße oder Endung angeben.";
+            StatusText.Text = filterError;
+            MoreFilters.IsExpanded = true;
             return;
         }
 
-        var query = new SearchQuery { Scope = scope, Text = text, MinSize = minSize, Extensions = exts, Files = files };
+        if (text.Length == 0 && minSize == 0 && exts.Length == 0 && filter == null)
+        {
+            StatusText.Text = "Name, Mindestgröße, Endung oder einen weiteren Filter angeben.";
+            return;
+        }
+
+        var query = new SearchQuery { Scope = scope, Text = text, MinSize = minSize, Extensions = exts, Files = files, Filter = filter };
         ScopeText.Text = "In: " + scope.FullPath;
 
+        MoreFilters.IsExpanded = false; // make room for the hits; the header says how many filters are active
         _cts = new CancellationTokenSource();
         var ct = _cts.Token;
         GoButton.Content = "Abbrechen";
@@ -143,7 +157,12 @@ public partial class SearchPanel : UserControl
 
     private void Results_RightDown(object sender, MouseButtonEventArgs e)
     {
-        if (FindItem(e.OriginalSource) is { } item) item.IsSelected = true;
+        // Inside a multi-selection the right click keeps it; elsewhere it selects just that row.
+        if (FindItem(e.OriginalSource) is { IsSelected: false } item)
+        {
+            Results.UnselectAll();
+            item.IsSelected = true;
+        }
     }
 
     private void Results_RightUp(object sender, MouseButtonEventArgs e)
@@ -161,6 +180,7 @@ public partial class SearchPanel : UserControl
     private void Results_KeyDown(object sender, KeyEventArgs e)
     {
         if (Results.SelectedItem is not SearchHit hit) return;
+        if (ExtraKeyDown?.Invoke(e.Key) == true) { e.Handled = true; return; }
         if (e.Key == Key.Enter)
         {
             e.Handled = true;
