@@ -12,6 +12,8 @@ public sealed class AppSettings
     public double Height { get; set; }
     public bool Maximized { get; set; }
     public ThemeSetting Theme { get; set; } = ThemeSetting.System;
+    /// <summary>Duplicate search ignores files smaller than this.</summary>
+    public long DuplicateMinBytes { get; set; } = 1 << 20;
 
     private static readonly string FilePath =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DiskTree", "settings.json");

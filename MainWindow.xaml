@@ -212,6 +212,9 @@
                              MouseDoubleClick="TopList_DoubleClick"
                              PreviewKeyDown="TopList_KeyDown" />
                 </TabItem>
+                <TabItem Header="Duplikate">
+                    <local:DuplicatesPanel x:Name="Dup" />
+                </TabItem>
             </TabControl>
         </Border>
 

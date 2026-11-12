@@ -62,6 +62,14 @@ public partial class MainWindow : Window
             AdminButton.Visibility = Visibility.Collapsed;
         }
 
+        // Duplicate finder tab (DuplicatesPanel.xaml.cs): searches the selected folder, uses the shell menu from here.
+        Dup.Settings = _settings;
+        Dup.RootProvider = DuplicateRoot;
+        Dup.ShellMenuRequested += (path, size, pos) => RunShell(path, isFile: true, size, null,
+            () => ShellContextMenu.Show(this, path, pos, Extras(path, isDir: false)));
+        Dup.ShellDeleteRequested += (path, size) => RunShell(path, isFile: true, size, null,
+            () => ShellContextMenu.InvokeVerb(this, path, "delete"));
+
         Theme.Changed += () => _root?.RefreshTheme();
         ShowThemeButton();
         Loaded += OnLoaded;
@@ -536,6 +544,15 @@ public partial class MainWindow : Window
             e.Handled = true;
             ShowFileMenu(row, TopList.PointToScreen(Mouse.GetPosition(TopList)));
         }
+    }
+
+    // Folder for the duplicate search: the selected folder (or the folder of the selected file), else what was scanned.
+    private string? DuplicateRoot()
+    {
+        var vm = Tree.SelectedItem as NodeVM;
+        if (vm is { Kind: Kind.File or Kind.Files }) vm = vm.Parent is { Kind: Kind.Dir } p ? p : vm.Parent?.Parent;
+        var path = vm is { Kind: Kind.Dir } ? vm.Path : (_scanTarget ?? _root?.Node)?.FullPath;
+        return string.IsNullOrEmpty(path) ? null : path;
     }
 
     private void ShowFileMenu(TopRow row, Point screenPos) =>
