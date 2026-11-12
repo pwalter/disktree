@@ -110,6 +110,8 @@
                            Width="90" TextAlignment="Right" VerticalAlignment="Center" />
                 <TextBlock Text="{Binding FilesText}" Foreground="{DynamicResource Muted}"
                            Width="100" TextAlignment="Right" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding OldText}" Foreground="{DynamicResource Muted}"
+                           Width="100" TextAlignment="Right" VerticalAlignment="Center" />
             </StackPanel>
         </HierarchicalDataTemplate>
     </Window.Resources>
@@ -162,6 +164,7 @@
                 <TextBlock Text="Anteil" Width="166" Padding="8,0,0,0" />
                 <TextBlock Text="Größe" Width="90" TextAlignment="Right" />
                 <TextBlock Text="Dateien" Width="100" TextAlignment="Right" />
+                <TextBlock x:Name="OldHeader" Text="Älter" Width="100" TextAlignment="Right" />
             </StackPanel>
         </Grid>
 
@@ -186,7 +189,7 @@
         <!-- Side panel: file types / largest files -->
         <Border Grid.Row="1" Grid.RowSpan="2" Grid.Column="1" Background="{DynamicResource PanelBg}" BorderBrush="{DynamicResource PanelBorder}"
                 BorderThickness="1" CornerRadius="6" Padding="10,6,10,10">
-            <TabControl BorderThickness="0" Background="Transparent" Padding="0,8,0,0">
+            <TabControl x:Name="SideTabs" SelectionChanged="SideTabs_SelectionChanged" BorderThickness="0" Background="Transparent" Padding="0,8,0,0">
                 <TabItem Header="Dateitypen">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -211,6 +214,29 @@
                              MouseRightButtonUp="TopList_RightUp"
                              MouseDoubleClick="TopList_DoubleClick"
                              PreviewKeyDown="TopList_KeyDown" />
+                </TabItem>
+                <TabItem x:Name="AgeTab" Header="Alter">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock x:Name="AgeTitle" Text="Alter (zuletzt geändert)" FontWeight="SemiBold" FontSize="14"
+                                   TextTrimming="CharacterEllipsis" Margin="4,0" />
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="4,8,4,0">
+                            <TextBlock Text="Als „alt“ zählt ab" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
+                            <ComboBox x:Name="AgeThresholdBox" Width="96" Height="26" Margin="8,0,0,0"
+                                      ToolTip="Schwellwert für die Spalte „Älter“ im Baum und die Zusammenfassung hier" />
+                        </StackPanel>
+                        <local:PieChart x:Name="AgePie" Grid.Row="2" Height="240" Margin="0,8" />
+                        <TextBlock x:Name="AgeSummary" Grid.Row="3" Margin="4,0,4,6" TextWrapping="Wrap" />
+                        <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto" Margin="4,0">
+                            <ItemsControl x:Name="AgeLegend" ItemTemplate="{StaticResource LegendRow}" />
+                        </ScrollViewer>
+                    </Grid>
                 </TabItem>
             </TabControl>
         </Border>

@@ -117,6 +117,17 @@ public sealed class NodeVM : INotifyPropertyChanged
     public string PercentText => Kind == Kind.Dummy ? "" : (Percent * 100).ToString("0.#", CultureInfo.CurrentCulture) + " %";
     public string FilesText => Kind is Kind.Dummy or Kind.Space ? "" : _node!.FileCount.ToString("N0", CultureInfo.CurrentCulture);
 
+    /// <summary>Bytes older than the age threshold (AgeBuckets.ThresholdMonths); empty for single files and drive space.</summary>
+    public string OldText
+    {
+        get
+        {
+            if (Kind is not (Kind.Dir or Kind.Files)) return "";
+            long old = Kind == Kind.Dir ? AgeBuckets.OldSize(_node!) : AgeBuckets.OldOwnSize(Parent!._node!);
+            return old <= 0 ? "–" : FormatSize(old);
+        }
+    }
+
     public double BarWidth => Kind == Kind.Dummy ? 0 : Math.Max(Size > 0 ? 2 : 0, Percent * BarMax);
 
     public Brush BarBrush => Kind switch
@@ -161,6 +172,7 @@ public sealed class NodeVM : INotifyPropertyChanged
         Notify(nameof(SizeText));
         Notify(nameof(PercentText));
         Notify(nameof(FilesText));
+        Notify(nameof(OldText));
         Notify(nameof(BarWidth));
         Notify(nameof(BarBrush));
         Notify(nameof(SizeBrush));
@@ -342,18 +354,19 @@ public sealed class NodeVM : INotifyPropertyChanged
     /// Takes a deleted file or folder out of the tree and subtracts its size from all parents.
     /// The root cannot be removed.
     /// </summary>
-    public void RemoveFromTree()
+    public void RemoveFromTree(int ageBucket = -1)
     {
         if (Parent == null || _node == null) return;
 
         if (Kind == Kind.File)
         {
-            Parent.Parent!._node!.RemoveFile(_node.Name, Size);
+            Parent.Parent!._node!.RemoveFile(_node.Name, Size, ageBucket);
             Parent.Children.Remove(this);
         }
         else if (Kind == Kind.Dir)
         {
             var parentNode = Parent._node!;
+            AgeBuckets.RemoveSubtree(_node);
             for (var n = parentNode; n != null; n = n.Parent)
             {
                 Interlocked.Add(ref n.Size, -_node.Size);

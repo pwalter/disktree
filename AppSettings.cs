@@ -11,6 +11,8 @@ public sealed class AppSettings
     public double Width { get; set; }
     public double Height { get; set; }
     public bool Maximized { get; set; }
+    /// <summary>Files at least this many months old count as "old" (age column / chart); one of AgeBuckets.LimitMonths.</summary>
+    public int AgeThresholdMonths { get; set; } = 24;
     public ThemeSetting Theme { get; set; } = ThemeSetting.System;
 
     private static readonly string FilePath =
