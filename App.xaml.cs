@@ -17,6 +17,7 @@ public partial class App : Application
             return;
         }
 
+        Updater.CleanupOld();
         Theme.Init(AppSettings.Load().Theme);
         base.OnStartup(e);
     }

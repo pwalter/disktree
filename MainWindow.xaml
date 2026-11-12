@@ -332,6 +332,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="StatusText" Text="Pfad oder Laufwerk eingeben (oder Ordner hierher ziehen) und auf „Scannen“ klicken."
                        Foreground="{DynamicResource Muted}" />
@@ -340,6 +341,17 @@
             <ProgressBar x:Name="ScanProgress" Grid.Column="2" Width="160" Height="6" Margin="16,0,0,0"
                          Minimum="0" Maximum="1" Visibility="Collapsed" Foreground="{StaticResource Accent}"
                          Background="{DynamicResource TrackBg}" BorderThickness="0" VerticalAlignment="Center" />
+            <Button x:Name="UpdateButton" Grid.Column="3" Margin="16,0,0,0" Padding="8,2" Click="Update_Click"
+                    Style="{StaticResource ToolButton}" Background="Transparent" Foreground="{DynamicResource Muted}"
+                    ToolTip="Version und Updates (Rechtsklick: Einstellungen)">
+                <Button.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Nach Updates suchen" Click="CheckUpdate_Click" />
+                        <MenuItem x:Name="AutoUpdateItem" Header="Beim Start automatisch suchen" IsCheckable="True" Click="AutoUpdate_Click" />
+                        <MenuItem Header="Alle Versionen im Browser öffnen" Click="OpenReleases_Click" />
+                    </ContextMenu>
+                </Button.ContextMenu>
+            </Button>
         </Grid>
     </Grid>
 </Window>
