@@ -15,22 +15,22 @@ public partial class MainWindow
 
     private void InitAge()
     {
-        AgeBuckets.ThresholdMonths = _settings.AgeThresholdMonths;
+        AgeThreshold.Months = _settings.AgeThresholdMonths;
         foreach (var m in AgeBuckets.LimitMonths)
             AgeThresholdBox.Items.Add(AgeBuckets.ThresholdText(m));
-        AgeThresholdBox.SelectedIndex = AgeBuckets.OldFrom - 1;
+        AgeThresholdBox.SelectedIndex = AgeThreshold.OldFrom - 1;
         ShowAgeHeader();
         AgeThresholdBox.SelectionChanged += AgeThreshold_Changed;
     }
 
     private void ShowAgeHeader() =>
-        OldHeader.Text = "Älter " + AgeBuckets.ThresholdText(AgeBuckets.ThresholdMonths);
+        OldHeader.Text = "Älter " + AgeBuckets.ThresholdText(AgeThreshold.Months);
 
     private void AgeThreshold_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (AgeThresholdBox.SelectedIndex < 0) return;
-        AgeBuckets.ThresholdMonths = AgeBuckets.LimitMonths[AgeThresholdBox.SelectedIndex];
-        _settings.AgeThresholdMonths = AgeBuckets.ThresholdMonths;
+        AgeThreshold.Months = AgeBuckets.LimitMonths[AgeThresholdBox.SelectedIndex];
+        _settings.AgeThresholdMonths = AgeThreshold.Months;
         ShowAgeHeader();
         _root?.Refresh();
         var (node, ownOnly, title) = PieTarget();
@@ -55,7 +55,7 @@ public partial class MainWindow
             AgePie.SetData(Array.Empty<PieSlice>(), "", "");
             AgeLegend.ItemsSource = null;
             AgeSummary.Text = "";
-            AgeTitle.Text = $"Alter ({AgeStamps.Lower[(int)AgeStamps.Current]})";
+            AgeTitle.Text = $"Alter ({AgeStamps.Lower[(int)_cur.AgeStamp]})";
             return;
         }
 
@@ -81,11 +81,12 @@ public partial class MainWindow
         }).ToList();
 
         long old = 0, oldFiles = 0;
-        for (int i = AgeBuckets.OldFrom; i < AgeBuckets.Count; i++) { old += sizes[i]; oldFiles += counts[i]; }
+        for (int i = AgeThreshold.OldFrom; i < AgeBuckets.Count; i++) { old += sizes[i]; oldFiles += counts[i]; }
+        var shown = AgeStamps.Lower[(int)_cur.AgeStamp];
         AgeSummary.Text = total > 0
-            ? $"Älter als {AgeBuckets.ThresholdText(AgeBuckets.ThresholdMonths)} ({AgeStamps.Lower[(int)AgeStamps.Current]}): {SizeFormat.Format(old)} ({Share(old):P0}) in {oldFiles:N0} Dateien"
+            ? $"Älter als {AgeBuckets.ThresholdText(AgeThreshold.Months)} ({shown}): {SizeFormat.Format(old)} ({Share(old):P0}) in {oldFiles:N0} Dateien"
             : "";
-        AgeTitle.Text = $"Alter ({AgeStamps.Lower[(int)AgeStamps.Current]}) – " + title;
+        AgeTitle.Text = $"Alter ({shown}) – " + title;
         AgeTitle.ToolTip = AgeTitle.Text;
     }
 

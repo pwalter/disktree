@@ -122,13 +122,13 @@ public sealed class NodeVM : INotifyPropertyChanged
     public string PercentText => Kind == Kind.Dummy ? "" : (Percent * 100).ToString("0.#", CultureInfo.CurrentCulture) + " %";
     public string FilesText => Kind is Kind.Dummy or Kind.Space ? "" : _node!.FileCount.ToString("N0", CultureInfo.CurrentCulture);
 
-    /// <summary>Bytes older than the age threshold (AgeBuckets.ThresholdMonths); empty for single files and drive space.</summary>
+    /// <summary>Bytes older than the age threshold (AgeThreshold.Months); empty for single files and drive space.</summary>
     public string OldText
     {
         get
         {
             if (Kind is not (Kind.Dir or Kind.Files)) return "";
-            long old = Kind == Kind.Dir ? AgeBuckets.OldSize(_node!) : AgeBuckets.OldOwnSize(Parent!._node!);
+            long old = Kind == Kind.Dir ? AgeThreshold.OldSize(_node!) : AgeThreshold.OldOwnSize(Parent!._node!);
             return old <= 0 ? "–" : SizeFormat.Format(old);
         }
     }

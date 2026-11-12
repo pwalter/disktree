@@ -2,7 +2,7 @@ using System.IO;
 using DiskTree.Core;
 using Xunit;
 
-// The app keeps global state (AgeBuckets reference time, AgeStamps.Current, ...): tests run one after another.
+// Tests share the disk, the process culture and the environment: they run one after another.
 [assembly: CollectionBehavior(DisableTestParallelization = true)]
 
 namespace DiskTree.Tests;
@@ -58,9 +58,9 @@ public sealed class UncFactAttribute : FactAttribute
 
 public static class Scan
 {
-    public static async Task<Scanner> Run(string path, ExcludeRules? excludes = null, int threads = 4)
+    public static async Task<Scanner> Run(string path, ExcludeRules? excludes = null, int threads = 4, AgeStamp stamp = AgeStamp.Modified)
     {
-        var s = new Scanner { Excludes = excludes };
+        var s = new Scanner { Excludes = excludes, AgeStamp = stamp };
         await s.ScanAsync(path, threads, CancellationToken.None);
         return s;
     }

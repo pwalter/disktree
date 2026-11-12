@@ -59,13 +59,11 @@ public class SnapshotStoreTests : TestBase
     public async Task RoundTrip_AgeStampKey_IsStored()
     {
         T.File(@"scan\f.txt", 10);
-        AgeStamps.Preferred = AgeStamp.Accessed;
-        var s = await Scan.Run(T.Sub("scan"));
+        var s = await Scan.Run(T.Sub("scan"), stamp: AgeStamp.Accessed);
         SnapshotStore.Save(SnapFile, s, DateTime.UtcNow);
         Assert.Equal(AgeStamp.Accessed, SnapshotStore.Load(SnapFile).AgeStamp);
 
-        AgeStamps.Preferred = AgeStamp.Created;
-        s = await Scan.Run(T.Sub("scan"));
+        s = await Scan.Run(T.Sub("scan"), stamp: AgeStamp.Created);
         SnapshotStore.Save(SnapFile, s, DateTime.UtcNow);
         Assert.Equal(AgeStamp.Created, SnapshotStore.Load(SnapFile).AgeStamp);
     }

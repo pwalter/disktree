@@ -305,7 +305,7 @@ public partial class MainWindow : Window
 
         await RunAsync(s, ct =>
         {
-            var scanner = s.Scanner = new Scanner { Excludes = CurrentExcludes() };
+            var scanner = s.Scanner = new Scanner { Excludes = CurrentExcludes(), AgeStamp = s.AgePreferred };
             OnNewScanner(scanner);
             // Event instead of polling: the scanner reports changes from its worker threads, the UI reacts.
             scanner.Changed += () => Dispatcher.InvokeAsync(() => OnScannerChanged(s, scanner), DispatcherPriority.Background);
@@ -320,7 +320,7 @@ public partial class MainWindow : Window
             var scan = paths.Count > 1
                 ? scanner.ScanManyAsync(paths, (int)ThreadsBox.SelectedItem, ct)
                 : scanner.ScanAsync(path, (int)ThreadsBox.SelectedItem, ct);
-            s.AgeStamp = AgeStamps.Current; // the scan has adopted the user's choice by now
+            Dispatcher.InvokeAsync(UpdateAgeNotices); // the scan has adopted the tab's choice by now
             SetTabTitle(s, paths);
             s.ScanTarget = scanner.ScanTarget;
             s.Root = new NodeVM(scanner.Root!, Kind.Dir, null, 0) { IsExpanded = true };
@@ -802,8 +802,8 @@ public partial class MainWindow : Window
     private void RunShell(string path, bool isFile, long size, NodeVM? vm, Action action)
     {
         if (IsSnapshotMode) { SnapshotHint(); return; }
-        if (Busy is { } other && other != _cur) { NoticeBusy(other); return; } // the age buckets depend on the running scan's timestamp
-        int ageBucket = isFile ? AgeBuckets.OfFile(path) : -1; // read before the file is gone
+        if (Busy is { } other && other != _cur) { NoticeBusy(other); return; } // only one scan at a time, nothing else meanwhile
+        int ageBucket = isFile ? _scanner?.Ages.OfFile(path) ?? -1 : -1; // read before the file is gone
         try
         {
             action();

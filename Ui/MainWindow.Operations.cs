@@ -77,8 +77,8 @@ public partial class MainWindow
 
     // ---------------------------------------------------------------- selection
 
-    private static OpItem ItemOf(string path, bool isDir, long size) =>
-        new(path, isDir, size, isDir ? -1 : AgeBuckets.OfFile(path));
+    private OpItem ItemOf(string path, bool isDir, long size) =>
+        new(path, isDir, size, isDir ? -1 : _scanner?.Ages.OfFile(path) ?? -1);
 
     /// <summary>Selection of the list the user is working in (mouse over it, else keyboard focus).</summary>
     private List<OpItem> ActiveSelection(string? mustContain, bool preferFocus = false)
@@ -193,7 +193,7 @@ public partial class MainWindow
             long zipSize = new FileInfo(choice.Target).Length;
             if (_scanner?.FindNode(Path.GetDirectoryName(choice.Target) ?? "") is { } dir)
             {
-                TreeEditor.AddFile(dir, Path.GetFileName(choice.Target), zipSize, AgeBuckets.OfFile(choice.Target));
+                TreeEditor.AddFile(dir, Path.GetFileName(choice.Target), zipSize, _scanner.Ages.OfFile(choice.Target));
                 RefreshAfterChange();
             }
         }

@@ -47,9 +47,11 @@ public sealed class ScanSession : INotifyPropertyChanged
     /// <summary>The row that was selected in the tree when the tab was left (the tree itself is rebuilt on return).</summary>
     public NodeVM? SelectedVm { get; set; }
 
-    /// <summary>The timestamp this tab's numbers were built from, and the user's choice for its next scan.</summary>
-    public AgeStamp AgeStamp { get; set; } = AgeStamps.Preferred;
-    public AgeStamp AgePreferred { get; set; } = AgeStamps.Preferred;
+    /// <summary>The user's choice of timestamp for this tab's next scan.</summary>
+    public AgeStamp AgePreferred { get; set; } = AgeStamp.Modified;
+
+    /// <summary>The timestamp this tab's numbers were built from (the scan's own); without a scan the choice.</summary>
+    public AgeStamp AgeStamp => Scanner?.Ages.Stamp ?? AgePreferred;
 
     private string _title = NewTitle;
     public string Title

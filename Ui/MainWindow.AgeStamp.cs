@@ -13,29 +13,26 @@ public partial class MainWindow
 
     private void InitAgeStamp()
     {
-        AgeStamps.Preferred = _settings.AgeStamp;
-        AgeStamps.Current = AgeStamps.Preferred;
+        _cur.AgePreferred = _settings.AgeStamp;
         foreach (var n in AgeStamps.Names) AgeStampBox.Items.Add(n);
-        AgeStampBox.SelectedIndex = (int)AgeStamps.Preferred;
+        AgeStampBox.SelectedIndex = (int)_cur.AgePreferred;
         AgeStampBox.SelectionChanged += AgeStamp_Changed;
-        // A new scan adopts the choice (Scanner calls AgeStamps.BeginScan on the UI thread, before the tree exists).
-        AgeStamps.ScanStarted += () => Dispatcher.InvokeAsync(UpdateAgeNotices);
         UpdateAgeNotices();
     }
 
+    // The choice belongs to the tab; a new scan of that tab adopts it (Scanner.AgeStamp, read when the scan starts).
     private void AgeStamp_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (_settingStampBox || AgeStampBox.SelectedIndex < 0) return;
-        AgeStamps.Preferred = (AgeStamp)AgeStampBox.SelectedIndex;
-        _settings.AgeStamp = AgeStamps.Preferred;
+        _cur.AgePreferred = (AgeStamp)AgeStampBox.SelectedIndex;
+        _settings.AgeStamp = _cur.AgePreferred;
         UpdateAgeNotices();
     }
 
     /// <summary>A loaded snapshot knows which timestamp it holds; the choice follows it (the saved preference stays).</summary>
     private void OnSnapshotAgeStamp(AgeStamp stamp)
     {
-        if (Busy == null) AgeStamps.Current = stamp; // a running scan in another tab is reading it
-        AgeStamps.Preferred = stamp;
+        _cur.AgePreferred = stamp;
         _settingStampBox = true;
         AgeStampBox.SelectedIndex = (int)stamp;
         _settingStampBox = false;
@@ -49,8 +46,8 @@ public partial class MainWindow
 
     private void UpdateAgeNotices()
     {
-        var shown = AgeStamps.Current;
-        var wanted = AgeStamps.Preferred;
+        var shown = _cur.AgeStamp;
+        var wanted = _cur.AgePreferred;
         OldHeader.ToolTip = $"Älter als der Schwellwert, nach dem Datum „{AgeStamps.Names[(int)shown]}“";
 
         bool hasTree = _root != null;

@@ -47,7 +47,7 @@ public static class SnapshotStore
         {
             using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
             using (var gz = new GZipStream(fs, CompressionLevel.Optimal))
-                Write(gz, root, target, scanner.ExpectedBytes, scanner.TopFiles(), scannedAt);
+                Write(gz, root, target, scanner.ExpectedBytes, scanner.TopFiles(), scannedAt, scanner.Ages.Stamp);
             File.Move(tmp, file, overwrite: true);
         }
         finally
@@ -57,7 +57,7 @@ public static class SnapshotStore
     }
 
     internal static void Write(Stream stream, Node root, Node target, long expected,
-        IEnumerable<Scanner.BigFile> top, DateTime scannedAt)
+        IEnumerable<Scanner.BigFile> top, DateTime scannedAt, AgeStamp ageStamp)
     {
         var buffer = new ArrayBufferWriter<byte>(4096);
         using var json = new Utf8JsonWriter(buffer);
@@ -78,7 +78,7 @@ public static class SnapshotStore
         json.WriteString("target", target.FullPath);
         json.WriteString("machine", Environment.MachineName);
         json.WriteNumber("expected", expected);
-        json.WriteString("ageStamp", AgeStamps.ToKey(AgeStamps.Current));
+        json.WriteString("ageStamp", AgeStamps.ToKey(ageStamp));
         json.WriteEndObject();
         EndLine();
 

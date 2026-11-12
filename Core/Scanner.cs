@@ -21,6 +21,17 @@ public sealed partial class Scanner
     /// <summary>Folders to skip. Set before ScanAsync / RescanAsync; null = skip nothing.</summary>
     public ExcludeRules? Excludes { get; set; }
 
+    /// <summary>The timestamp the next <see cref="ScanAsync"/> / <see cref="ScanManyAsync"/> builds the age buckets from.</summary>
+    public AgeStamp AgeStamp { get; set; } = AgeStamp.Modified;
+
+    private volatile AgeClassifier? _ages;
+
+    /// <summary>
+    /// Sorts timestamps into age buckets for this scan's tree: fixed when the scan starts (a rescan below keeps it),
+    /// or the one stored in a snapshot. Before the first scan it reflects <see cref="AgeStamp"/>.
+    /// </summary>
+    public AgeClassifier Ages => _ages ??= new AgeClassifier(AgeStamp, DateTime.UtcNow);
+
     /// <summary>Folders skipped by an exclusion rule in the current (re)scan.</summary>
     public long Excluded => Interlocked.Read(ref _excluded);
 
@@ -167,8 +178,7 @@ public sealed partial class Scanner
     {
         // The tree always starts at the drive; a scan of a subfolder hangs below a chain of
         // placeholder nodes (one per path component), so percentages can refer to the whole drive.
-        AgeBuckets.SetReference(DateTime.UtcNow);
-        AgeStamps.BeginScan();
+        _ages = new AgeClassifier(AgeStamp, DateTime.UtcNow);
         var full = Path.GetFullPath(path);
         var driveRoot = Path.GetPathRoot(full) ?? full;
         var top = new Node { Name = driveRoot, FullPath = driveRoot, Open = 1 };
@@ -209,8 +219,7 @@ public sealed partial class Scanner
     /// </summary>
     public async Task<Node> ScanManyAsync(IReadOnlyList<string> paths, int threads, CancellationToken ct)
     {
-        AgeBuckets.SetReference(DateTime.UtcNow);
-        AgeStamps.BeginScan();
+        _ages = new AgeClassifier(AgeStamp, DateTime.UtcNow);
         var top = new Node { Name = "Mehrere Pfade", FullPath = "", Open = paths.Count, Scanned = true };
         var starts = new List<Node>();
         foreach (var p in paths)
@@ -324,7 +333,7 @@ public sealed partial class Scanner
         Span<long> ageCount = stackalloc long[AgeBuckets.Count];
         Span<long> ageDelta = stackalloc long[AgeBuckets.Count];
 
-        var stamp = AgeStamps.Current;
+        var classifier = Ages;
         var options = new EnumerationOptions
         {
             AttributesToSkip = 0, // include hidden + system
@@ -344,7 +353,7 @@ public sealed partial class Scanner
                     string? name = isDir || len >= Volatile.Read(ref _topMin) ? e.FileName.ToString() : null;
                     return new Entry(name, isDir, len, (e.Attributes & FileAttributes.ReparsePoint) != 0,
                         isDir ? 0 : FileTypes.CategoryOf(e.FileName),
-                        isDir ? 0 : AgeBuckets.Of(AgeStamps.TicksOf(ref e, stamp)));
+                        isDir ? 0 : classifier.Of(classifier.TicksOf(ref e)));
                 }, options);
 
             foreach (var e in entries)

@@ -11,30 +11,29 @@ public class AgeBucketTests : TestBase
     [Fact]
     public void Of_BucketBoundaries()
     {
-        AgeBuckets.SetReference(Ref);
+        var ages = new AgeClassifier(AgeStamp.Modified, Ref);
         long Cut(int months) => Ref.AddMonths(-months).Ticks;
 
-        Assert.Equal(0, AgeBuckets.Of(Ref.Ticks));
-        Assert.Equal(0, AgeBuckets.Of(Ref.AddYears(5).Ticks)); // future
-        Assert.Equal(0, AgeBuckets.Of(Cut(1)));
-        Assert.Equal(1, AgeBuckets.Of(Cut(1) - 1));
-        Assert.Equal(1, AgeBuckets.Of(Cut(12)));
-        Assert.Equal(2, AgeBuckets.Of(Cut(12) - 1));
-        Assert.Equal(2, AgeBuckets.Of(Cut(24)));
-        Assert.Equal(3, AgeBuckets.Of(Cut(24) - 1));
-        Assert.Equal(3, AgeBuckets.Of(Cut(60)));
-        Assert.Equal(4, AgeBuckets.Of(Cut(60) - 1));
-        Assert.Equal(4, AgeBuckets.Of(0));
+        Assert.Equal(0, ages.Of(Ref.Ticks));
+        Assert.Equal(0, ages.Of(Ref.AddYears(5).Ticks)); // future
+        Assert.Equal(0, ages.Of(Cut(1)));
+        Assert.Equal(1, ages.Of(Cut(1) - 1));
+        Assert.Equal(1, ages.Of(Cut(12)));
+        Assert.Equal(2, ages.Of(Cut(12) - 1));
+        Assert.Equal(2, ages.Of(Cut(24)));
+        Assert.Equal(3, ages.Of(Cut(24) - 1));
+        Assert.Equal(3, ages.Of(Cut(60)));
+        Assert.Equal(4, ages.Of(Cut(60) - 1));
+        Assert.Equal(4, ages.Of(0));
     }
 
     [Fact]
     public void Of_FollowsTheReferenceTime()
     {
         var file = Ref.AddMonths(-3).Ticks;
-        AgeBuckets.SetReference(Ref);
-        Assert.Equal(1, AgeBuckets.Of(file));
-        AgeBuckets.SetReference(Ref.AddYears(3)); // three years later the same file is much older
-        Assert.Equal(3, AgeBuckets.Of(file));
+        Assert.Equal(1, new AgeClassifier(AgeStamp.Modified, Ref).Of(file));
+        // three years later the same file is much older
+        Assert.Equal(3, new AgeClassifier(AgeStamp.Modified, Ref.AddYears(3)).Of(file));
     }
 
     [Fact]
@@ -54,9 +53,8 @@ public class AgeBucketTests : TestBase
     [InlineData(0, 3)]
     public void ThresholdMonths_SetsFirstOldBucket(int months, int expectedOldFrom)
     {
-        AgeBuckets.ThresholdMonths = months;
-        Assert.Equal(expectedOldFrom, AgeBuckets.OldFrom);
-        Assert.Equal(AgeBuckets.LimitMonths[expectedOldFrom - 1], AgeBuckets.ThresholdMonths);
+        Assert.Equal(expectedOldFrom, AgeBuckets.OldFromMonths(months));
+        Assert.Equal(AgeBuckets.LimitMonths[expectedOldFrom - 1], AgeBuckets.MonthsOfOldFrom(AgeBuckets.OldFromMonths(months)));
     }
 
     [Theory]
@@ -71,15 +69,13 @@ public class AgeBucketTests : TestBase
     public void OldSize_UsesThreshold()
     {
         var n = new Node { AgeSub = new long[] { 1, 10, 100, 1000, 10000 }, OwnAges = new long[] { 1, 2, 4, 8, 16, 0, 0, 0, 0, 0 } };
-        AgeBuckets.ThresholdMonths = 24;
-        Assert.Equal(11000, AgeBuckets.OldSize(n));
-        Assert.Equal(24, AgeBuckets.OldOwnSize(n));
-        AgeBuckets.ThresholdMonths = 1;
-        Assert.Equal(11110, AgeBuckets.OldSize(n));
-        AgeBuckets.ThresholdMonths = 60;
-        Assert.Equal(10000, AgeBuckets.OldSize(n));
-        Assert.Equal(0, AgeBuckets.OldSize(new Node()));
-        Assert.Equal(0, AgeBuckets.OldOwnSize(new Node()));
+        int from24 = AgeBuckets.OldFromMonths(24), from1 = AgeBuckets.OldFromMonths(1), from60 = AgeBuckets.OldFromMonths(60);
+        Assert.Equal(11000, AgeBuckets.OldSize(n, from24));
+        Assert.Equal(24, AgeBuckets.OldOwnSize(n, from24));
+        Assert.Equal(11110, AgeBuckets.OldSize(n, from1));
+        Assert.Equal(10000, AgeBuckets.OldSize(n, from60));
+        Assert.Equal(0, AgeBuckets.OldSize(new Node(), from24));
+        Assert.Equal(0, AgeBuckets.OldOwnSize(new Node(), from24));
     }
 
     [Fact]
@@ -140,13 +136,13 @@ public class AgeBucketTests : TestBase
     [Fact]
     public void OfFile_ReadsTheCurrentTimestamp()
     {
-        AgeBuckets.SetReference(DateTime.UtcNow);
-        Assert.Equal(0, AgeBuckets.OfFile(T.File("new.txt", 1, Ago(days: 2))));
-        Assert.Equal(1, AgeBuckets.OfFile(T.File("mid.txt", 1, Ago(months: 6))));
-        Assert.Equal(4, AgeBuckets.OfFile(T.File("old.txt", 1, Ago(years: 9))));
+        var ages = new AgeClassifier(AgeStamp.Modified, DateTime.UtcNow);
+        Assert.Equal(0, ages.OfFile(T.File("new.txt", 1, Ago(days: 2))));
+        Assert.Equal(1, ages.OfFile(T.File("mid.txt", 1, Ago(months: 6))));
+        Assert.Equal(4, ages.OfFile(T.File("old.txt", 1, Ago(years: 9))));
 
-        AgeStamps.Current = AgeStamp.Created; // created just now
-        Assert.Equal(0, AgeBuckets.OfFile(T.Sub("old.txt")));
+        // created just now
+        Assert.Equal(0, new AgeClassifier(AgeStamp.Created, DateTime.UtcNow).OfFile(T.Sub("old.txt")));
     }
 }
 
@@ -175,23 +171,6 @@ public class AgeStampTests : TestBase
         Assert.Equal(Enum.GetValues<AgeStamp>().Length, AgeStamps.Names.Length);
         Assert.Equal(AgeStamps.Names.Length, AgeStamps.Lower.Length);
         Assert.Equal("Zuletzt geändert", AgeStamps.Names[(int)AgeStamp.Modified]);
-    }
-
-    [Fact]
-    public void BeginScan_AppliesPreferredAndRaisesEvent()
-    {
-        int raised = 0;
-        void H() => raised++;
-        AgeStamps.ScanStarted += H;
-        try
-        {
-            AgeStamps.Preferred = AgeStamp.Accessed;
-            AgeStamps.Current = AgeStamp.Modified;
-            AgeStamps.BeginScan();
-            Assert.Equal(AgeStamp.Accessed, AgeStamps.Current);
-            Assert.Equal(1, raised);
-        }
-        finally { AgeStamps.ScanStarted -= H; }
     }
 
     [Fact]

@@ -78,7 +78,7 @@ public class TreeEditorTests : TestBase
         Assert.Null(a.OwnTypes);
 
         var f = T.File(@"a\n.pdf", 700, Ago(years: 3));
-        TreeEditor.AddFile(a, "n.pdf", 700, AgeBuckets.OfFile(f));
+        TreeEditor.AddFile(a, "n.pdf", 700, s.Ages.OfFile(f));
 
         TreeAssert.Equal((await ScanT()).Root!, s.Root!);
     }
@@ -90,7 +90,7 @@ public class TreeEditorTests : TestBase
         T.File(@"a\y.txt", 20, Ago(days: 1));
         var s = await ScanT();
         var a = Scan.Node(s, T.Sub("a"));
-        int bucket = AgeBuckets.OfFile(T.Sub("a", "x.txt"));
+        int bucket = s.Ages.OfFile(T.Sub("a", "x.txt"));
 
         File.Move(T.Sub("a", "x.txt"), T.Sub("a", "x.pdf"));
         TreeEditor.RenameFile(a, "x.txt", "x.pdf", 10, bucket);
@@ -122,7 +122,7 @@ public class TreeEditorTests : TestBase
         var s = await ScanT();
         var src = Scan.Node(s, T.Sub("src"));
         var dst = Scan.Node(s, T.Sub("dst"));
-        int bucket = AgeBuckets.OfFile(T.Sub("src", "m.docx"));
+        int bucket = s.Ages.OfFile(T.Sub("src", "m.docx"));
 
         File.Move(T.Sub("src", "m.docx"), T.Sub("dst", "m.docx"));
         TreeEditor.RemoveFile(src, "m.docx", 300, bucket);

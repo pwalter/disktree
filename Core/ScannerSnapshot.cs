@@ -22,6 +22,7 @@ public sealed partial class Scanner
             Root = s.Root,
             ScanTarget = s.Target,
             ExpectedBytes = s.ExpectedBytes,
+            AgeStamp = s.AgeStamp,
             IsSnapshot = true,
             SnapshotFile = file,
             ScannedAt = s.Info.ScannedAt == default ? null : s.Info.ScannedAt,
