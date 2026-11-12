@@ -1,8 +1,7 @@
 using System.IO;
 using System.IO.Enumeration;
-using Microsoft.Win32;
 
-namespace DiskTree;
+namespace DiskTree.Core;
 
 /// <summary>Which of a file's three timestamps is used (age buckets, search filter).</summary>
 public enum AgeStamp { Modified = 0, Created = 1, Accessed = 2 }

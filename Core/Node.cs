@@ -1,4 +1,4 @@
-namespace DiskTree;
+namespace DiskTree.Core;
 
 public sealed class Node
 {

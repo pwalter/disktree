@@ -1,6 +1,7 @@
 using System.Windows;
+using DiskTree.Core;
 
-namespace DiskTree;
+namespace DiskTree.Features.Treemap;
 
 /// <summary>One rectangle of the treemap: a folder, the files of a folder, or the "Weitere" remainder.</summary>
 public sealed class TreemapItem

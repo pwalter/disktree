@@ -3,9 +3,11 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using DiskTree.Core;
+using DiskTree.Core.Snapshots;
 using Microsoft.Win32;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 /// <summary>Display row of the comparison list.</summary>
 public sealed class DiffItem

@@ -1,10 +1,11 @@
 using System.IO;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
+using DiskTree.Core;
+using DiskTree.Features.FileOperations;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 // Clean-up actions on the selection (move, ZIP, rename, delete to the recycle bin): menu entries, keys, confirmation,
 // and keeping tree / file types / age data / largest files in step afterwards. The file work itself is in FileOperations.

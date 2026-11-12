@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace DiskTree;
+namespace DiskTree.Core;
 
 /// <summary>Size and file count of one file-type category inside a folder.</summary>
 public readonly record struct TypeStat(int Cat, long Size, long Count);

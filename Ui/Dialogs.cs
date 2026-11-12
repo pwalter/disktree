@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 /// <summary>Message boxes with the application title; the owner may be null (then the box has no owner window).</summary>
 public static class Dialogs

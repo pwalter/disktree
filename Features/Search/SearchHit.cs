@@ -1,7 +1,8 @@
 using System.IO;
 using System.Windows;
+using DiskTree.Core;
 
-namespace DiskTree;
+namespace DiskTree.Features.Search;
 
 public sealed record SearchHit(string Path, string Name, string Folder, long Size, bool IsDir, Node Node)
 {

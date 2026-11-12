@@ -1,9 +1,10 @@
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
+using DiskTree.Core;
+using DiskTree.Features.Search;
+using DiskTree.Infrastructure;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 // Glue between the "Suche" tab (SearchPanel) and the tree / shell menu of the main window.
 public partial class MainWindow

@@ -2,7 +2,7 @@ using System.Windows;
 using System.Windows.Media;
 using Microsoft.Win32;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 /// <summary>
 /// Light / dark colours. Follows the Windows setting "Choose your default app mode" and switches live.

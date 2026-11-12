@@ -1,7 +1,8 @@
-<UserControl x:Class="DiskTree.OwnerPanel"
+<UserControl x:Class="DiskTree.Features.Owner.OwnerPanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:DiskTree">
+             xmlns:local="clr-namespace:DiskTree.Features.Owner"
+             xmlns:ui="clr-namespace:DiskTree.Ui">
     <UserControl.Resources>
         <DataTemplate x:Key="OwnerRowTemplate" DataType="{x:Type local:OwnerRowVM}">
             <Grid Margin="0,3" ToolTip="{Binding Detail}">
@@ -55,7 +56,7 @@
 
         <TextBlock x:Name="SummaryText" Grid.Row="2" Margin="4,8,4,0" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" FontSize="11" />
 
-        <local:PieChart x:Name="Pie" Grid.Row="3" Height="190" Margin="0,8" Visibility="Collapsed" />
+        <ui:PieChart x:Name="Pie" Grid.Row="3" Height="190" Margin="0,8" Visibility="Collapsed" />
 
         <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto" Margin="4,0">
             <ItemsControl x:Name="OwnerList" ItemTemplate="{StaticResource OwnerRowTemplate}" />

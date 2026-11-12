@@ -1,7 +1,8 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using DiskTree.Core;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 /// <summary>
 /// Everything that belongs to one scan tab: the scanner and its tree, the scan target, the progress line, the

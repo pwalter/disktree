@@ -1,3 +1,5 @@
+using DiskTree.Core;
+using DiskTree.Infrastructure;
 using Xunit;
 
 namespace DiskTree.Tests;

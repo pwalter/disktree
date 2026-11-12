@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace DiskTree;
+namespace DiskTree.Core;
 
 public static class SizeFormat
 {

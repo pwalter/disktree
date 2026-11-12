@@ -1,6 +1,6 @@
 using System.Windows.Media;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 public sealed class LegendRow
 {

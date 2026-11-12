@@ -1,4 +1,4 @@
-namespace DiskTree;
+namespace DiskTree.Features.Duplicates;
 
 public sealed class DupFileVM
 {

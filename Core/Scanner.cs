@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.IO.Enumeration;
 
-namespace DiskTree;
+namespace DiskTree.Core;
 
 public sealed partial class Scanner
 {

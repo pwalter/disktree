@@ -1,6 +1,6 @@
 using System.Windows.Media;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 public static class BrushFactory
 {

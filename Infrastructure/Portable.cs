@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace DiskTree;
+namespace DiskTree.Infrastructure;
 
 /// <summary>
 /// Portable mode: a file DiskTree.portable next to the exe (or --portable on the command line) keeps settings.json

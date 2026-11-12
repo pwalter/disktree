@@ -1,7 +1,8 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using DiskTree.Core;
 
-namespace DiskTree;
+namespace DiskTree.Features.Duplicates;
 
 public sealed class DupGroupVM : INotifyPropertyChanged
 {

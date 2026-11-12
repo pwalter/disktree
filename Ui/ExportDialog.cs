@@ -1,8 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
+using DiskTree.Core;
+using DiskTree.Features.Reports;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 /// <summary>Small dialog: what to export. Built in code, colours only from the theme brushes.</summary>
 internal static class ExportDialog

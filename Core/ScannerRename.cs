@@ -1,4 +1,4 @@
-namespace DiskTree;
+namespace DiskTree.Core;
 
 // The list of the largest files lives in the scanner; a rename has to change the paths in it.
 public sealed partial class Scanner

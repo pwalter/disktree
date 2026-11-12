@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 
-namespace DiskTree;
+namespace DiskTree.Infrastructure;
 
 /// <summary>
 /// Shows the real Windows Explorer context menu (incl. "Öffnen mit", "Senden an", third-party entries)

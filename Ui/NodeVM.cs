@@ -2,8 +2,9 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Windows.Media;
+using DiskTree.Core;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 public enum Kind { Dir, Files, File, Space, Dummy }
 

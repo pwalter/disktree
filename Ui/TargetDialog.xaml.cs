@@ -1,8 +1,10 @@
 using System.IO;
 using System.Windows;
+using DiskTree.Core;
+using DiskTree.Features.FileOperations;
 using Microsoft.Win32;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 public sealed record TargetChoice(string Target, ConflictPolicy Policy, bool RecycleOriginals);
 

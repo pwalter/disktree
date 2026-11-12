@@ -1,14 +1,15 @@
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Media3D;
+using DiskTree.Core;
+using DiskTree.Infrastructure;
+using DiskTree.Ui;
 
-namespace DiskTree;
+namespace DiskTree.Features.Duplicates;
 
 /// <summary>Tab "Duplikate": starts a <see cref="DuplicateFinder"/> run for a folder and lists the groups of identical files.</summary>
 public partial class DuplicatesPanel : UserControl

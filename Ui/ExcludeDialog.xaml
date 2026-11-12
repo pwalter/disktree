@@ -1,4 +1,4 @@
-<Window x:Class="DiskTree.ExcludeDialog"
+<Window x:Class="DiskTree.Ui.ExcludeDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Ausschlüsse" Width="480" Height="420" MinWidth="400" MinHeight="340"

@@ -2,8 +2,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using DiskTree.Core;
 
-namespace DiskTree;
+namespace DiskTree.Features.Treemap;
 
 /// <summary>Content of the "Treemap" tab: breadcrumb with "up" button above the <see cref="TreemapView"/>.</summary>
 public sealed class TreemapPanel : Grid

@@ -3,7 +3,7 @@ using System.IO;
 using System.Security.AccessControl;
 using System.Security.Principal;
 
-namespace DiskTree;
+namespace DiskTree.Features.Owner;
 
 /// <summary>Owner lookup (SID to account name, cached, with timeout) and per-owner size aggregation. Never used by the scanner.</summary>
 public static class OwnerInfo

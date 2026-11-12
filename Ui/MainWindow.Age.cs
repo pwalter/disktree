@@ -1,8 +1,8 @@
-using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using DiskTree.Core;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 // Age analysis: "Alter" tab (donut + legend per age bucket) and the threshold for the "Älter" tree column.
 public partial class MainWindow

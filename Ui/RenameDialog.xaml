@@ -1,7 +1,7 @@
-<Window x:Class="DiskTree.RenameDialog"
+<Window x:Class="DiskTree.Ui.RenameDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:DiskTree"
+        xmlns:local="clr-namespace:DiskTree.Ui"
         Title="Umbenennen" Width="640" Height="520" MinWidth="520" MinHeight="300" SizeToContent="Manual"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         Background="{DynamicResource WindowBg}" Foreground="{DynamicResource Ink}" FontFamily="Segoe UI" FontSize="13">

@@ -2,9 +2,12 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using DiskTree.Core;
+using DiskTree.Core.Snapshots;
+using DiskTree.Infrastructure;
 using Microsoft.Win32;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 // Stored scans (.disktree) and the glue to the "Vergleich" tab. Kept in a separate file of the partial class.
 public partial class MainWindow

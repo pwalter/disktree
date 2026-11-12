@@ -2,8 +2,9 @@ using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Text;
+using DiskTree.Core;
 
-namespace DiskTree;
+namespace DiskTree.Features.Reports;
 
 /// <summary>Writes the space report as one self-contained HTML file (inline CSS and SVG, no external resources).</summary>
 public static class ReportHtml

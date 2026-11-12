@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.IO;
 
-namespace DiskTree;
+namespace DiskTree.Features.Owner;
 
 public static class OwnerAggregator
 {

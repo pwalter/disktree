@@ -1,4 +1,4 @@
-namespace DiskTree;
+namespace DiskTree.Core.Snapshots;
 
 public sealed class CompareResult
 {

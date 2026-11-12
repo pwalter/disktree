@@ -1,9 +1,10 @@
 using System.Globalization;
 using System.IO;
 using System.Windows;
-using System.Windows.Controls;
+using DiskTree.Core;
+using DiskTree.Features.FileOperations;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 public sealed record PreviewRow(string Old, string New, string? Problem)
 {

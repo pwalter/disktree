@@ -1,6 +1,6 @@
 using Microsoft.Win32;
 
-namespace DiskTree;
+namespace DiskTree.Core;
 
 /// <summary>
 /// Is the NTFS "last access" timestamp maintained on this machine? Windows 10/11 usually manages it itself and

@@ -1,7 +1,9 @@
 using System.IO;
 using System.Text.Json;
+using DiskTree.Core;
+using DiskTree.Ui;
 
-namespace DiskTree;
+namespace DiskTree.Infrastructure;
 
 /// <summary>Small bits of state that are remembered between runs (%AppData%\DiskTree\settings.json).</summary>
 public sealed class AppSettings

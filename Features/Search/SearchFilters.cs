@@ -1,7 +1,7 @@
 using System.IO;
-using System.Windows;
+using DiskTree.Core;
 
-namespace DiskTree;
+namespace DiskTree.Features.Search;
 
 public enum DateUnit { Days = 0, Months = 1, Years = 2 }
 

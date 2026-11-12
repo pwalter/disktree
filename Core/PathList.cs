@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace DiskTree;
+namespace DiskTree.Core;
 
 /// <summary>The path box may hold several paths, separated by semicolons.</summary>
 public static class PathList

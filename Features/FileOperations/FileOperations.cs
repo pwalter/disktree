@@ -2,10 +2,10 @@ using System.ComponentModel;
 using System.IO;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Text.RegularExpressions;
+using DiskTree.Core;
 
-namespace DiskTree;
+namespace DiskTree.Features.FileOperations;
 
 /// <summary>A file or folder the clean-up actions work on. <see cref="AgeBucket"/> is read before the action, while the file still exists.</summary>
 public sealed record OpItem(string Path, bool IsDir, long Size, int AgeBucket = -1)

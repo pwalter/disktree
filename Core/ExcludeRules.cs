@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace DiskTree;
+namespace DiskTree.Core;
 
 /// <summary>
 /// Folders the scanner skips. Compiled once per scan, so checking a folder costs a hash lookup (plus a few

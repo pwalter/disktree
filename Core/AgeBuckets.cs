@@ -1,6 +1,5 @@
-using System.IO;
 
-namespace DiskTree;
+namespace DiskTree.Core;
 
 /// <summary>
 /// Age ("last modified") buckets. Like the file types they are summed per folder while scanning, so no

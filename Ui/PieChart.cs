@@ -4,7 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 /// <summary>Donut chart drawn directly; the hovered slice grows a little and shows a tooltip.</summary>
 public sealed class PieChart : FrameworkElement

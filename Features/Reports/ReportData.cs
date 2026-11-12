@@ -1,6 +1,7 @@
 using System.Globalization;
+using DiskTree.Core;
 
-namespace DiskTree;
+namespace DiskTree.Features.Reports;
 
 /// <summary>Everything a space report shows, collected once so the HTML and PDF writers print the same numbers.</summary>
 public sealed class ReportData

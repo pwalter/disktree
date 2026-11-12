@@ -1,6 +1,7 @@
 using System.Windows;
+using DiskTree.Features.FileOperations;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 /// <summary>Per-file question while moving: skip, replace or keep both under a new name.</summary>
 public partial class ConflictDialog : Window

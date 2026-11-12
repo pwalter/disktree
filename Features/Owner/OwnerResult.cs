@@ -1,4 +1,4 @@
-namespace DiskTree;
+namespace DiskTree.Features.Owner;
 
 public sealed record OwnerResult(List<OwnerRow> Rows, long Seen, long Skipped, long Failed, bool Cancelled)
 {

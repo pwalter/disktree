@@ -1,7 +1,8 @@
 using System.Runtime.InteropServices;
-using System.Windows;
+using DiskTree.Core;
+using DiskTree.Ui;
 
-namespace DiskTree;
+namespace DiskTree.Infrastructure;
 
 /// <summary>Command line: DiskTree.exe [Pfad] [--threads N] [--exclude Muster] [--admin] [--no-admin-prompt] [--help]</summary>
 public sealed class CliOptions
@@ -111,7 +112,7 @@ public sealed class CliOptions
             if (!string.IsNullOrEmpty(p)) yield return p;
         if (Threads is { } t) { yield return "--threads"; yield return t.ToString(); }
         foreach (var x in Excludes) { yield return "--exclude"; yield return x; }
-        if (DiskTree.Portable.ForcedByFlag) yield return "--portable";
+        if (DiskTree.Infrastructure.Portable.ForcedByFlag) yield return "--portable";
     }
 
     private CliOptions Fail(string message)

@@ -1,7 +1,7 @@
 using System.IO;
 using System.Security.Cryptography;
 
-namespace DiskTree;
+namespace DiskTree.Features.Duplicates;
 
 /// <summary>A set of byte-identical files.</summary>
 public sealed record DuplicateGroup(long Size, string[] Paths)

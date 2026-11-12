@@ -5,7 +5,7 @@ using System.Security.Principal;
 using System.Windows;
 using System.Windows.Controls;
 
-namespace DiskTree;
+namespace DiskTree.Infrastructure;
 
 public static class AdminHelper
 {

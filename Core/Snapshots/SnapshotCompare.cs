@@ -1,4 +1,4 @@
-namespace DiskTree;
+namespace DiskTree.Core.Snapshots;
 
 /// <summary>Compares two scans by folder path: which folders grew, shrank, are new or were removed.</summary>
 public static class SnapshotCompare

@@ -1,6 +1,9 @@
 using System.Windows;
+using DiskTree.Features.Explorer;
+using DiskTree.Features.Update;
+using DiskTree.Infrastructure;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 // Explorer context menu and portable mode switches (see ExplorerIntegration.cs, Portable.cs).
 public partial class MainWindow

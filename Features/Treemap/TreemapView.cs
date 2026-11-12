@@ -3,8 +3,10 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using DiskTree.Core;
+using DiskTree.Ui;
 
-namespace DiskTree;
+namespace DiskTree.Features.Treemap;
 
 /// <summary>
 /// Treemap of one folder: its subfolders and its files block as rectangles (area ~ size), one level of

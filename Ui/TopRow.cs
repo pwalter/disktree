@@ -1,4 +1,4 @@
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 public sealed class TopRow
 {

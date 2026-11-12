@@ -1,8 +1,9 @@
 using System.Globalization;
 using System.IO;
 using System.Text;
+using DiskTree.Core;
 
-namespace DiskTree;
+namespace DiskTree.Features.Reports;
 
 public enum ExportKind { Subtree, WholeScan, TopFiles, ReportHtml, ReportPdf }
 

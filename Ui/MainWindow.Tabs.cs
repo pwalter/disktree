@@ -1,12 +1,12 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Shell;
 using System.Windows.Threading;
+using DiskTree.Core;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 // Scan tabs. The window shows one ScanSession (the active tab). The fields the other partial files always used
 // (_scanner, _root, _scanTarget, _cts, ...) are properties that point at the active session, so all of that code

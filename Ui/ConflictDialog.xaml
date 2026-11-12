@@ -1,4 +1,4 @@
-<Window x:Class="DiskTree.ConflictDialog"
+<Window x:Class="DiskTree.Ui.ConflictDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Name schon vorhanden" Width="480" SizeToContent="Height" ResizeMode="NoResize"

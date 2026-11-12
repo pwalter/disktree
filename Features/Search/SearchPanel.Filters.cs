@@ -1,8 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using DiskTree.Core;
 
-namespace DiskTree;
+namespace DiskTree.Features.Search;
 
 // "Weitere Filter" of the search tab: date (modified / opened / created older than N days|months|years) and attributes.
 public partial class SearchPanel

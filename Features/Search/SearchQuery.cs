@@ -1,4 +1,6 @@
-namespace DiskTree;
+using DiskTree.Core;
+
+namespace DiskTree.Features.Search;
 
 public sealed class SearchQuery
 {

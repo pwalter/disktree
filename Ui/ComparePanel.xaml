@@ -1,7 +1,7 @@
-<UserControl x:Class="DiskTree.ComparePanel"
+<UserControl x:Class="DiskTree.Ui.ComparePanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:DiskTree">
+             xmlns:local="clr-namespace:DiskTree.Ui">
     <UserControl.Resources>
         <DataTemplate x:Key="DiffRowTemplate" DataType="{x:Type local:DiffItem}">
             <Grid Margin="0,3" ToolTip="{Binding Path}">

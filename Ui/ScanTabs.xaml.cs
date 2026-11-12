@@ -4,7 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 /// <summary>The strip of scan tabs above the tree (like browser tabs). Knows nothing about scanning: it raises events.</summary>
 public partial class ScanTabs : UserControl

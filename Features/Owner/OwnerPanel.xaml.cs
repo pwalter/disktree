@@ -1,8 +1,10 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using DiskTree.Core;
+using DiskTree.Ui;
 
-namespace DiskTree;
+namespace DiskTree.Features.Owner;
 
 public sealed class OwnerRowVM
 {

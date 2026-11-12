@@ -3,8 +3,10 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using DiskTree.Core;
+using DiskTree.Features.Update;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 // Self update: version / update button in the status bar (see Updater.cs).
 public partial class MainWindow

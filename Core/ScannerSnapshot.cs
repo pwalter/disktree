@@ -1,4 +1,6 @@
-namespace DiskTree;
+using DiskTree.Core.Snapshots;
+
+namespace DiskTree.Core;
 
 // Scanner built from a stored scan (see SnapshotStore). Kept in its own file so Scanner.cs stays untouched
 // apart from being partial.

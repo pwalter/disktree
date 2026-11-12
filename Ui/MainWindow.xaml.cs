@@ -1,15 +1,15 @@
-using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Media3D;
-using System.Windows.Shell;
 using System.Windows.Threading;
+using DiskTree.Core;
+using DiskTree.Core.Snapshots;
+using DiskTree.Infrastructure;
 using Microsoft.Win32;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 public partial class MainWindow : Window
 {

@@ -1,6 +1,7 @@
+using DiskTree.Features.Update;
 using Microsoft.Win32;
 
-namespace DiskTree;
+namespace DiskTree.Features.Explorer;
 
 /// <summary>
 /// Explorer context menu "Mit DiskTree analysieren" for folders, drives and the background of an open folder.

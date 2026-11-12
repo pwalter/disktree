@@ -1,10 +1,11 @@
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using DiskTree.Core;
+using DiskTree.Features.Reports;
 using Microsoft.Win32;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 // Export (CSV). Kept in its own file; MainWindow.xaml only has the button.
 public partial class MainWindow

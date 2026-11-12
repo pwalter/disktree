@@ -1,7 +1,11 @@
-<Window x:Class="DiskTree.MainWindow"
+<Window x:Class="DiskTree.Ui.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:DiskTree"
+        xmlns:local="clr-namespace:DiskTree.Ui"
+        xmlns:treemap="clr-namespace:DiskTree.Features.Treemap"
+        xmlns:search="clr-namespace:DiskTree.Features.Search"
+        xmlns:dup="clr-namespace:DiskTree.Features.Duplicates"
+        xmlns:owner="clr-namespace:DiskTree.Features.Owner"
         Title="DiskTree" Width="1340" Height="780" MinWidth="1100" MinHeight="420"
         Icon="/app.ico" AllowDrop="True" Drop="Window_Drop" PreviewKeyDown="Window_PreviewKeyDown"
         Background="{DynamicResource WindowBg}" Foreground="{DynamicResource Ink}" FontFamily="Segoe UI" FontSize="13">
@@ -335,16 +339,16 @@
                     </ScrollViewer>
                 </TabItem>
                 <TabItem Header="Treemap">
-                    <local:TreemapPanel x:Name="Treemap" Margin="0,2,0,0" NodeClicked="Treemap_NodeClicked" />
+                    <treemap:TreemapPanel x:Name="Treemap" Margin="0,2,0,0" NodeClicked="Treemap_NodeClicked" />
                 </TabItem>
                 <TabItem x:Name="SearchTab" Header="Suche">
-                    <local:SearchPanel x:Name="SearchPane" />
+                    <search:SearchPanel x:Name="SearchPane" />
                 </TabItem>
                 <TabItem Header="Duplikate">
-                    <local:DuplicatesPanel x:Name="Dup" />
+                    <dup:DuplicatesPanel x:Name="Dup" />
                 </TabItem>
                 <TabItem Header="Besitzer">
-                    <local:OwnerPanel x:Name="OwnerTab" Margin="0,4,0,0" />
+                    <owner:OwnerPanel x:Name="OwnerTab" Margin="0,4,0,0" />
                 </TabItem>
                 <TabItem Header="Vergleich">
                     <local:ComparePanel x:Name="Compare" />

@@ -1,10 +1,11 @@
 using System.Globalization;
 using System.IO;
+using DiskTree.Core;
 using PdfSharp.Drawing;
 using PdfSharp.Fonts;
 using PdfSharp.Pdf;
 
-namespace DiskTree;
+namespace DiskTree.Features.Reports;
 
 /// <summary>Draws the space report straight into a PDF (PDFsharp, no browser or printer driver involved).</summary>
 public static class ReportPdf

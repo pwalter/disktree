@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 
-namespace DiskTree;
+namespace DiskTree.Features.Update;
 
 public sealed record UpdateInfo(Version Version, string Tag, string PageUrl, string AssetName, string AssetUrl, long AssetSize, string? ShaUrl);
 

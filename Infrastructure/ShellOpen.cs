@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace DiskTree;
+namespace DiskTree.Infrastructure;
 
 public static class ShellOpen
 {

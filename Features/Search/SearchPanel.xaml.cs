@@ -2,9 +2,10 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
+using DiskTree.Core;
+using DiskTree.Ui;
 
-namespace DiskTree;
+namespace DiskTree.Features.Search;
 
 public partial class SearchPanel : UserControl
 {

@@ -1,6 +1,6 @@
-using System.Globalization;
+using DiskTree.Core;
 
-namespace DiskTree;
+namespace DiskTree.Features.Reports;
 
 public static class ReportBuilder
 {

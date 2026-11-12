@@ -1,7 +1,8 @@
 using System.IO;
 using System.IO.Enumeration;
+using DiskTree.Core;
 
-namespace DiskTree;
+namespace DiskTree.Features.Search;
 
 /// <summary>
 /// Folder search walks the in-memory node tree. File search (names / extensions) enumerates the folders of the

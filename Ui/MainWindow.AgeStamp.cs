@@ -1,7 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
+using DiskTree.Core;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 // "Zeitstempel" switch of the Alter tab: which file timestamp the scan sums up (see AgeStamps for the design decision).
 // The scan only builds one set of buckets, so a different choice than the one the current tree was built with

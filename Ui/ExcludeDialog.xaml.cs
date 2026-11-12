@@ -1,7 +1,8 @@
 using System.Windows;
 using System.Windows.Input;
+using DiskTree.Core;
 
-namespace DiskTree;
+namespace DiskTree.Ui;
 
 /// <summary>Simple list editor for the folder exclusions (add / remove).</summary>
 public partial class ExcludeDialog : Window

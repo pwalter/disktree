@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace DiskTree;
+namespace DiskTree.Features.Treemap;
 
 /// <summary>Squarified treemap layout (Bruls, Huizing, van Wijk): rectangles with a good aspect ratio, area proportional to size.</summary>
 public static class TreemapLayout

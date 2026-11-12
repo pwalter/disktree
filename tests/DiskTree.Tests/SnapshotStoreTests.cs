@@ -1,6 +1,8 @@
 using System.IO;
 using System.IO.Compression;
 using System.Text;
+using DiskTree.Core;
+using DiskTree.Core.Snapshots;
 using Xunit;
 
 namespace DiskTree.Tests;

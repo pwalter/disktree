@@ -4,7 +4,7 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 
-namespace DiskTree;
+namespace DiskTree.Core.Snapshots;
 
 /// <summary>Who/when/what of a stored scan.</summary>
 public sealed record SnapshotInfo(DateTime ScannedAt, string TargetPath, string Machine);
