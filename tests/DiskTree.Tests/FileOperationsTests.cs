@@ -1,5 +1,6 @@
 using System.IO;
 using System.IO.Compression;
+using DiskTree.Core;
 using DiskTree.Features.FileOperations;
 using Xunit;
 
@@ -495,7 +496,7 @@ public class FileOperationsTests : TestBase
         var s = await ScanT();
         var node = Scan.Node(s, T.Sub("old"));
 
-        FileOperations.RenameNode(node, "renamed");
+        TreeEditor.RenameFolder(node, "renamed");
 
         Assert.Equal("renamed", node.Name);
         Assert.Equal(T.Sub("renamed"), node.FullPath, ignoreCase: true);

@@ -346,7 +346,7 @@ public class ScannerTests : TestBase
         int bucket = AgeBuckets.OfFile(T.Sub("a", "w.docx"));
         Assert.Equal(3, bucket);
         File.Delete(T.Sub("a", "w.docx"));
-        a.RemoveFile("w.docx", 100, bucket);
+        TreeEditor.RemoveFile(a, "w.docx", 100, bucket);
 
         TreeAssert.Equal((await ScanT()).Root!, s.Root!);
     }
@@ -359,7 +359,7 @@ public class ScannerTests : TestBase
         var s = await ScanT();
         var a = Scan.Node(s, T.Sub("a"));
 
-        a.RemoveFile("only.pdf", 10, AgeBuckets.OfFile(T.File(@"a\only.pdf", 10)));
+        TreeEditor.RemoveFile(a, "only.pdf", 10,AgeBuckets.OfFile(T.File(@"a\only.pdf", 10)));
         Assert.Single(a.OwnTypes!);
         Assert.Equal(5, a.Size);
         Assert.Equal(1, a.OwnCount);
@@ -415,7 +415,7 @@ public class ScannerTests : TestBase
         var a = Scan.Node(s, T.Sub("a"));
 
         var added = T.File(@"a\new.pdf", 500, Ago(years: 6));
-        FileOperations.AddFile(a, "new.pdf", 500, AgeBuckets.OfFile(added));
+        TreeEditor.AddFile(a, "new.pdf", 500, AgeBuckets.OfFile(added));
 
         TreeAssert.Equal((await ScanT()).Root!, s.Root!);
     }

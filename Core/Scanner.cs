@@ -34,8 +34,7 @@ public sealed partial class Scanner
     private void NoteExcluded(Node dir, string path)
     {
         Interlocked.Increment(ref _excluded);
-        for (var n = dir; n != null; n = n.Parent)
-            Interlocked.Increment(ref n.Excluded);
+        TreeEditor.AddExcluded(dir);
         lock (_excludedPaths)
             if (_excludedPaths.Count < ExcludedListMax) _excludedPaths.Add(path);
     }
@@ -240,27 +239,8 @@ public sealed partial class Scanner
     {
         var top = Root ?? throw new InvalidOperationException("Es wurde noch nichts gescannt.");
 
-        // Take the old subtree out of every parent. Open is corrected as well: a cancelled scan may have
-        // left unfinished folders behind, which the parents still count.
-        int oldOpen = Volatile.Read(ref node.Open);
-        for (var n = node.Parent; n != null; n = n.Parent)
-        {
-            Interlocked.Add(ref n.Size, -node.Size);
-            Interlocked.Add(ref n.FileCount, -node.FileCount);
-            Interlocked.Add(ref n.DirCount, -node.DirCount);
-            Interlocked.Add(ref n.Excluded, -node.Excluded);
-            Interlocked.Add(ref n.Open, 1 - oldOpen);
-        }
-
-        AgeBuckets.RemoveSubtree(node);
-        if (node.AgeSub is { } oldAges) Array.Clear(oldAges);
-        node.OwnAges = null;
-        node.Size = node.FileCount = node.DirCount = node.Excluded = 0;
-        node.OwnSize = node.OwnCount = 0;
-        node.OwnTypes = null;
-        node.ClearChildren();
-        Volatile.Write(ref node.Open, 1);
-        node.Scanned = false;
+        // Take the old subtree out of every parent and empty it.
+        TreeEditor.ClearForRescan(node);
 
         // The tree now only ends at 'node' if it is an ancestor of the former scan target (or the drive itself).
         for (var n = ScanTarget; n != null; n = n.Parent)
@@ -323,8 +303,7 @@ public sealed partial class Scanner
             finally
             {
                 dir.Scanned = true;
-                for (var n = dir; n != null; n = n.Parent)
-                    Interlocked.Decrement(ref n.Open);
+                TreeEditor.CloseChain(dir);
                 Signal();
 
                 if (Interlocked.Decrement(ref _pending) == 0)
@@ -390,8 +369,7 @@ public sealed partial class Scanner
                     };
 
                     // The folder counts as open for all ancestors until its worker is finished.
-                    for (var n = dir; n != null; n = n.Parent)
-                        Interlocked.Increment(ref n.Open);
+                    TreeEditor.OpenChain(dir);
 
                     dir.AddChild(child);
                     subDirs++;
@@ -445,12 +423,7 @@ public sealed partial class Scanner
 
     private void Flush(Node dir, ref long sum, ref long count, ref long subDirs)
     {
-        for (var n = dir; n != null; n = n.Parent)
-        {
-            Interlocked.Add(ref n.Size, sum);
-            Interlocked.Add(ref n.FileCount, count);
-            Interlocked.Add(ref n.DirCount, subDirs);
-        }
+        TreeEditor.AddToChain(dir, sum, count, subDirs);
 
         Interlocked.Add(ref _files, count);
         Interlocked.Add(ref _bytes, sum);

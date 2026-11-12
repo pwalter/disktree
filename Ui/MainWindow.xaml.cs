@@ -820,7 +820,7 @@ public partial class MainWindow : Window
         if (vm != null)
             vm.RemoveFromTree(ageBucket);
         else if (isFile && _scanner?.FindNode(Path.GetDirectoryName(path) ?? "") is { } dir)
-            dir.RemoveFile(Path.GetFileName(path), size, ageBucket);
+            TreeEditor.RemoveFile(dir, Path.GetFileName(path), size, ageBucket);
 
         _scanner?.RemoveTop(path);
         if (_scanner?.Root is { } drive) Scanner.ReadDrive(drive);

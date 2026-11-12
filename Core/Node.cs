@@ -6,7 +6,7 @@ public sealed class Node
     public string FullPath = "";
     public Node? Parent;
 
-    // Fields (not properties) so the scanner can use Interlocked on them.
+    // Fields (not properties) so the scanner can use Interlocked on them. Changes after the scan go through TreeEditor.
     public long Size;       // incl. all descendants (grows while scanning)
     public long FileCount;  // incl. all descendants
     public long DirCount;   // incl. all descendants
@@ -36,24 +36,6 @@ public sealed class Node
     public long DriveFree;
     /// <summary>The scan started below the drive root, so the tree only contains a part of the drive.</summary>
     public bool PartialDrive;
-
-    /// <summary>Takes a deleted file out of this folder's numbers and all parents'.</summary>
-    public void RemoveFile(string name, long size, int ageBucket = -1)
-    {
-        OwnSize -= size;
-        OwnCount--;
-        OwnTypes = FileTypes.Without(OwnTypes, FileTypes.CategoryOf(name), size);
-        if (ageBucket >= 0)
-        {
-            OwnAges = AgeBuckets.Without(OwnAges, ageBucket, size);
-            AgeBuckets.AddSub(this, ageBucket, -size);
-        }
-        for (var n = this; n != null; n = n.Parent)
-        {
-            Interlocked.Add(ref n.Size, -size);
-            Interlocked.Add(ref n.FileCount, -1);
-        }
-    }
 
     // Subfolders. Only the worker that scans this folder writes to it,
     // the UI thread reads it while the scan is still running, so access goes through lock + Snapshot().

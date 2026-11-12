@@ -377,20 +377,12 @@ public sealed class NodeVM : INotifyPropertyChanged
 
         if (Kind == Kind.File)
         {
-            Parent.Parent!._node!.RemoveFile(_node.Name, Size, ageBucket);
+            TreeEditor.RemoveFile(Parent.Parent!._node!, _node.Name, Size, ageBucket);
             Parent.Children.Remove(this);
         }
         else if (Kind == Kind.Dir)
         {
-            var parentNode = Parent._node!;
-            AgeBuckets.RemoveSubtree(_node);
-            for (var n = parentNode; n != null; n = n.Parent)
-            {
-                Interlocked.Add(ref n.Size, -_node.Size);
-                Interlocked.Add(ref n.FileCount, -_node.FileCount);
-                Interlocked.Add(ref n.DirCount, -(_node.DirCount + 1));
-            }
-            parentNode.RemoveChild(_node);
+            TreeEditor.RemoveFolder(_node);
             Parent._byNode.Remove(_node);
             Parent.Children.Remove(this);
         }
