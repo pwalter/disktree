@@ -63,6 +63,7 @@ public partial class MainWindow : Window
         }
 
         InitSnapshots();
+        InitSearch();
         Theme.Changed += () => _root?.RefreshTheme();
         ShowThemeButton();
         ShowExcludeButton();
@@ -203,6 +204,11 @@ public partial class MainWindow : Window
                 _ = RescanAsync(node);
             else
                 _ = BeginScan();
+        }
+        else if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            ShowSearch();
         }
         else if (e.Key == Key.Escape && _cts != null)
         {

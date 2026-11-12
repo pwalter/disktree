@@ -253,6 +253,9 @@
                 <TabItem Header="Vergleich">
                     <local:ComparePanel x:Name="Compare" />
                 </TabItem>
+                <TabItem x:Name="SearchTab" Header="Suche">
+                    <local:SearchPanel x:Name="SearchPane" />
+                </TabItem>
             </TabControl>
         </Border>
 
