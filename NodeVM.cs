@@ -15,11 +15,15 @@ public sealed class NodeVM : INotifyPropertyChanged
 
     private const string FreeName = "Freier Speicher";
 
-    private static readonly Brush?[] BarCache = new Brush?[101];
-    private static readonly Brush?[] TextCache = new Brush?[101];
+    private static readonly Brush?[] BarCache = new Brush?[202];
+    private static readonly Brush?[] TextCache = new Brush?[202];
     private static readonly Brush Gray = Frozen(Color.FromRgb(0x9A, 0xA0, 0xA8));
-    private static readonly Brush DarkGray = Frozen(Color.FromRgb(0x6B, 0x72, 0x7B));
-    private static readonly Brush Ink = Frozen(Color.FromRgb(0x1F, 0x23, 0x29));
+    private static readonly Brush DarkGrayLight = Frozen(Color.FromRgb(0x6B, 0x72, 0x7B));
+    private static readonly Brush DarkGrayDark = Frozen(Color.FromRgb(0x9A, 0xA1, 0xAA));
+    private static readonly Brush InkLight = Frozen(Color.FromRgb(0x1F, 0x23, 0x29));
+    private static readonly Brush InkDark = Frozen(Color.FromRgb(0xE8, 0xEA, 0xED));
+    private static Brush DarkGray => Theme.IsDark ? DarkGrayDark : DarkGrayLight;
+    private static Brush Ink => Theme.IsDark ? InkDark : InkLight;
     private static readonly Brush Gold = Frozen(Color.FromRgb(0xE0, 0xA8, 0x20));
     private static readonly Brush FreeBrush = Frozen(Color.FromRgb(0x9C, 0xC4, 0xEE));
     private static readonly Brush RestBrush = Frozen(Color.FromRgb(0xD6, 0xC8, 0xB0));
@@ -119,12 +123,12 @@ public sealed class NodeVM : INotifyPropertyChanged
     {
         Kind.Files => Gray,
         Kind.Space => _node!.Name == FreeName ? FreeBrush : RestBrush,
-        _ => IsPending ? Gray : Cached(BarCache, Percent, 0.78, 0.92),
+        _ => IsPending ? Gray : Cached(BarCache, Percent, Theme.IsDark ? 0.70 : 0.78, Theme.IsDark ? 0.62 : 0.92),
     };
 
     public Brush SizeBrush => Kind is Kind.Files or Kind.Space || IsPending
         ? DarkGray
-        : Cached(TextCache, Percent, 0.95, 0.62);
+        : Cached(TextCache, Percent, Theme.IsDark ? 0.55 : 0.95, Theme.IsDark ? 0.98 : 0.62);
 
     public bool IsExpanded
     {
@@ -184,6 +188,18 @@ public sealed class NodeVM : INotifyPropertyChanged
             if (has && Children.Count == 0) Children.Add(new NodeVM());
             else if (!has && Children.Count > 0) Children.Clear();
         }
+    }
+
+    /// <summary>Light/dark switch: re-reads the brushes of this row and of all rows that were created below it.</summary>
+    public void RefreshTheme()
+    {
+        if (Kind == Kind.Dummy) return;
+        Notify(nameof(IconBrush));
+        Notify(nameof(NameBrush));
+        Notify(nameof(BarBrush));
+        Notify(nameof(SizeBrush));
+        foreach (var c in Children.ToArray())
+            c.RefreshTheme();
     }
 
     /// <summary>Adds new child rows and keeps them sorted: folders by size (largest first), then files, then drive space.</summary>
@@ -279,6 +295,8 @@ public sealed class NodeVM : INotifyPropertyChanged
         Children.Clear();
         _byNode.Clear();
         _group = _free = _rest = null;
+        _loaded = false;
+        if (_expanded) { _loaded = true; SyncChildren(); }
         Notify(nameof(IsExpanded));
     }
 
@@ -363,7 +381,8 @@ public sealed class NodeVM : INotifyPropertyChanged
     private static Brush Cached(Brush?[] cache, double percent, double s, double v)
     {
         int i = Math.Clamp((int)Math.Round(percent * 100), 0, 100);
-        return cache[i] ??= Frozen(Hsv(130 * (1 - Math.Pow(i / 100.0, 0.6)), s, v));
+        int slot = Theme.IsDark ? i + 101 : i; // separate entries per theme
+        return cache[slot] ??= Frozen(Hsv(130 * (1 - Math.Pow(i / 100.0, 0.6)), s, v));
     }
 
     private static Color Hsv(double h, double s, double v)

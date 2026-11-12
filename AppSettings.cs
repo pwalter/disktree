@@ -11,6 +11,7 @@ public sealed class AppSettings
     public double Width { get; set; }
     public double Height { get; set; }
     public bool Maximized { get; set; }
+    public ThemeSetting Theme { get; set; } = ThemeSetting.System;
 
     private static readonly string FilePath =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DiskTree", "settings.json");

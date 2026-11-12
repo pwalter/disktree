@@ -4,7 +4,7 @@
         xmlns:local="clr-namespace:DiskTree"
         Title="DiskTree" Width="1340" Height="780" MinWidth="1100" MinHeight="420"
         Icon="app.ico" AllowDrop="True" Drop="Window_Drop" PreviewKeyDown="Window_PreviewKeyDown"
-        Background="#F5F6F8" FontFamily="Segoe UI" FontSize="13">
+        Background="{DynamicResource WindowBg}" Foreground="{DynamicResource Ink}" FontFamily="Segoe UI" FontSize="13">
 
     <Window.TaskbarItemInfo>
         <TaskbarItemInfo x:Name="TaskbarInfo" />
@@ -12,7 +12,6 @@
 
     <Window.Resources>
         <SolidColorBrush x:Key="Accent" Color="#2F6FED" />
-        <SolidColorBrush x:Key="Muted" Color="#6B727B" />
         <BooleanToVisibilityConverter x:Key="B2V" />
 
         <Style x:Key="ToolButton" TargetType="Button">
@@ -49,7 +48,7 @@
                 <Border Width="12" Height="12" CornerRadius="3" Background="{Binding Brush}" Margin="0,0,8,0" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Detail}" />
                 <TextBlock Grid.Column="2" Text="{Binding SizeText}" FontWeight="SemiBold" Margin="8,0,0,0" TextAlignment="Right" />
-                <TextBlock Grid.Column="3" Text="{Binding PercentText}" Foreground="{StaticResource Muted}" TextAlignment="Right" />
+                <TextBlock Grid.Column="3" Text="{Binding PercentText}" Foreground="{DynamicResource Muted}" TextAlignment="Right" />
             </Grid>
         </DataTemplate>
 
@@ -61,7 +60,7 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel>
                     <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{Binding Folder}" FontSize="11" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Folder}" FontSize="11" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
                 <TextBlock Grid.Column="1" Text="{Binding SizeText}" FontWeight="SemiBold" Margin="10,0,0,0" VerticalAlignment="Center" />
             </Grid>
@@ -101,15 +100,15 @@
                     </Ellipse>
                 </Grid>
                 <Grid Width="{x:Static local:NodeVM.BarMax}" Height="16" Margin="8,0">
-                    <Border Background="#E6E8EC" CornerRadius="3" />
+                    <Border Background="{DynamicResource TrackBg}" CornerRadius="3" />
                     <Border Background="{Binding BarBrush}" Width="{Binding BarWidth}"
                             HorizontalAlignment="Left" CornerRadius="3" />
-                    <TextBlock Text="{Binding PercentText}" FontSize="11" Foreground="#1F2329"
+                    <TextBlock Text="{Binding PercentText}" FontSize="11" Foreground="{DynamicResource Ink}"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Grid>
                 <TextBlock Text="{Binding SizeText}" Foreground="{Binding SizeBrush}" FontWeight="SemiBold"
                            Width="90" TextAlignment="Right" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding FilesText}" Foreground="{StaticResource Muted}"
+                <TextBlock Text="{Binding FilesText}" Foreground="{DynamicResource Muted}"
                            Width="100" TextAlignment="Right" VerticalAlignment="Center" />
             </StackPanel>
         </HierarchicalDataTemplate>
@@ -135,26 +134,30 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <ComboBox x:Name="PathBox" IsEditable="True" Height="32" VerticalContentAlignment="Center"
                       FontSize="14" />
             <Button Grid.Column="1" Content="…" Width="34" Height="32" Margin="6,0,0,0"
                     Style="{StaticResource ToolButton}" Padding="0" Click="Browse_Click" ToolTip="Ordner wählen" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
-                <TextBlock Text="Threads" Foreground="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <TextBlock Text="Threads" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="0,0,6,0" />
                 <ComboBox x:Name="ThreadsBox" Width="60" Height="28" />
             </StackPanel>
             <Button x:Name="AdminButton" Grid.Column="3" Content="🛡 Als Administrator neu starten" Height="32" Margin="16,0,0,0"
-                    Style="{StaticResource ToolButton}" Background="#5B6C7D" Click="Admin_Click"
+                    Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="Admin_Click"
                     ToolTip="Neu starten, damit auch geschützte Ordner gelesen werden können" />
             <Button x:Name="ScanButton" Grid.Column="4" Content="Scannen" Height="32" MinWidth="110" Margin="16,0,0,0"
                     Style="{StaticResource ToolButton}" Click="Scan_Click" IsDefault="True"
                     ToolTip="Scannen / Abbrechen (Esc). F5 scannt den markierten Ordner neu." />
+            <Button x:Name="ThemeButton" Grid.Column="5" Height="32" MinWidth="96" Margin="16,0,0,0"
+                    Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="Theme_Click"
+                    ToolTip="Darstellung: Windows folgen / Hell / Dunkel" />
         </Grid>
 
         <!-- Column header -->
         <Grid Grid.Row="1" Margin="21,0,28,4">
-            <StackPanel Orientation="Horizontal" TextElement.Foreground="{StaticResource Muted}" TextElement.FontWeight="SemiBold">
+            <StackPanel Orientation="Horizontal" TextElement.Foreground="{DynamicResource Muted}" TextElement.FontWeight="SemiBold">
                 <TextBlock Text="Name" Width="{x:Static local:NodeVM.NameColumn}" Padding="24,0,0,0" />
                 <TextBlock Text="Anteil" Width="166" Padding="8,0,0,0" />
                 <TextBlock Text="Größe" Width="90" TextAlignment="Right" />
@@ -163,7 +166,7 @@
         </Grid>
 
         <!-- Tree -->
-        <Border Grid.Row="2" Margin="0,0,10,0" Background="White" BorderBrush="#DDE0E5" BorderThickness="1" CornerRadius="6">
+        <Border Grid.Row="2" Margin="0,0,10,0" Background="{DynamicResource PanelBg}" BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1" CornerRadius="6">
             <TreeView x:Name="Tree" BorderThickness="0" Background="Transparent" Padding="2,4"
                       ScrollViewer.HorizontalScrollBarVisibility="Auto"
                       VirtualizingPanel.IsVirtualizing="True"
@@ -181,7 +184,7 @@
         </Border>
 
         <!-- Side panel: file types / largest files -->
-        <Border Grid.Row="1" Grid.RowSpan="2" Grid.Column="1" Background="White" BorderBrush="#DDE0E5"
+        <Border Grid.Row="1" Grid.RowSpan="2" Grid.Column="1" Background="{DynamicResource PanelBg}" BorderBrush="{DynamicResource PanelBorder}"
                 BorderThickness="1" CornerRadius="6" Padding="10,6,10,10">
             <TabControl BorderThickness="0" Background="Transparent" Padding="0,8,0,0">
                 <TabItem Header="Dateitypen">
@@ -220,12 +223,12 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="StatusText" Text="Pfad oder Laufwerk eingeben (oder Ordner hierher ziehen) und auf „Scannen“ klicken."
-                       Foreground="{StaticResource Muted}" />
-            <TextBlock x:Name="CurrentText" Grid.Column="1" Margin="16,0,0,0" Foreground="#9AA0A8"
+                       Foreground="{DynamicResource Muted}" />
+            <TextBlock x:Name="CurrentText" Grid.Column="1" Margin="16,0,0,0" Foreground="{DynamicResource Subtle}"
                        TextTrimming="CharacterEllipsis" />
             <ProgressBar x:Name="ScanProgress" Grid.Column="2" Width="160" Height="6" Margin="16,0,0,0"
                          Minimum="0" Maximum="1" Visibility="Collapsed" Foreground="{StaticResource Accent}"
-                         Background="#E6E8EC" BorderThickness="0" VerticalAlignment="Center" />
+                         Background="{DynamicResource TrackBg}" BorderThickness="0" VerticalAlignment="Center" />
         </Grid>
     </Grid>
 </Window>

@@ -16,11 +16,11 @@ public sealed class PieChart : FrameworkElement
     private int _hover = -1;
 
     private static readonly Typeface Face = new("Segoe UI");
-    private static readonly Pen Separator = Frozen(new Pen(Brushes.White, 1.5));
 
     public PieChart()
     {
         ToolTipService.SetInitialShowDelay(this, 0);
+        Theme.Changed += InvalidateVisual;
     }
 
     public void SetData(IReadOnlyList<PieSlice> slices, string centerTop, string centerBottom)
@@ -44,19 +44,20 @@ public sealed class PieChart : FrameworkElement
         double total = _slices.Sum(s => s.Value);
         if (total <= 0)
         {
-            var empty = new Pen(new SolidColorBrush(Color.FromRgb(0xE6, 0xE8, 0xEC)), radius - inner);
+            var empty = new Pen(new SolidColorBrush(Theme.TrackBg), radius - inner);
             dc.DrawEllipse(null, empty, center, (radius + inner) / 2, (radius + inner) / 2);
             DrawCenter(dc, center, "–", "");
             return;
         }
 
+        var separator = new Pen(new SolidColorBrush(Theme.PanelBg), 1.5);
         double start = -90;
         for (int i = 0; i < _slices.Count; i++)
         {
             double sweep = _slices[i].Value / total * 360;
             if (sweep <= 0) continue;
             double r = i == _hover ? radius + 6 : radius;
-            dc.DrawGeometry(_slices[i].Brush, Separator, Ring(center, inner, r, start, Math.Min(sweep, 359.99)));
+            dc.DrawGeometry(_slices[i].Brush, separator, Ring(center, inner, r, start, Math.Min(sweep, 359.99)));
             start += sweep;
         }
 
@@ -67,9 +68,9 @@ public sealed class PieChart : FrameworkElement
     {
         double dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
         var big = new FormattedText(top, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Face, 22,
-            new SolidColorBrush(Color.FromRgb(0x1F, 0x23, 0x29)), dpi) { MaxTextWidth = 150, TextAlignment = TextAlignment.Center };
+            new SolidColorBrush(Theme.Ink), dpi) { MaxTextWidth = 150, TextAlignment = TextAlignment.Center };
         var small = new FormattedText(bottom, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Face, 12,
-            new SolidColorBrush(Color.FromRgb(0x6B, 0x72, 0x7B)), dpi) { MaxTextWidth = 150, TextAlignment = TextAlignment.Center };
+            new SolidColorBrush(Theme.Muted), dpi) { MaxTextWidth = 150, TextAlignment = TextAlignment.Center };
 
         double blockHeight = big.Height + (bottom.Length > 0 ? small.Height : 0);
         double y = center.Y - blockHeight / 2;
@@ -139,11 +140,5 @@ public sealed class PieChart : FrameworkElement
         _hover = -1;
         ToolTip = null;
         InvalidateVisual();
-    }
-
-    private static Pen Frozen(Pen p)
-    {
-        p.Freeze();
-        return p;
     }
 }
