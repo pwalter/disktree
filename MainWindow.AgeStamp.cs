@@ -33,7 +33,7 @@ public partial class MainWindow
     /// <summary>A loaded snapshot knows which timestamp it holds; the choice follows it (the saved preference stays).</summary>
     private void OnSnapshotAgeStamp(AgeStamp stamp)
     {
-        AgeStamps.Current = stamp;
+        if (Busy == null) AgeStamps.Current = stamp; // a running scan in another tab is reading it
         AgeStamps.Preferred = stamp;
         _settingStampBox = true;
         AgeStampBox.SelectedIndex = (int)stamp;

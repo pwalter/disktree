@@ -28,6 +28,15 @@ public partial class SearchPanel : UserControl
         Mode_Changed(null, null!);
     }
 
+    /// <summary>The host switched to another scan: running search and hits belonged to the old tree.</summary>
+    public void Reset()
+    {
+        _cts?.Cancel();
+        Results.ItemsSource = null;
+        StatusText.Text = "";
+        ScopeText.Text = "";
+    }
+
     public void FocusInput()
     {
         NameBox.Focus();

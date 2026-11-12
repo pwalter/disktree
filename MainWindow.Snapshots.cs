@@ -38,6 +38,7 @@ public partial class MainWindow
 
     private async void SaveSnapshot_Click(object sender, RoutedEventArgs e)
     {
+        var session = _cur;
         var scanner = _scanner;
         if (scanner?.Root == null)
         {
@@ -65,16 +66,16 @@ public partial class MainWindow
         var file = dlg.FileName;
         var at = scanner.ScannedAt ?? DateTime.Now;
         SnapshotSaveButton.IsEnabled = false;
-        var before = StatusText.Text;
-        StatusText.Text = "Scan wird gespeichert …";
+        var before = session.Status;
+        SetStatus(session, "Scan wird gespeichert …");
         try
         {
             await Task.Run(() => SnapshotStore.Save(file, scanner, at));
-            StatusText.Text = $"Scan gespeichert: {file} ({NodeVM.FormatSize(new FileInfo(file).Length)})";
+            SetStatus(session, $"Scan gespeichert: {file} ({NodeVM.FormatSize(new FileInfo(file).Length)})");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            StatusText.Text = before;
+            SetStatus(session, before);
             Notice("Speichern fehlgeschlagen:\n" + ex.Message);
         }
         finally
@@ -95,15 +96,14 @@ public partial class MainWindow
         if (dlg.ShowDialog(this) == true) await LoadSnapshotAsync(dlg.FileName);
     }
 
+    // A stored scan opens in a new tab (in the active one if that is still empty), so the scan being looked at
+    // stays; a scan running in another tab is not disturbed either.
     private async Task LoadSnapshotAsync(string file)
     {
-        if (_cts != null)
-        {
-            _cts.Cancel();
-            await _scanTask;
-        }
-
-        StatusText.Text = "Scan wird geladen …";
+        if (TabsLocked) return;
+        var origin = _cur;
+        var before = origin.Status;
+        SetStatus(origin, "Scan wird geladen …");
         LoadedSnapshot snap;
         try
         {
@@ -111,25 +111,35 @@ public partial class MainWindow
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
         {
-            StatusText.Text = "";
+            SetStatus(origin, before);
             Notice($"Die Datei konnte nicht geladen werden:\n{file}\n\n{ex.Message}");
             return;
         }
 
+        SetStatus(origin, before);
+        if (TabsLocked) return;
+        var s = _cur.IsEmpty ? _cur : NewTab();
         var scanner = Scanner.FromSnapshot(snap, file);
         OnSnapshotAgeStamp(snap.AgeStamp);
+        s.AgeStamp = s.AgePreferred = snap.AgeStamp;
+        s.SelectedVm = null;
         _scanner = scanner;
         _scanTarget = scanner.ScanTarget;
         _root = new NodeVM(scanner.Root!, Kind.Dir, null, 0) { IsExpanded = true };
+        Treemap.Reset(_scanTarget ?? scanner.Root);
         Tree.ItemsSource = new[] { _root };
         ExpandToScanTarget();
         PathBox.Text = scanner.ScanTarget?.FullPath ?? "";
         CurrentText.Text = "";
 
         var t = scanner.ScanTarget!;
-        StatusText.Text =
+        string where = string.IsNullOrEmpty(t.FullPath) ? t.Name : t.FullPath;
+        s.SetTitle("💾 " + where, $"Gespeicherter Scan vom {StampText(scanner.ScannedAt)}: {where}");
+        s.StatusTip = null;
+        StatusText.ToolTip = null;
+        SetStatus(s,
             $"Gespeicherter Scan vom {StampText(scanner.ScannedAt)}: {t.DirCount + 1:N0} Ordner · {t.FileCount:N0} Dateien · " +
-            $"{NodeVM.FormatSize(t.Size)} · {t.FullPath}";
+            $"{NodeVM.FormatSize(t.Size)} · {t.FullPath}");
         UpdateTitle();
         _ = UpdatePieAsync();
         RefreshTop();
