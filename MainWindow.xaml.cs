@@ -62,6 +62,7 @@ public partial class MainWindow : Window
             AdminButton.Visibility = Visibility.Collapsed;
         }
 
+        InitSnapshots();
         Theme.Changed += () => _root?.RefreshTheme();
         ShowThemeButton();
         Loaded += OnLoaded;
@@ -164,6 +165,11 @@ public partial class MainWindow : Window
     {
         if (e.Data.GetData(DataFormats.FileDrop) is not string[] { Length: > 0 } files) return;
         var path = files[0];
+        if (path.EndsWith(SnapshotStore.Extension, StringComparison.OrdinalIgnoreCase) && File.Exists(path))
+        {
+            await LoadSnapshotAsync(path);
+            return;
+        }
         if (File.Exists(path)) path = Path.GetDirectoryName(path)!;
         await ScanPathAsync(path);
     }
@@ -222,6 +228,7 @@ public partial class MainWindow : Window
         await RunAsync(ct =>
         {
             var scanner = _scanner = new Scanner();
+            OnNewScanner(scanner);
             // Event instead of polling: the scanner reports changes from its worker threads, the UI reacts.
             scanner.Changed += () => Dispatcher.InvokeAsync(() => OnScannerChanged(scanner), DispatcherPriority.Background);
             _root = null;
@@ -250,6 +257,7 @@ public partial class MainWindow : Window
     private async Task StartRescan(Node node)
     {
         var scanner = _scanner!;
+        if (!CanRescan(node)) return;
 
         // A running scan has to stop first. (_scanTask still is the old scan here: this method runs
         // synchronously up to the first await, before RescanAsync assigns its own task.)
@@ -538,7 +546,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ShowFileMenu(TopRow row, Point screenPos) =>
+    private void ShowFileMenu(TopRow row, Point screenPos)
+    {
+        if (IsSnapshotMode) { ShowSnapshotMenu(row.Path, isDir: false); return; }
+        ShowFileMenuShell(row, screenPos);
+    }
+
+    private void ShowFileMenuShell(TopRow row, Point screenPos) =>
         RunShell(row.Path, isFile: true, row.Size, null,
             () => ShellContextMenu.Show(this, row.Path, screenPos, Extras(row.Path, isDir: false)));
 
@@ -584,6 +598,7 @@ public partial class MainWindow : Window
     private void ShowTreeMenu(NodeVM vm, Point screenPos)
     {
         if (!CanUseShell(vm)) return;
+        if (IsSnapshotMode) { ShowSnapshotMenu(vm.Path, vm.Kind == Kind.Dir); return; }
         RunShell(vm.Path, vm.Kind == Kind.File, vm.Size, vm,
             () => ShellContextMenu.Show(this, vm.Path, screenPos, Extras(vm.Path, vm.Kind == Kind.Dir)));
     }
@@ -606,11 +621,18 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Opens the folder that contains the item and selects the item there.</summary>
-    private static void OpenInExplorer(string path) =>
+    private static void OpenInExplorer(string path)
+    {
+        if (!File.Exists(path) && !Directory.Exists(path)) return; // e.g. a stored scan of another machine
+        OpenInExplorerCore(path);
+    }
+
+    private static void OpenInExplorerCore(string path) =>
         Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true });
 
     private void RunShell(string path, bool isFile, long size, NodeVM? vm, Action action)
     {
+        if (IsSnapshotMode) { SnapshotHint(); return; }
         try
         {
             action();
