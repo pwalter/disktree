@@ -36,7 +36,13 @@ public static class PathList
     /// <summary>Full paths without duplicates and without paths that lie inside another one (they would be counted twice).</summary>
     public static List<string> Reduce(IEnumerable<string> paths)
     {
-        var full = paths.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        // The same folder may be written with or without a trailing backslash and in any case: one entry (the first).
+        var full = new List<string>();
+        foreach (var p in paths.Select(Path.GetFullPath))
+        {
+            var key = PathUtil.EnsureTrailingBackslash(p);
+            if (!full.Any(o => string.Equals(PathUtil.EnsureTrailingBackslash(o), key, StringComparison.OrdinalIgnoreCase))) full.Add(p);
+        }
         return full.Where(p => !full.Any(o => !ReferenceEquals(o, p) && PathUtil.IsUnder(o, p))).ToList();
     }
 }

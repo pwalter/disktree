@@ -51,6 +51,21 @@ public class PathListTests : TestBase
         Assert.Equal(new[] { @"C:\data", @"D:\other" }, r.Select(p => p.TrimEnd('\\')).ToArray(), StringComparer.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData(@"C:\data", @"C:\DATA\")]
+    [InlineData(@"C:\data\", @"C:\data")]
+    [InlineData(@"C:\data", @"c:\Data\\")]
+    [InlineData(@"\\srv\share\a", @"\\SRV\share\A\")]
+    public void Reduce_SameFolderWithOtherCaseOrTrailingBackslash_IsOneEntry(string a, string b)
+    {
+        var r = PathList.Reduce(new[] { a, b });
+        Assert.Single(r);
+        Assert.Equal(Path.GetFullPath(a), r[0]); // the first spelling stays
+
+        var withOther = PathList.Reduce(new[] { a, @"D:\other", b });
+        Assert.Equal(2, withOther.Count);
+    }
+
     [Fact]
     public void Reduce_SimilarPrefixIsNotNesting()
     {
