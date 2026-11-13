@@ -104,7 +104,7 @@ public partial class MainWindow
             Updater.Install(file);
             _settings.Save();
 
-            var path = NormalizePath(PathBox.Text);
+            var path = PathList.Normalize(PathBox.Text);
             // No second question about administrator rights: the new process inherits the current one's rights anyway.
             var args = (Directory.Exists(path) ? App.Options.ForwardArgs(path) : App.Options.ForwardArgs()).Append("--no-admin-prompt");
             Updater.Restart(args);

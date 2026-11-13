@@ -37,9 +37,6 @@ public static class PathList
     public static List<string> Reduce(IEnumerable<string> paths)
     {
         var full = paths.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        static string Dir(string p) => p.TrimEnd('\\') + "\\";
-        return full.Where(p => !full.Any(o => !ReferenceEquals(o, p)
-                                              && Dir(p).Length > Dir(o).Length
-                                              && Dir(p).StartsWith(Dir(o), StringComparison.OrdinalIgnoreCase))).ToList();
+        return full.Where(p => !full.Any(o => !ReferenceEquals(o, p) && PathUtil.IsUnder(o, p))).ToList();
     }
 }

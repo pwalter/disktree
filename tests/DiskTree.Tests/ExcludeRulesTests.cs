@@ -42,7 +42,6 @@ public class ExcludeRulesTests
         var r = new ExcludeRules(new[] { "", "  ", "\"\"" });
         Assert.True(r.IsEmpty);
         Assert.False(r.IsExcluded("anything", @"C:\"));
-        Assert.True(ExcludeRules.None.IsEmpty);
     }
 
     [Fact]

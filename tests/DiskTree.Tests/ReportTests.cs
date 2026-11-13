@@ -115,10 +115,10 @@ public class ReportTests : TestBase
 
         Assert.StartsWith("<!DOCTYPE html>", html);
         Assert.Contains("Speicherplatz-Bericht", html);
-        Assert.Contains(NodeVM.FormatSize(d.TotalSize), html);          // total
+        Assert.Contains(SizeFormat.Format(d.TotalSize), html);          // total
         Assert.Contains("Dateien", html);
         Assert.Contains("Medien", html);                                  // folder rows
-        Assert.Contains(NodeVM.FormatSize(11L * MB), html);
+        Assert.Contains(SizeFormat.Format(11L * MB), html);
         Assert.Contains("Videos", html);                                  // type rows
         Assert.Contains("Word-Dokumente", html);
         Assert.Contains("Unter 1 Monat", html);                           // age rows
@@ -302,7 +302,7 @@ public class ExporterTests : TestBase
         Assert.Equal("5", root[6]);
         Assert.Equal("100", root[7]);
         Assert.Equal("ja", root[8]);
-        Assert.Equal(NodeVM.FormatSize(3000 + 1000 + 10 + 5 + 1 + (2 << 20)), root[4]);
+        Assert.Equal(SizeFormat.Format(3000 + 1000 + 10 + 5 + 1 + (2 << 20)), root[4]);
 
         // depth first, biggest sibling first: big (level 1) is directly followed by its child sub (level 2)
         Assert.Equal("big", lines[2][1]);

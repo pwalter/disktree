@@ -15,8 +15,9 @@ namespace DiskTree.Ui;
 // Running scans: only ONE scan runs at a time across all tabs, but switching tabs while it runs is allowed.
 // The scan code (RunAsync, OnScannerChanged, UpdateStatus in MainWindow.xaml.cs) holds on to its own ScanSession
 // and only touches window controls when that session is the active one; everything else goes into the session
-// and is shown when the tab becomes active again. Why one scan at a time: AgeStamps / AgeBuckets are process-wide
-// statics that every running scan reads, the taskbar shows a single progress, and two scans would fight for the disk.
+// and is shown when the tab becomes active again. Why one scan at a time: the taskbar shows a single progress,
+// and two scans would fight for the disk. (Each scan has its own age classifier, Scanner.Ages, so tabs with
+// different timestamps do not influence each other.)
 public partial class MainWindow
 {
     private ScanSession _cur = new();
@@ -54,7 +55,7 @@ public partial class MainWindow
     /// <summary>Adds an empty tab at the end and shows it.</summary>
     private ScanSession NewTab()
     {
-        var s = new ScanSession();
+        var s = new ScanSession { AgePreferred = _cur.AgePreferred }; // a new tab starts with the choice of the one in front
         _tabs.Add(s);
         ActivateTab(s);
         Dispatcher.BeginInvoke(DispatcherPriority.Input, () => PathBox.Focus());
@@ -68,7 +69,6 @@ public partial class MainWindow
         // What the window shows is part of the tab it belongs to.
         var old = _cur;
         old.PathText = PathBox.Text;
-        old.AgePreferred = AgeStamps.Preferred;
         if (Tree.SelectedItem is NodeVM sel) old.SelectedVm = sel;
         old.IsActive = false;
 
@@ -85,11 +85,8 @@ public partial class MainWindow
 
         PathBox.Text = s.PathText;
         _settingStampBox = true;
-        AgeStamps.Preferred = s.AgePreferred;
         AgeStampBox.SelectedIndex = (int)s.AgePreferred;
         _settingStampBox = false;
-        // The running scan (if any) owns the process-wide timestamp; do not change it under it.
-        if (Busy == null && s.Scanner != null) AgeStamps.Current = s.AgeStamp;
 
         Tree.ItemsSource = null;
         TopList.ItemsSource = null;
@@ -139,7 +136,7 @@ public partial class MainWindow
         bool wasActive = s == _cur;
         _tabs.Remove(s);
         s.IsActive = false;
-        if (_tabs.Count == 0) _tabs.Add(new ScanSession());
+        if (_tabs.Count == 0) _tabs.Add(new ScanSession { AgePreferred = _cur.AgePreferred });
 
         if (wasActive)
         {

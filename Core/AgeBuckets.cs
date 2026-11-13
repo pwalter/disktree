@@ -15,46 +15,20 @@ public static class AgeBuckets
     /// <summary>Lower age limit (in months) of buckets 1..4, i.e. the choices for the "old" threshold.</summary>
     public static readonly int[] LimitMonths = { 1, 12, 24, 60 };
 
-    private static readonly long[] Cutoffs = new long[LimitMonths.Length];
-    private static int _oldFrom = 3; // first bucket counted as "old"
+    // Which timestamp and which "now" the buckets of a scan come from: see AgeClassifier (one per scan).
 
-    static AgeBuckets() => SetReference(DateTime.UtcNow);
-
-    /// <summary>Fixes "now" for a scan. Deletions later on use the same reference so they hit the bucket the file was counted in.</summary>
-    public static void SetReference(DateTime utcNow)
+    /// <summary>
+    /// First bucket that counts as "old" for an age threshold in months (one of <see cref="LimitMonths"/>;
+    /// anything else means 24 months). The threshold is only a way to look at the data, it can change without a new scan.
+    /// </summary>
+    public static int OldFromMonths(int months)
     {
-        for (int i = 0; i < LimitMonths.Length; i++)
-            Cutoffs[i] = utcNow.AddMonths(-LimitMonths[i]).Ticks;
+        int i = Array.IndexOf(LimitMonths, months);
+        return (i < 0 ? 2 : i) + 1;
     }
 
-    public static int Of(long lastWriteUtcTicks)
-    {
-        if (lastWriteUtcTicks >= Cutoffs[0]) return 0;
-        if (lastWriteUtcTicks >= Cutoffs[1]) return 1;
-        if (lastWriteUtcTicks >= Cutoffs[2]) return 2;
-        if (lastWriteUtcTicks >= Cutoffs[3]) return 3;
-        return 4;
-    }
-
-    /// <summary>Bucket of an existing file, or -1 if it cannot be read.</summary>
-    public static int OfFile(string path)
-    {
-        try { return Of(AgeStamps.TicksOfFile(path, AgeStamps.Current)); }
-        catch { return -1; }
-    }
-
-    /// <summary>Age threshold in months (one of <see cref="LimitMonths"/>); files at least this old count as "old".</summary>
-    public static int ThresholdMonths
-    {
-        get => LimitMonths[_oldFrom - 1];
-        set
-        {
-            int i = Array.IndexOf(LimitMonths, value);
-            _oldFrom = (i < 0 ? 2 : i) + 1;
-        }
-    }
-
-    public static int OldFrom => _oldFrom;
+    /// <summary>The threshold in months for a first "old" bucket (inverse of <see cref="OldFromMonths"/>).</summary>
+    public static int MonthsOfOldFrom(int oldFrom) => LimitMonths[oldFrom - 1];
 
     public static string ThresholdText(int months) => months switch
     {
@@ -64,22 +38,22 @@ public static class AgeBuckets
     };
 
     /// <summary>Bytes in a subtree that are older than the threshold.</summary>
-    public static long OldSize(Node n)
+    public static long OldSize(Node n, int oldFrom)
     {
         var a = n.AgeSub;
         if (a == null) return 0;
         long sum = 0;
-        for (int b = _oldFrom; b < Count; b++) sum += Math.Max(0, Volatile.Read(ref a[b]));
+        for (int b = oldFrom; b < Count; b++) sum += Math.Max(0, Volatile.Read(ref a[b]));
         return sum;
     }
 
     /// <summary>Bytes in the folder's own files that are older than the threshold.</summary>
-    public static long OldOwnSize(Node n)
+    public static long OldOwnSize(Node n, int oldFrom)
     {
         var a = n.OwnAges;
         if (a == null) return 0;
         long sum = 0;
-        for (int b = _oldFrom; b < Count; b++) sum += a[b];
+        for (int b = oldFrom; b < Count; b++) sum += a[b];
         return sum;
     }
 

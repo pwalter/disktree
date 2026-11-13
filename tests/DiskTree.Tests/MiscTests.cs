@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO;
 using System.Windows;
+using DiskTree.Core;
 using DiskTree.Features.Owner;
 using DiskTree.Features.Treemap;
 using DiskTree.Features.Update;
@@ -191,14 +192,14 @@ public class FormatSizeTests : TestBase
     [InlineData(5L * 1024 * 1024 * 1024 * 1024, "5,0 TB")]
     [InlineData(1024L * 1024 * 1024 * 1024 * 1024, "1,0 PB")]
     [InlineData(long.MaxValue, "8192 PB")]
-    public void FormatSize_German(long bytes, string expected) => Assert.Equal(expected, NodeVM.FormatSize(bytes));
+    public void FormatSize_German(long bytes, string expected) => Assert.Equal(expected, SizeFormat.Format(bytes));
 
     [Fact]
     public void FormatSize_FollowsTheCurrentCulture()
     {
         CultureInfo.CurrentCulture = new CultureInfo("en-US");
-        Assert.Equal("1.5 KB", NodeVM.FormatSize(1536));
-        Assert.Equal("1,023 B", NodeVM.FormatSize(1023));
+        Assert.Equal("1.5 KB", SizeFormat.Format(1536));
+        Assert.Equal("1,023 B", SizeFormat.Format(1023));
     }
 }
 

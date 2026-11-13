@@ -6,8 +6,8 @@ using System.Text.Json;
 
 namespace DiskTree.Core.Snapshots;
 
-/// <summary>Who/when/what of a stored scan.</summary>
-public sealed record SnapshotInfo(DateTime ScannedAt, string TargetPath, string Machine);
+/// <summary>When a stored scan was read from the disk.</summary>
+public sealed record SnapshotInfo(DateTime ScannedAt);
 
 /// <summary>The content of a .disktree file, ready to be turned into a <see cref="Scanner"/> (see Scanner.FromSnapshot).</summary>
 public sealed class LoadedSnapshot
@@ -17,7 +17,6 @@ public sealed class LoadedSnapshot
     public required Scanner.BigFile[] Top { get; init; }
     public long ExpectedBytes { get; init; }
     public required SnapshotInfo Info { get; init; }
-    public int Version { get; init; }
     /// <summary>Timestamp the age buckets were built from (absent in older files = last modified).</summary>
     public AgeStamp AgeStamp { get; init; }
 }
@@ -47,7 +46,7 @@ public static class SnapshotStore
         {
             using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
             using (var gz = new GZipStream(fs, CompressionLevel.Optimal))
-                Write(gz, root, target, scanner.ExpectedBytes, scanner.TopFiles(), scannedAt);
+                Write(gz, root, target, scanner.ExpectedBytes, scanner.TopFiles(), scannedAt, scanner.Ages.Stamp);
             File.Move(tmp, file, overwrite: true);
         }
         finally
@@ -57,7 +56,7 @@ public static class SnapshotStore
     }
 
     internal static void Write(Stream stream, Node root, Node target, long expected,
-        IEnumerable<Scanner.BigFile> top, DateTime scannedAt)
+        IEnumerable<Scanner.BigFile> top, DateTime scannedAt, AgeStamp ageStamp)
     {
         var buffer = new ArrayBufferWriter<byte>(4096);
         using var json = new Utf8JsonWriter(buffer);
@@ -78,7 +77,7 @@ public static class SnapshotStore
         json.WriteString("target", target.FullPath);
         json.WriteString("machine", Environment.MachineName);
         json.WriteNumber("expected", expected);
-        json.WriteString("ageStamp", AgeStamps.ToKey(AgeStamps.Current));
+        json.WriteString("ageStamp", AgeStamps.ToKey(ageStamp));
         json.WriteEndObject();
         EndLine();
 
@@ -169,7 +168,6 @@ public static class SnapshotStore
             var h = header.RootElement;
             if (h.ValueKind != JsonValueKind.Object || Str(h, "format") != Format)
                 throw new InvalidDataException("Das ist keine DiskTree-Scandatei.");
-            int version = (int)Num(h, "version");
 
             var nodes = new List<Node>();
             var top = new List<Scanner.BigFile>();
@@ -209,8 +207,7 @@ public static class SnapshotStore
                 Target = target,
                 Top = top.ToArray(),
                 ExpectedBytes = Num(h, "expected"),
-                Info = new SnapshotInfo(at, targetPath, Str(h, "machine") ?? ""),
-                Version = version,
+                Info = new SnapshotInfo(at),
                 AgeStamp = AgeStamps.FromKey(Str(h, "ageStamp")),
             };
         }
@@ -292,12 +289,6 @@ public static class SnapshotStore
         var rootPath = root.FullPath;
         if (!path.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase)) return null;
 
-        var cur = root;
-        foreach (var part in path[rootPath.Length..].Split('\\', StringSplitOptions.RemoveEmptyEntries))
-        {
-            cur = cur.Snapshot().FirstOrDefault(c => string.Equals(c.Name, part, StringComparison.OrdinalIgnoreCase));
-            if (cur == null) return null;
-        }
-        return cur;
+        return root.FindRelative(path[rootPath.Length..]);
     }
 }

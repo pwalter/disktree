@@ -122,13 +122,13 @@ public sealed class NodeVM : INotifyPropertyChanged
     public string PercentText => Kind == Kind.Dummy ? "" : (Percent * 100).ToString("0.#", CultureInfo.CurrentCulture) + " %";
     public string FilesText => Kind is Kind.Dummy or Kind.Space ? "" : _node!.FileCount.ToString("N0", CultureInfo.CurrentCulture);
 
-    /// <summary>Bytes older than the age threshold (AgeBuckets.ThresholdMonths); empty for single files and drive space.</summary>
+    /// <summary>Bytes older than the age threshold (AgeThreshold.Months); empty for single files and drive space.</summary>
     public string OldText
     {
         get
         {
             if (Kind is not (Kind.Dir or Kind.Files)) return "";
-            long old = Kind == Kind.Dir ? AgeBuckets.OldSize(_node!) : AgeBuckets.OldOwnSize(Parent!._node!);
+            long old = Kind == Kind.Dir ? AgeThreshold.OldSize(_node!) : AgeThreshold.OldOwnSize(Parent!._node!);
             return old <= 0 ? "–" : SizeFormat.Format(old);
         }
     }
@@ -377,27 +377,16 @@ public sealed class NodeVM : INotifyPropertyChanged
 
         if (Kind == Kind.File)
         {
-            Parent.Parent!._node!.RemoveFile(_node.Name, Size, ageBucket);
+            TreeEditor.RemoveFile(Parent.Parent!._node!, _node.Name, Size, ageBucket);
             Parent.Children.Remove(this);
         }
         else if (Kind == Kind.Dir)
         {
-            var parentNode = Parent._node!;
-            AgeBuckets.RemoveSubtree(_node);
-            for (var n = parentNode; n != null; n = n.Parent)
-            {
-                Interlocked.Add(ref n.Size, -_node.Size);
-                Interlocked.Add(ref n.FileCount, -_node.FileCount);
-                Interlocked.Add(ref n.DirCount, -(_node.DirCount + 1));
-            }
-            parentNode.RemoveChild(_node);
+            TreeEditor.RemoveFolder(_node);
             Parent._byNode.Remove(_node);
             Parent.Children.Remove(this);
         }
     }
-
-    /// <summary>Kept for the tests; the app uses <see cref="SizeFormat.Format"/>.</summary>
-    public static string FormatSize(long bytes) => SizeFormat.Format(bytes);
 
     // Green (small share) -> yellow -> orange -> red (large share).
     private static Brush Cached(Brush?[] cache, double percent, double s, double v)

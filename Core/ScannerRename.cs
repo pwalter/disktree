@@ -6,7 +6,7 @@ public sealed partial class Scanner
     /// <summary>A file or folder was renamed: paths in the largest-files list follow.</summary>
     public void RenameTop(string oldPath, string newPath)
     {
-        var oldPrefix = oldPath.TrimEnd('\\') + "\\";
+        var oldPrefix = PathUtil.EnsureTrailingBackslash(oldPath);
         lock (_topLock)
         {
             for (int i = 0; i < _top.Count; i++)
@@ -15,7 +15,7 @@ public sealed partial class Scanner
                 if (string.Equals(p, oldPath, StringComparison.OrdinalIgnoreCase))
                     _top[i] = _top[i] with { Path = newPath };
                 else if (p.StartsWith(oldPrefix, StringComparison.OrdinalIgnoreCase))
-                    _top[i] = _top[i] with { Path = newPath.TrimEnd('\\') + "\\" + p[oldPrefix.Length..] };
+                    _top[i] = _top[i] with { Path = PathUtil.EnsureTrailingBackslash(newPath) + p[oldPrefix.Length..] };
             }
         }
     }

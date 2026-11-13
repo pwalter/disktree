@@ -17,11 +17,8 @@ public static class ReportBuilder
 
         // The smallest of the kept folders sits at the top of the queue and is dropped first.
         var best = new PriorityQueue<Node, long>();
-        var stack = new Stack<Node>();
-        stack.Push(start);
-        while (stack.Count > 0)
+        foreach (var n in start.Walk())
         {
-            var n = stack.Pop();
             if (n.OwnTypes is { } types)
                 foreach (var t in types) { sizes[t.Cat] += t.Size; counts[t.Cat] += t.Count; }
             if (n.OwnAges is { } ages)
@@ -36,7 +33,6 @@ public static class ReportBuilder
                     if (best.Count > ReportData.FolderCount) best.Dequeue();
                 }
             }
-            foreach (var c in n.Snapshot()) stack.Push(c);
         }
 
         var folders = new List<ReportData.FolderRow>();

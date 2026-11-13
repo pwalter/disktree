@@ -17,14 +17,11 @@ public static class SearchEngine
         var hits = new List<SearchHit>();
         bool truncated = false;
         int visited = 0;
-        var stack = new Stack<Node>();
-        stack.Push(q.Scope);
 
-        while (stack.Count > 0 && !truncated)
+        foreach (var node in q.Scope.Walk())
         {
+            if (truncated) break;
             ct.ThrowIfCancellationRequested();
-            var node = stack.Pop();
-            foreach (var c in node.Snapshot()) stack.Push(c);
             if (++visited % 25 == 0) progress?.Report(visited);
 
             if (q.Files)

@@ -187,7 +187,7 @@ public class SearchTests : TestBase
 
         var r = Run(new SearchQuery { Scope = scope, Files = true, Filter = new FileFilter { Attributes = new[] { hidden } } });
         Assert.All(r.Hits, h => Assert.True(h.ShowAttributes));
-        Assert.All(r.Hits, h => Assert.Contains("Versteckt", h.DetailText));
+        Assert.All(r.Hits, h => Assert.Contains("Versteckt", new SearchHitRow(h).DetailText));
     }
 
     [Fact]
@@ -244,7 +244,7 @@ public class SearchTests : TestBase
     public void UnitText(DateUnit u, string text) => Assert.Equal(text, FileFilter.UnitText(u));
 
     [Fact]
-    public void SearchHit_TextHelpers()
+    public void SearchHitRow_TextHelpers()
     {
         var node = new Node();
         var file = new SearchHit(@"C:\a\f.txt", "f.txt", @"C:\a", 1536, false, node)
@@ -254,14 +254,15 @@ public class SearchTests : TestBase
             ShownStamp = AgeStamp.Modified,
             ShowAttributes = true,
         };
-        Assert.Equal("1,5 KB", file.SizeText);
-        Assert.Equal("📄", file.Icon);
-        Assert.StartsWith("Zuletzt geändert: ", file.DetailText);
-        Assert.Contains("Versteckt, Schreibgeschützt", file.DetailText);
-        Assert.Contains("Geändert:", file.ToolTipText);
-        Assert.Contains("Erstellt: unbekannt", file.ToolTipText);
+        var fileRow = new SearchHitRow(file);
+        Assert.Equal("1,5 KB", fileRow.SizeText);
+        Assert.Equal("📄", fileRow.Icon);
+        Assert.StartsWith("Zuletzt geändert: ", fileRow.DetailText);
+        Assert.Contains("Versteckt, Schreibgeschützt", fileRow.DetailText);
+        Assert.Contains("Geändert:", fileRow.ToolTipText);
+        Assert.Contains("Erstellt: unbekannt", fileRow.ToolTipText);
 
-        var dir = new SearchHit(@"C:\a", "a", @"C:\", 5, true, node);
+        var dir = new SearchHitRow(new SearchHit(@"C:\a", "a", @"C:\", 5, true, node));
         Assert.Equal("📁", dir.Icon);
         Assert.Equal("", dir.DetailText);
         Assert.Equal(@"C:\a", dir.ToolTipText);

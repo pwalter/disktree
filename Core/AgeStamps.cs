@@ -7,7 +7,7 @@ namespace DiskTree.Core;
 public enum AgeStamp { Modified = 0, Created = 1, Accessed = 2 }
 
 /// <summary>
-/// The timestamp the age buckets are built from.
+/// Names and conversions of the timestamp the age buckets are built from (see <see cref="AgeClassifier"/>).
 ///
 /// Design decision: the scan sums only ONE set of buckets (the chosen timestamp), it does not keep all three.
 /// The three timestamps come out of the same directory record, so reading another one is free, but three bucket
@@ -23,21 +23,8 @@ public static class AgeStamps
     /// <summary>Adjective form for titles ("Alter – zuletzt geändert").</summary>
     public static readonly string[] Lower = { "zuletzt geändert", "erstellt", "zuletzt geöffnet" };
 
-    /// <summary>The timestamp the numbers of the current tree were built from (set when a scan starts or a snapshot is loaded).</summary>
-    public static AgeStamp Current { get; set; } = AgeStamp.Modified;
-
-    /// <summary>The user's choice for the next scan.</summary>
-    public static AgeStamp Preferred { get; set; } = AgeStamp.Modified;
-
-    /// <summary>Called when a whole scan starts: the new tree uses the user's choice. (A rescan below keeps <see cref="Current"/>.)</summary>
-    public static void BeginScan()
-    {
-        Current = Preferred;
-        ScanStarted?.Invoke();
-    }
-
-    /// <summary>Raised by <see cref="BeginScan"/> (on the thread that starts the scan).</summary>
-    public static event Action? ScanStarted;
+    // Which timestamp a tree was built from is a property of its scan (AgeClassifier.Stamp, Scanner.Ages); the
+    // user's choice for the next scan is kept per tab by the UI.
 
     public static long TicksOf(ref FileSystemEntry e, AgeStamp stamp) => stamp switch
     {

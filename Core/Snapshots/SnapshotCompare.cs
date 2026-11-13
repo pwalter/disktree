@@ -20,13 +20,13 @@ public static class SnapshotCompare
         {
             // The newer scan covers the smaller area (or the same).
             nb = newTarget;
-            na = Descend(oldTarget, b[a.Length..]);
+            na = oldTarget.FindRelative(b[a.Length..]);
             common = newTarget.FullPath;
         }
         else if (IsSameOrBelow(a, b))
         {
             na = oldTarget;
-            nb = Descend(newTarget, a[b.Length..]);
+            nb = newTarget.FindRelative(a[b.Length..]);
             common = oldTarget.FullPath;
         }
         else
@@ -49,14 +49,14 @@ public static class SnapshotCompare
                 // Only the top of a new/removed subtree is reported.
                 var x = (o ?? n)!;
                 rows.Add(o == null
-                    ? new DiffRow(x.FullPath, x.Name, DiffKind.New, 0, x.Size, 0, x.FileCount)
-                    : new DiffRow(x.FullPath, x.Name, DiffKind.Removed, x.Size, 0, x.FileCount, 0));
+                    ? new DiffRow(x.FullPath, x.Name, DiffKind.New, 0, x.Size)
+                    : new DiffRow(x.FullPath, x.Name, DiffKind.Removed, x.Size, 0));
                 continue;
             }
 
             if (o.Size != n.Size)
                 rows.Add(new DiffRow(n.FullPath, n.Name, n.Size > o.Size ? DiffKind.Grown : DiffKind.Shrunk,
-                    o.Size, n.Size, o.FileCount, n.FileCount));
+                    o.Size, n.Size));
 
             var oldKids = o.Snapshot().ToDictionary(c => c.Name, StringComparer.OrdinalIgnoreCase);
             foreach (var c in n.Snapshot())
@@ -75,15 +75,4 @@ public static class SnapshotCompare
         path.Equals(ancestor, StringComparison.OrdinalIgnoreCase)
         || (path.StartsWith(ancestor, StringComparison.OrdinalIgnoreCase)
             && (ancestor.EndsWith('\\') || path[ancestor.Length] == '\\'));
-
-    private static Node? Descend(Node from, string relative)
-    {
-        var cur = from;
-        foreach (var part in relative.Split('\\', StringSplitOptions.RemoveEmptyEntries))
-        {
-            cur = cur.Snapshot().FirstOrDefault(c => string.Equals(c.Name, part, StringComparison.OrdinalIgnoreCase));
-            if (cur == null) return null;
-        }
-        return cur;
-    }
 }

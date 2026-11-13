@@ -77,8 +77,8 @@ public partial class MainWindow
 
     // ---------------------------------------------------------------- selection
 
-    private static OpItem ItemOf(string path, bool isDir, long size) =>
-        new(path, isDir, size, isDir ? -1 : AgeBuckets.OfFile(path));
+    private OpItem ItemOf(string path, bool isDir, long size) =>
+        new(path, isDir, size, isDir ? -1 : _scanner?.Ages.OfFile(path) ?? -1);
 
     /// <summary>Selection of the list the user is working in (mouse over it, else keyboard focus).</summary>
     private List<OpItem> ActiveSelection(string? mustContain, bool preferFocus = false)
@@ -193,7 +193,7 @@ public partial class MainWindow
             long zipSize = new FileInfo(choice.Target).Length;
             if (_scanner?.FindNode(Path.GetDirectoryName(choice.Target) ?? "") is { } dir)
             {
-                FileOperations.AddFile(dir, Path.GetFileName(choice.Target), zipSize, AgeBuckets.OfFile(choice.Target));
+                TreeEditor.AddFile(dir, Path.GetFileName(choice.Target), zipSize, _scanner.Ages.OfFile(choice.Target));
                 RefreshAfterChange();
             }
         }
@@ -239,13 +239,12 @@ public partial class MainWindow
             var newName = Path.GetFileName(newPath);
             if (item.IsDir)
             {
-                if (_scanner?.FindNode(item.Path) is { } node) FileOperations.RenameNode(node, newName);
+                if (_scanner?.FindNode(item.Path) is { } node) TreeEditor.RenameFolder(node, newName);
             }
             else if (_scanner?.FindNode(item.Parent ?? "") is { } dir)
             {
-                // The extension may have changed, and with it the file type: count the file out and in again.
-                dir.RemoveFile(item.Name, item.Size, item.AgeBucket);
-                FileOperations.AddFile(dir, newName, item.Size, item.AgeBucket);
+                // The extension may have changed, and with it the file type: counted out and in again.
+                TreeEditor.RenameFile(dir, item.Name, newName, item.Size, item.AgeBucket);
             }
             _scanner?.RenameTop(item.Path, newPath);
         }
@@ -301,30 +300,16 @@ public partial class MainWindow
                 if (_scanner.FindNode(it.Path) is { Parent: not null } node)
                 {
                     if (_root?.FindDescendant(node) is { } vm) vm.RemoveFromTree();
-                    else DetachNode(node);
+                    else TreeEditor.RemoveFolder(node); // its row was never created
                 }
             }
             else if (_scanner.FindNode(it.Parent ?? "") is { } dir)
             {
-                dir.RemoveFile(it.Name, it.Size, it.AgeBucket);
+                TreeEditor.RemoveFile(dir, it.Name, it.Size, it.AgeBucket);
             }
             _scanner.RemoveTop(it.Path);
         }
         RefreshAfterChange();
-    }
-
-    // Same as NodeVM.RemoveFromTree for a folder whose row was never created.
-    private static void DetachNode(Node n)
-    {
-        var parent = n.Parent!;
-        AgeBuckets.RemoveSubtree(n);
-        for (var p = parent; p != null; p = p.Parent)
-        {
-            Interlocked.Add(ref p.Size, -n.Size);
-            Interlocked.Add(ref p.FileCount, -n.FileCount);
-            Interlocked.Add(ref p.DirCount, -(n.DirCount + 1));
-        }
-        parent.RemoveChild(n);
     }
 
     private void RefreshAfterChange()
@@ -361,7 +346,7 @@ public partial class MainWindow
             foreach (var it in res.Done)
             {
                 var newPath = res.NewPaths[it.Path];
-                FileOperations.AddFile(node, Path.GetFileName(newPath), it.Size, it.AgeBucket);
+                TreeEditor.AddFile(node, Path.GetFileName(newPath), it.Size, it.AgeBucket);
             }
             RefreshAfterChange();
             return null;

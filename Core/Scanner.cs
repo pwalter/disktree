@@ -21,6 +21,17 @@ public sealed partial class Scanner
     /// <summary>Folders to skip. Set before ScanAsync / RescanAsync; null = skip nothing.</summary>
     public ExcludeRules? Excludes { get; set; }
 
+    /// <summary>The timestamp the next <see cref="ScanAsync"/> / <see cref="ScanManyAsync"/> builds the age buckets from.</summary>
+    public AgeStamp AgeStamp { get; set; } = AgeStamp.Modified;
+
+    private volatile AgeClassifier? _ages;
+
+    /// <summary>
+    /// Sorts timestamps into age buckets for this scan's tree: fixed when the scan starts (a rescan below keeps it),
+    /// or the one stored in a snapshot. Before the first scan it reflects <see cref="AgeStamp"/>.
+    /// </summary>
+    public AgeClassifier Ages => _ages ??= new AgeClassifier(AgeStamp, DateTime.UtcNow);
+
     /// <summary>Folders skipped by an exclusion rule in the current (re)scan.</summary>
     public long Excluded => Interlocked.Read(ref _excluded);
 
@@ -34,8 +45,7 @@ public sealed partial class Scanner
     private void NoteExcluded(Node dir, string path)
     {
         Interlocked.Increment(ref _excluded);
-        for (var n = dir; n != null; n = n.Parent)
-            Interlocked.Increment(ref n.Excluded);
+        TreeEditor.AddExcluded(dir);
         lock (_excludedPaths)
             if (_excludedPaths.Count < ExcludedListMax) _excludedPaths.Add(path);
     }
@@ -94,11 +104,10 @@ public sealed partial class Scanner
     /// <summary>Forgets a deleted file or everything below a deleted folder.</summary>
     public void RemoveTop(string path)
     {
-        var prefix = path.TrimEnd('\\') + "\\";
         lock (_topLock)
         {
             _top.RemoveAll(f => string.Equals(f.Path, path, StringComparison.OrdinalIgnoreCase)
-                                || f.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+                                || PathUtil.IsUnder(path, f.Path));
             Volatile.Write(ref _topMin, _top.Count >= TopCount ? _top.Min(f => f.Size) : 1 << 20);
         }
     }
@@ -113,26 +122,16 @@ public sealed partial class Scanner
         {
             // The artificial root has no path: pick the scanned path that contains the requested one.
             if (path.Length == 0) return cur;
-            var p = path.TrimEnd('\\') + "\\";
-            var top = cur.Snapshot().FirstOrDefault(c => p.StartsWith(c.FullPath.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase));
+            var top = cur.Snapshot().FirstOrDefault(c => PathUtil.IsSameOrUnder(c.FullPath, path));
             if (top == null) return null;
-            path = path[Math.Min(path.Length, top.FullPath.TrimEnd('\\').Length)..];
-            cur = top;
-            return Descend(cur, path);
+            return top.FindRelative(path[Math.Min(path.Length, top.FullPath.TrimEnd('\\').Length)..]);
         }
 
+        // Known flaw, left as it is on purpose (fixed separately): the prefix is compared WITHOUT a separator
+        // boundary, so below a root like "\\srv\share\a" the path "\\srv\share\ab" is taken for a path inside it.
+        // (Drive roots end in a backslash and are not affected.) See ScannerTests.FindNode_SiblingWithSamePrefix.
         if (!path.StartsWith(cur.FullPath, StringComparison.OrdinalIgnoreCase)) return null;
-        return Descend(cur, path[cur.FullPath.Length..]);
-    }
-
-    private static Node? Descend(Node cur, string rest)
-    {
-        foreach (var part in rest.Split('\\', StringSplitOptions.RemoveEmptyEntries))
-        {
-            cur = cur.Snapshot().FirstOrDefault(c => string.Equals(c.Name, part, StringComparison.OrdinalIgnoreCase))!;
-            if (cur == null) return null;
-        }
-        return cur;
+        return cur.FindRelative(path[cur.FullPath.Length..]);
     }
 
     /// <summary>(Re-)reads capacity and free space of the drive node.</summary>
@@ -168,8 +167,7 @@ public sealed partial class Scanner
     {
         // The tree always starts at the drive; a scan of a subfolder hangs below a chain of
         // placeholder nodes (one per path component), so percentages can refer to the whole drive.
-        AgeBuckets.SetReference(DateTime.UtcNow);
-        AgeStamps.BeginScan();
+        _ages = new AgeClassifier(AgeStamp, DateTime.UtcNow);
         var full = Path.GetFullPath(path);
         var driveRoot = Path.GetPathRoot(full) ?? full;
         var top = new Node { Name = driveRoot, FullPath = driveRoot, Open = 1 };
@@ -210,8 +208,7 @@ public sealed partial class Scanner
     /// </summary>
     public async Task<Node> ScanManyAsync(IReadOnlyList<string> paths, int threads, CancellationToken ct)
     {
-        AgeBuckets.SetReference(DateTime.UtcNow);
-        AgeStamps.BeginScan();
+        _ages = new AgeClassifier(AgeStamp, DateTime.UtcNow);
         var top = new Node { Name = "Mehrere Pfade", FullPath = "", Open = paths.Count, Scanned = true };
         var starts = new List<Node>();
         foreach (var p in paths)
@@ -240,27 +237,8 @@ public sealed partial class Scanner
     {
         var top = Root ?? throw new InvalidOperationException("Es wurde noch nichts gescannt.");
 
-        // Take the old subtree out of every parent. Open is corrected as well: a cancelled scan may have
-        // left unfinished folders behind, which the parents still count.
-        int oldOpen = Volatile.Read(ref node.Open);
-        for (var n = node.Parent; n != null; n = n.Parent)
-        {
-            Interlocked.Add(ref n.Size, -node.Size);
-            Interlocked.Add(ref n.FileCount, -node.FileCount);
-            Interlocked.Add(ref n.DirCount, -node.DirCount);
-            Interlocked.Add(ref n.Excluded, -node.Excluded);
-            Interlocked.Add(ref n.Open, 1 - oldOpen);
-        }
-
-        AgeBuckets.RemoveSubtree(node);
-        if (node.AgeSub is { } oldAges) Array.Clear(oldAges);
-        node.OwnAges = null;
-        node.Size = node.FileCount = node.DirCount = node.Excluded = 0;
-        node.OwnSize = node.OwnCount = 0;
-        node.OwnTypes = null;
-        node.ClearChildren();
-        Volatile.Write(ref node.Open, 1);
-        node.Scanned = false;
+        // Take the old subtree out of every parent and empty it.
+        TreeEditor.ClearForRescan(node);
 
         // The tree now only ends at 'node' if it is an ancestor of the former scan target (or the drive itself).
         for (var n = ScanTarget; n != null; n = n.Parent)
@@ -323,8 +301,7 @@ public sealed partial class Scanner
             finally
             {
                 dir.Scanned = true;
-                for (var n = dir; n != null; n = n.Parent)
-                    Interlocked.Decrement(ref n.Open);
+                TreeEditor.CloseChain(dir);
                 Signal();
 
                 if (Interlocked.Decrement(ref _pending) == 0)
@@ -345,7 +322,7 @@ public sealed partial class Scanner
         Span<long> ageCount = stackalloc long[AgeBuckets.Count];
         Span<long> ageDelta = stackalloc long[AgeBuckets.Count];
 
-        var stamp = AgeStamps.Current;
+        var classifier = Ages;
         var options = new EnumerationOptions
         {
             AttributesToSkip = 0, // include hidden + system
@@ -365,7 +342,7 @@ public sealed partial class Scanner
                     string? name = isDir || len >= Volatile.Read(ref _topMin) ? e.FileName.ToString() : null;
                     return new Entry(name, isDir, len, (e.Attributes & FileAttributes.ReparsePoint) != 0,
                         isDir ? 0 : FileTypes.CategoryOf(e.FileName),
-                        isDir ? 0 : AgeBuckets.Of(AgeStamps.TicksOf(ref e, stamp)));
+                        isDir ? 0 : classifier.Of(classifier.TicksOf(ref e)));
                 }, options);
 
             foreach (var e in entries)
@@ -390,8 +367,7 @@ public sealed partial class Scanner
                     };
 
                     // The folder counts as open for all ancestors until its worker is finished.
-                    for (var n = dir; n != null; n = n.Parent)
-                        Interlocked.Increment(ref n.Open);
+                    TreeEditor.OpenChain(dir);
 
                     dir.AddChild(child);
                     subDirs++;
@@ -445,12 +421,7 @@ public sealed partial class Scanner
 
     private void Flush(Node dir, ref long sum, ref long count, ref long subDirs)
     {
-        for (var n = dir; n != null; n = n.Parent)
-        {
-            Interlocked.Add(ref n.Size, sum);
-            Interlocked.Add(ref n.FileCount, count);
-            Interlocked.Add(ref n.DirCount, subDirs);
-        }
+        TreeEditor.AddToChain(dir, sum, count, subDirs);
 
         Interlocked.Add(ref _files, count);
         Interlocked.Add(ref _bytes, sum);

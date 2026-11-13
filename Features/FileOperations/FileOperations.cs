@@ -46,7 +46,7 @@ public static class FileOperations
     public static List<OpItem> Normalize(IEnumerable<OpItem> items)
     {
         var list = items.GroupBy(i => i.Path.TrimEnd('\\'), StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();
-        var dirs = list.Where(i => i.IsDir).Select(i => i.Path.TrimEnd('\\') + "\\").ToList();
+        var dirs = list.Where(i => i.IsDir).Select(i => PathUtil.EnsureTrailingBackslash(i.Path)).ToList();
         return list.Where(i => !dirs.Any(d => i.Path.StartsWith(d, StringComparison.OrdinalIgnoreCase)))
             .OrderBy(i => i.Parent, StringComparer.OrdinalIgnoreCase)
             .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
@@ -116,17 +116,17 @@ public static class FileOperations
             return res;
         }
 
-        var dest = destDir.TrimEnd('\\') + "\\";
+        var dest = PathUtil.EnsureTrailingBackslash(destDir);
         foreach (var item in items)
         {
             try
             {
-                if (string.Equals((item.Parent ?? "").TrimEnd('\\') + "\\", dest, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(PathUtil.EnsureTrailingBackslash(item.Parent ?? ""), dest, StringComparison.OrdinalIgnoreCase))
                 {
                     res.Skipped.Add((item, "liegt schon in diesem Ordner"));
                     continue;
                 }
-                if (item.IsDir && dest.StartsWith(item.Path.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase))
+                if (item.IsDir && PathUtil.IsSameOrUnder(item.Path, dest))
                     throw new IOException("Ein Ordner kann nicht in sich selbst verschoben werden.");
 
                 var target = dest + item.Name;
@@ -397,53 +397,6 @@ public static class FileOperations
             }
         }
         return res;
-    }
-
-    // ---------------------------------------------------------------- numbers in the scanned tree
-
-    /// <summary>A new file appeared in a scanned folder: counts it into the folder, its parents, types and age buckets.</summary>
-    public static void AddFile(Node dir, string name, long size, int ageBucket)
-    {
-        dir.OwnSize += size;
-        dir.OwnCount++;
-
-        int cat = FileTypes.CategoryOf(name);
-        var stats = (dir.OwnTypes ?? Array.Empty<TypeStat>()).ToList();
-        int at = stats.FindIndex(s => s.Cat == cat);
-        if (at >= 0) stats[at] = stats[at] with { Size = stats[at].Size + size, Count = stats[at].Count + 1 };
-        else stats.Add(new TypeStat(cat, size, 1));
-        dir.OwnTypes = stats.ToArray();
-
-        if (ageBucket >= 0)
-        {
-            var own = dir.OwnAges != null ? (long[])dir.OwnAges.Clone() : new long[AgeBuckets.Count * 2];
-            own[ageBucket] += size;
-            own[AgeBuckets.Count + ageBucket]++;
-            dir.OwnAges = own;
-            AgeBuckets.AddSub(dir, ageBucket, size);
-        }
-        for (var n = dir; n != null; n = n.Parent)
-        {
-            Interlocked.Add(ref n.Size, size);
-            Interlocked.Add(ref n.FileCount, 1);
-        }
-    }
-
-    /// <summary>A folder was renamed on disk: the node and everything below get the new path.</summary>
-    public static void RenameNode(Node node, string newName)
-    {
-        node.Name = newName;
-        node.FullPath = System.IO.Path.Combine(node.Parent?.FullPath ?? System.IO.Path.GetDirectoryName(node.FullPath.TrimEnd('\\')) ?? "", newName);
-        Repath(node);
-    }
-
-    private static void Repath(Node node)
-    {
-        foreach (var c in node.Snapshot())
-        {
-            c.FullPath = System.IO.Path.Combine(node.FullPath, c.Name);
-            Repath(c);
-        }
     }
 
     // ---------------------------------------------------------------- interop

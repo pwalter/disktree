@@ -6,7 +6,7 @@ public sealed class Node
     public string FullPath = "";
     public Node? Parent;
 
-    // Fields (not properties) so the scanner can use Interlocked on them.
+    // Fields (not properties) so the scanner can use Interlocked on them. Changes after the scan go through TreeEditor.
     public long Size;       // incl. all descendants (grows while scanning)
     public long FileCount;  // incl. all descendants
     public long DirCount;   // incl. all descendants
@@ -37,24 +37,6 @@ public sealed class Node
     /// <summary>The scan started below the drive root, so the tree only contains a part of the drive.</summary>
     public bool PartialDrive;
 
-    /// <summary>Takes a deleted file out of this folder's numbers and all parents'.</summary>
-    public void RemoveFile(string name, long size, int ageBucket = -1)
-    {
-        OwnSize -= size;
-        OwnCount--;
-        OwnTypes = FileTypes.Without(OwnTypes, FileTypes.CategoryOf(name), size);
-        if (ageBucket >= 0)
-        {
-            OwnAges = AgeBuckets.Without(OwnAges, ageBucket, size);
-            AgeBuckets.AddSub(this, ageBucket, -size);
-        }
-        for (var n = this; n != null; n = n.Parent)
-        {
-            Interlocked.Add(ref n.Size, -size);
-            Interlocked.Add(ref n.FileCount, -1);
-        }
-    }
-
     // Subfolders. Only the worker that scans this folder writes to it,
     // the UI thread reads it while the scan is still running, so access goes through lock + Snapshot().
     private readonly List<Node> _children = new();
@@ -79,6 +61,38 @@ public sealed class Node
     public Node[] Snapshot()
     {
         lock (_children) return _children.ToArray();
+    }
+
+    /// <summary>
+    /// The folder below this one that a relative path ("a\b", case-insensitive) leads to; this node for an empty path;
+    /// null if a part is missing.
+    /// </summary>
+    public Node? FindRelative(string relative)
+    {
+        var cur = this;
+        foreach (var part in relative.Split('\\', StringSplitOptions.RemoveEmptyEntries))
+        {
+            cur = cur.Snapshot().FirstOrDefault(c => string.Equals(c.Name, part, StringComparison.OrdinalIgnoreCase))!;
+            if (cur == null) return null;
+        }
+        return cur;
+    }
+
+    /// <summary>
+    /// This node and all folders below it, depth first without recursion (deep trees). The order is the one the
+    /// hand-written loops had: a node comes before its children, the children of a node last child first.
+    /// Children are read when the node has been handled, so folders that appear while a scan runs are still seen.
+    /// </summary>
+    public IEnumerable<Node> Walk()
+    {
+        var stack = new Stack<Node>();
+        stack.Push(this);
+        while (stack.Count > 0)
+        {
+            var n = stack.Pop();
+            yield return n;
+            foreach (var c in n.Snapshot()) stack.Push(c);
+        }
     }
 
     public bool HasChildren
