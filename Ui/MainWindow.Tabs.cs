@@ -34,7 +34,7 @@ public partial class MainWindow
     private ScanSession? Busy => _tabs.FirstOrDefault(t => t.Cts != null);
 
     // A file operation or the updater works on "the current tab" for a while: no tab changes meanwhile.
-    private bool TabsLocked => _opBusy || _updating;
+    private bool TabsLocked => _opBusy || _updater.IsUpdating;
 
     private void InitTabs()
     {
@@ -84,12 +84,10 @@ public partial class MainWindow
         SearchPane.Reset();
 
         PathBox.Text = s.PathText;
-        _settingStampBox = true;
-        AgeStampBox.SelectedIndex = (int)s.AgePreferred;
-        _settingStampBox = false;
+        AgePane.ShowStamp(s.AgePreferred);
 
         Tree.ItemsSource = null;
-        TopList.ItemsSource = null;
+        TopPane.Clear();
         if (s.Root != null)
         {
             s.Root.Refresh();      // background scans / theme changes did not reach this tree
@@ -100,14 +98,14 @@ public partial class MainWindow
 
         ScanButton.Content = s.Cts != null ? "Abbrechen" : "Scannen";
         ApplyStatus(s);
-        UpdateTitle();
+        _snapshots.UpdateTitle();
         UpdateAgeNotices();
         ShowAgeHeader();
 
         // File types, age, treemap, owner for the folder that will be selected (the scan target until then).
-        _ = UpdatePieAsync();
-        RefreshTop();
-        OwnerTab.SetFolder(PieTarget().Node?.FullPath);
+        _ = RefreshChartsAsync();
+        TopPane.Refresh(_scanner);
+        OwnerTab.SetFolder(CurrentChartTarget().Node?.FullPath);
         Dup.Reset();
 
         // Bring back the selection; the rows do not exist before the tree was laid out.

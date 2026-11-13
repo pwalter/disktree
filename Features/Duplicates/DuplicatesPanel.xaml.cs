@@ -79,6 +79,18 @@ public partial class DuplicatesPanel : UserControl
         foreach (var o in MinOptions) MinBox.Items.Add(o);
         MinBox.SelectedItem = MinOptions[2];
         List.ItemsSource = _groups;
+        ListInteraction.Attach(List, new ListBehavior<DupFileVM>
+        {
+            Selected = () => List.SelectedItem as DupFileVM,
+            ExtraKey = (key, _) => ExtraKeyDown?.Invoke(key) == true,
+            Delete = file =>
+            {
+                ShellDeleteRequested?.Invoke(file.Path, file.Group.Size);
+                Prune(file);
+            },
+            ShowMenu = ShowMenu,
+            CopyText = file => file.Path,
+        });
         Loaded += (_, _) =>
         {
             // Settings arrive after construction.
@@ -191,47 +203,12 @@ public partial class DuplicatesPanel : UserControl
 
     // ---------------------------------------------------------------- context menu / keys
 
-    private void List_RightDown(object sender, MouseButtonEventArgs e)
-    {
-        if (VisualTreeHelpers.FindAncestor<TreeViewItem>(e.OriginalSource) is { } item) item.IsSelected = true;
-    }
-
-    private void List_RightUp(object sender, MouseButtonEventArgs e)
-    {
-        if (VisualTreeHelpers.FindAncestor<TreeViewItem>(e.OriginalSource)?.DataContext is not DupFileVM file) return;
-        e.Handled = true;
-        ShowMenu(file, List.PointToScreen(e.GetPosition(List)));
-    }
-
     private void List_DoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (VisualTreeHelpers.FindAncestor<TreeViewItem>(e.OriginalSource)?.DataContext is DupFileVM file)
         {
             e.Handled = true;
             ShellOpen.InExplorer(file.Path);
-        }
-    }
-
-    private void List_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (List.SelectedItem is not DupFileVM file) return;
-        if (ExtraKeyDown?.Invoke(e.Key) == true) { e.Handled = true; return; }
-
-        if (e.Key == Key.Delete)
-        {
-            e.Handled = true;
-            ShellDeleteRequested?.Invoke(file.Path, file.Group.Size);
-            Prune(file);
-        }
-        else if (e.Key == Key.Apps || (e.Key == Key.F10 && Keyboard.Modifiers == ModifierKeys.Shift))
-        {
-            e.Handled = true;
-            ShowMenu(file, List.PointToScreen(Mouse.GetPosition(List)));
-        }
-        else if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control)
-        {
-            e.Handled = true;
-            Clipboard.SetText(file.Path);
         }
     }
 

@@ -38,8 +38,8 @@
         <TreeView x:Name="List" Grid.Row="3" BorderThickness="0" Background="Transparent"
                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                   VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
-                  PreviewMouseRightButtonDown="List_RightDown" MouseRightButtonUp="List_RightUp"
-                  MouseDoubleClick="List_DoubleClick" PreviewKeyDown="List_KeyDown">
+                 
+                  MouseDoubleClick="List_DoubleClick">
             <TreeView.ItemContainerStyle>
                 <Style TargetType="TreeViewItem">
                     <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />

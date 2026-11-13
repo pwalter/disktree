@@ -6,6 +6,9 @@
         xmlns:search="clr-namespace:DiskTree.Features.Search"
         xmlns:dup="clr-namespace:DiskTree.Features.Duplicates"
         xmlns:owner="clr-namespace:DiskTree.Features.Owner"
+        xmlns:top="clr-namespace:DiskTree.Features.TopFiles"
+        xmlns:types="clr-namespace:DiskTree.Features.TypeChart"
+        xmlns:age="clr-namespace:DiskTree.Features.Age"
         Title="DiskTree" Width="1340" Height="780" MinWidth="1100" MinHeight="420"
         Icon="/app.ico" AllowDrop="True" Drop="Window_Drop" PreviewKeyDown="Window_PreviewKeyDown"
         Background="{DynamicResource WindowBg}" Foreground="{DynamicResource Ink}" FontFamily="Segoe UI" FontSize="13">
@@ -13,112 +16,6 @@
     <Window.TaskbarItemInfo>
         <TaskbarItemInfo x:Name="TaskbarInfo" />
     </Window.TaskbarItemInfo>
-
-    <Window.Resources>
-        <SolidColorBrush x:Key="Accent" Color="#2F6FED" />
-        <BooleanToVisibilityConverter x:Key="B2V" />
-
-        <Style x:Key="ToolButton" TargetType="Button">
-            <Setter Property="Padding" Value="16,6" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="Background" Value="{StaticResource Accent}" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.88" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <DataTemplate x:Key="LegendRow" DataType="{x:Type local:LegendRow}">
-            <Grid Margin="0,3">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="52" />
-                </Grid.ColumnDefinitions>
-                <Border Width="12" Height="12" CornerRadius="3" Background="{Binding Brush}" Margin="0,0,8,0" VerticalAlignment="Center" />
-                <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Detail}" />
-                <TextBlock Grid.Column="2" Text="{Binding SizeText}" FontWeight="SemiBold" Margin="8,0,0,0" TextAlignment="Right" />
-                <TextBlock Grid.Column="3" Text="{Binding PercentText}" Foreground="{DynamicResource Muted}" TextAlignment="Right" />
-            </Grid>
-        </DataTemplate>
-
-        <DataTemplate x:Key="TopFileRow" DataType="{x:Type local:TopRow}">
-            <Grid Margin="0,3" ToolTip="{Binding Path}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel>
-                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{Binding Folder}" FontSize="11" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-                <TextBlock Grid.Column="1" Text="{Binding SizeText}" FontWeight="SemiBold" Margin="10,0,0,0" VerticalAlignment="Center" />
-            </Grid>
-        </DataTemplate>
-
-        <HierarchicalDataTemplate DataType="{x:Type local:NodeVM}" ItemsSource="{Binding Children}">
-            <StackPanel Orientation="Horizontal" Height="24" ToolTip="{Binding Path}">
-                <Grid Width="{Binding NameWidth}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="{Binding Icon}" Foreground="{Binding IconBrush}" Width="24"
-                               FontFamily="Segoe UI Emoji" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="{Binding NameBrush}"
-                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                    <!-- subtle spinner while this folder is still being scanned -->
-                    <Ellipse Grid.Column="2" Width="13" Height="13" Margin="6,0,4,0" VerticalAlignment="Center"
-                             Stroke="{StaticResource Accent}" StrokeThickness="2" StrokeDashArray="4.5 12.8"
-                             StrokeDashCap="Round" Opacity="0.7" RenderTransformOrigin="0.5,0.5"
-                             Visibility="{Binding IsPending, Converter={StaticResource B2V}}"
-                             ToolTip="Wird noch gescannt …">
-                        <Ellipse.RenderTransform>
-                            <RotateTransform />
-                        </Ellipse.RenderTransform>
-                        <Ellipse.Triggers>
-                            <EventTrigger RoutedEvent="FrameworkElement.Loaded">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
-                                                         From="0" To="360" Duration="0:0:0.9" RepeatBehavior="Forever" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                        </Ellipse.Triggers>
-                    </Ellipse>
-                </Grid>
-                <Grid Width="{x:Static local:NodeVM.BarMax}" Height="16" Margin="8,0">
-                    <Border Background="{DynamicResource TrackBg}" CornerRadius="3" />
-                    <Border Background="{Binding BarBrush}" Width="{Binding BarWidth}"
-                            HorizontalAlignment="Left" CornerRadius="3" />
-                    <TextBlock Text="{Binding PercentText}" FontSize="11" Foreground="{DynamicResource Ink}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </Grid>
-                <TextBlock Text="{Binding SizeText}" Foreground="{Binding SizeBrush}" FontWeight="SemiBold"
-                           Width="90" TextAlignment="Right" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding FilesText}" Foreground="{DynamicResource Muted}"
-                           Width="100" TextAlignment="Right" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding OldText}" Foreground="{DynamicResource Muted}"
-                           Width="100" TextAlignment="Right" VerticalAlignment="Center" />
-            </StackPanel>
-        </HierarchicalDataTemplate>
-    </Window.Resources>
 
     <Grid Margin="12">
         <Grid.RowDefinitions>
@@ -155,7 +52,7 @@
                 <ComboBox x:Name="ThreadsBox" Width="76" Height="28" />
             </StackPanel>
             <Button x:Name="AdminButton" Grid.Column="3" Content="🛡 Als Administrator neu starten" Height="32" Margin="16,0,0,0"
-                    Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="Admin_Click"
+                    Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}"
                     ToolTip="Neu starten, damit auch geschützte Ordner gelesen werden können" />
             <Button x:Name="ScanButton" Grid.Column="4" Content="Scannen" Height="32" MinWidth="110" Margin="16,0,0,0"
                     Style="{StaticResource ToolButton}" Click="Scan_Click" IsDefault="True"
@@ -163,19 +60,19 @@
             <!-- second toolbar row: files, exclusions, appearance -->
             <StackPanel Grid.Row="1" Grid.ColumnSpan="5" Orientation="Horizontal" Margin="0,8,0,0">
                 <Button x:Name="SnapshotSaveButton" Content="💾 Scan speichern…" Height="30"
-                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="SaveSnapshot_Click"
+                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}"
                         ToolTip="Den Scan als .disktree-Datei speichern (später ohne Neuscan wieder öffnen oder vergleichen)" />
-                <Button Content="📂 Scan öffnen…" Height="30" Margin="6,0,0,0"
-                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="OpenSnapshot_Click"
+                <Button x:Name="OpenSnapshotButton" Content="📂 Scan öffnen…" Height="30" Margin="6,0,0,0"
+                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}"
                         ToolTip="Gespeicherten Scan öffnen (oder .disktree-Datei auf das Fenster ziehen)" />
                 <Button x:Name="ExportButton" Content="Exportieren…" Height="30" Margin="6,0,0,0"
-                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="Export_Click"
+                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}"
                         ToolTip="Baum oder größte Dateien als CSV (Excel) exportieren" />
                 <Button x:Name="ExcludeButton" Content="Ausschlüsse…" Height="30" Margin="16,0,0,0"
-                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="Exclude_Click"
+                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}"
                         ToolTip="Ordner, die der Scan überspringt (gilt ab dem nächsten Scan)" />
                 <Button x:Name="ThemeButton" Height="30" MinWidth="96" Margin="6,0,0,0"
-                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="Theme_Click"
+                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}"
                         ToolTip="Darstellung: Windows folgen / Hell / Dunkel" />
             </StackPanel>
         </Grid>
@@ -200,9 +97,6 @@
                       ScrollViewer.HorizontalScrollBarVisibility="Auto"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling"
-                      PreviewMouseRightButtonDown="Tree_RightDown"
-                      MouseRightButtonUp="Tree_RightUp"
-                      PreviewKeyDown="Tree_KeyDown"
                       SelectedItemChanged="Tree_SelectedItemChanged">
                 <TreeView.ItemContainerStyle>
                     <Style TargetType="TreeViewItem">
@@ -268,75 +162,13 @@
                     </ControlTemplate>
                 </TabControl.Template>
                 <TabItem Header="Dateitypen">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-                        <TextBlock x:Name="PieTitle" Text="Dateitypen" FontWeight="SemiBold" FontSize="14"
-                                   TextTrimming="CharacterEllipsis" Margin="4,0" />
-                        <local:PieChart x:Name="Pie" Grid.Row="1" Height="270" Margin="0,8" />
-                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="4,0">
-                            <ItemsControl x:Name="Legend" ItemTemplate="{StaticResource LegendRow}" />
-                        </ScrollViewer>
-                    </Grid>
+                    <types:TypeChartPanel x:Name="TypePane" />
                 </TabItem>
                 <TabItem Header="Größte Dateien">
-                    <ListBox x:Name="TopList" BorderThickness="0" Background="Transparent" SelectionMode="Extended"
-                             ItemTemplate="{StaticResource TopFileRow}"
-                             HorizontalContentAlignment="Stretch"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                             PreviewMouseRightButtonDown="TopList_RightDown"
-                             MouseRightButtonUp="TopList_RightUp"
-                             MouseDoubleClick="TopList_DoubleClick"
-                             PreviewKeyDown="TopList_KeyDown" />
+                    <top:TopFilesPanel x:Name="TopPane" />
                 </TabItem>
                 <TabItem x:Name="AgeTab" Header="Alter">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-                        <TextBlock x:Name="AgeTitle" Text="Alter (zuletzt geändert)" FontWeight="SemiBold" FontSize="14"
-                                   TextTrimming="CharacterEllipsis" Margin="4,0" />
-                        <!-- Which timestamp the scan sums up; code in MainWindow.AgeStamp.cs -->
-                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="4,8,4,0">
-                            <TextBlock Text="Zeitstempel" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
-                            <ComboBox x:Name="AgeStampBox" Width="150" Height="26" Margin="8,0,0,0"
-                                      ToolTip="Welches Datum der Dateien ausgewertet wird. Ein Wechsel erfordert einen Neuscan." />
-                        </StackPanel>
-                        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="4,6,4,0">
-                            <TextBlock Text="Als „alt“ zählt ab" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
-                            <ComboBox x:Name="AgeThresholdBox" Width="96" Height="26" Margin="8,0,0,0"
-                                      ToolTip="Schwellwert für die Spalte „Älter“ im Baum und die Zusammenfassung hier" />
-                        </StackPanel>
-                        <Border x:Name="AgeSwitchNotice" Grid.Row="3" Visibility="Collapsed" Margin="4,8,4,0" Padding="8,6" CornerRadius="4"
-                                Background="{DynamicResource TrackBg}" BorderBrush="#4C8DF6" BorderThickness="3,0,0,0">
-                            <StackPanel>
-                                <TextBlock x:Name="AgeSwitchText" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource Ink}" />
-                                <Button x:Name="AgeRescanButton" Content="Jetzt neu scannen" HorizontalAlignment="Left" Margin="0,6,0,0"
-                                        Padding="10,3" Click="AgeRescan_Click" />
-                            </StackPanel>
-                        </Border>
-                        <Border x:Name="AgeAccessNotice" Grid.Row="4" Visibility="Collapsed" Margin="4,8,4,0" Padding="8,6" CornerRadius="4"
-                                Background="{DynamicResource TrackBg}" BorderBrush="#E8B923" BorderThickness="3,0,0,0">
-                            <TextBlock x:Name="AgeAccessText" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource Ink}" />
-                        </Border>
-                        <local:PieChart x:Name="AgePie" Grid.Row="5" Height="240" Margin="0,8" />
-                        <TextBlock x:Name="AgeSummary" Grid.Row="6" Margin="4,0,4,6" TextWrapping="Wrap" />
-                        <ScrollViewer Grid.Row="7" VerticalScrollBarVisibility="Auto" Margin="4,0">
-                            <ItemsControl x:Name="AgeLegend" ItemTemplate="{StaticResource LegendRow}" />
-                        </ScrollViewer>
-                    </Grid>
-                    </ScrollViewer>
+                    <age:AgeChartPanel x:Name="AgePane" />
                 </TabItem>
                 <TabItem Header="Treemap">
                     <treemap:TreemapPanel x:Name="Treemap" Margin="0,2,0,0" NodeClicked="Treemap_NodeClicked" />
@@ -372,18 +204,18 @@
             <ProgressBar x:Name="ScanProgress" Grid.Column="2" Width="160" Height="6" Margin="16,0,0,0"
                          Minimum="0" Maximum="1" Visibility="Collapsed" Foreground="{StaticResource Accent}"
                          Background="{DynamicResource TrackBg}" BorderThickness="0" VerticalAlignment="Center" />
-            <Button x:Name="UpdateButton" Grid.Column="3" Margin="16,0,0,0" Padding="8,2" Click="Update_Click"
+            <Button x:Name="UpdateButton" Grid.Column="3" Margin="16,0,0,0" Padding="8,2"
                     Style="{StaticResource ToolButton}" Background="Transparent" Foreground="{DynamicResource Muted}"
                     ToolTip="Version und Updates (Rechtsklick: Einstellungen)">
                 <Button.ContextMenu>
-                    <ContextMenu Opened="UpdateMenu_Opened">
-                        <MenuItem Header="Nach Updates suchen" Click="CheckUpdate_Click" />
-                        <MenuItem x:Name="AutoUpdateItem" Header="Beim Start automatisch suchen" IsCheckable="True" Click="AutoUpdate_Click" />
-                        <MenuItem Header="Alle Versionen im Browser öffnen" Click="OpenReleases_Click" />
+                    <ContextMenu x:Name="VersionMenu">
+                        <MenuItem x:Name="CheckUpdateItem" Header="Nach Updates suchen" />
+                        <MenuItem x:Name="AutoUpdateItem" Header="Beim Start automatisch suchen" IsCheckable="True" />
+                        <MenuItem x:Name="OpenReleasesItem" Header="Alle Versionen im Browser öffnen" />
                         <Separator />
-                        <MenuItem x:Name="ExplorerItem" Header="Im Explorer-Kontextmenü anzeigen" IsCheckable="True" Click="ExplorerItem_Click"
+                        <MenuItem x:Name="ExplorerItem" Header="Im Explorer-Kontextmenü anzeigen" IsCheckable="True"
                                   ToolTip="Fügt „Mit DiskTree analysieren“ zum Rechtsklick auf Ordner, Laufwerke und Ordnerhintergrund hinzu (nur für diesen Benutzer, ohne Administratorrechte). Unter Windows 11 unter „Weitere Optionen anzeigen“." />
-                        <MenuItem x:Name="PortableItem" Header="Portable-Modus (Einstellungen neben der exe)" IsCheckable="True" Click="PortableItem_Click"
+                        <MenuItem x:Name="PortableItem" Header="Portable-Modus (Einstellungen neben der exe)" IsCheckable="True"
                                   ToolTip="Speichert settings.json neben der exe statt in %AppData%\DiskTree (Marker-Datei DiskTree.portable). Ein Explorer-Menü-Eintrag zeigt weiter auf den Pfad dieser exe und liegt in der Registry des Benutzers." />
                     </ContextMenu>
                 </Button.ContextMenu>

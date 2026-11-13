@@ -4,6 +4,8 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using DiskTree.Core;
 using DiskTree.Features.FileOperations;
+using DiskTree.Features.TopFiles;
+using DiskTree.Ui.Controllers;
 
 namespace DiskTree.Ui;
 
@@ -25,7 +27,7 @@ public partial class MainWindow
     /// <summary>Our entries for the context menu of <paramref name="path"/>; empty in a stored scan.</summary>
     private IReadOnlyList<(string Text, Action Run)> OpExtras(string path, bool isDir)
     {
-        if (IsSnapshotMode) return [];
+        if (_snapshots.IsSnapshotMode) return [];
 
         var sel = SelectionFor(path, isDir);
         string suffix = sel.Count > 1 ? $" ({sel.Count:N0} Elemente)" : "";
@@ -48,7 +50,7 @@ public partial class MainWindow
         var sel = ActiveSelection(null, preferFocus: true);
         if (sel.Count == 0 || (key == Key.Delete && sel.Count < 2)) return false; // one item: the shell's own Delete
 
-        if (IsSnapshotMode) { SnapshotHint(); return true; }
+        if (_snapshots.IsSnapshotMode) { _snapshots.ShowHint(); return true; }
         RunOp(() => key == Key.F2 ? RenameAsync(sel) : DeleteAsync(sel));
         return true;
     }
@@ -56,8 +58,8 @@ public partial class MainWindow
     /// <summary>F2 in the tree (single selection).</summary>
     private bool OpsTreeKey(Key key, NodeVM vm)
     {
-        if (key != Key.F2 || !CanUseShell(vm)) return false;
-        if (IsSnapshotMode) { SnapshotHint(); return true; }
+        if (key != Key.F2 || !ShellMenuCoordinator.CanUseShell(vm)) return false;
+        if (_snapshots.IsSnapshotMode) { _snapshots.ShowHint(); return true; }
         var sel = new List<OpItem> { ItemOf(vm.Path, vm.Kind == Kind.Dir, vm.Size) };
         RunOp(() => RenameAsync(sel));
         return true;
@@ -83,7 +85,7 @@ public partial class MainWindow
     /// <summary>Selection of the list the user is working in (mouse over it, else keyboard focus).</summary>
     private List<OpItem> ActiveSelection(string? mustContain, bool preferFocus = false)
     {
-        var sources = new FrameworkElement[] { TopList, SearchPane.Results, Dup.List };
+        var sources = new FrameworkElement[] { TopPane.List, SearchPane.Results, Dup.List };
         var order = preferFocus
             ? sources.OrderBy(c => c.IsKeyboardFocusWithin ? 0 : 1)
             : sources.OrderBy(c => c.IsMouseOver ? 0 : c.IsKeyboardFocusWithin ? 1 : 2);
@@ -101,8 +103,8 @@ public partial class MainWindow
 
     private List<OpItem> SelectionOf(FrameworkElement c)
     {
-        if (c == TopList)
-            return TopList.SelectedItems.Cast<TopRow>().Select(r => ItemOf(r.Path, false, r.Size)).ToList();
+        if (c == TopPane.List)
+            return TopPane.SelectedRows.Select(r => ItemOf(r.Path, false, r.Size)).ToList();
         if (c == SearchPane.Results)
             return SearchPane.SelectedHits.Select(h => ItemOf(h.Path, h.IsDir, h.Size)).ToList();
         if (c == Dup.List)
@@ -127,7 +129,7 @@ public partial class MainWindow
     /// <summary>Checks the preconditions and cleans the selection up. Null (after telling the user) if nothing can be done.</summary>
     private List<OpItem>? Prepare(List<OpItem> sel, bool allowRoot = false)
     {
-        if (IsSnapshotMode) { SnapshotHint(); return null; }
+        if (_snapshots.IsSnapshotMode) { _snapshots.ShowHint(); return null; }
         if (_opBusy) return null;
         if (Busy != null)
         {
@@ -316,8 +318,8 @@ public partial class MainWindow
     {
         if (_scanner?.Root is { } drive) Scanner.ReadDrive(drive);
         _root?.Refresh();
-        _ = UpdatePieAsync();
-        RefreshTop();
+        _ = RefreshChartsAsync();
+        TopPane.Refresh(_scanner);
         SearchPane.PruneMissing();
         Dup.PruneMissing();
     }

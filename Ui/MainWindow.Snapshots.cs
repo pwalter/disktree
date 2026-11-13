@@ -3,128 +3,32 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using DiskTree.Core;
-using DiskTree.Core.Snapshots;
-using DiskTree.Infrastructure;
-using Microsoft.Win32;
+using DiskTree.Ui.Controllers;
 
 namespace DiskTree.Ui;
 
-// Stored scans (.disktree) and the glue to the "Vergleich" tab. Kept in a separate file of the partial class.
-public partial class MainWindow
+// Glue between the stored scans (SnapshotController), the "Vergleich" tab and the tree of the main window.
+public partial class MainWindow : ISnapshotHost
 {
+    private SnapshotController _snapshots = null!;
+
     private void InitSnapshots()
     {
+        _snapshots = new SnapshotController(this, this, SnapshotSaveButton, OpenSnapshotButton);
         Compare.CurrentScanner = () => _cts == null ? _scanner : null;
         Compare.JumpRequested += JumpToPath;
     }
 
-    /// <summary>A fresh scan starts: remember when, and drop the "gespeicherter Scan" marker from the title.</summary>
-    private void OnNewScanner(Scanner scanner)
+    // ---- ISnapshotHost
+    ScanSession ISnapshotHost.Current => _cur;
+    bool ISnapshotHost.TabsLocked => TabsLocked;
+    ScanSession ISnapshotHost.NewTab() => NewTab();
+    void ISnapshotHost.SetStatus(ScanSession session, string text) => SetStatus(session, text);
+
+    void ISnapshotHost.ShowSnapshot(ScanSession session, Scanner scanner, AgeStamp stamp)
     {
-        scanner.ScannedAt = DateTime.Now;
-        UpdateTitle();
-    }
-
-    private bool IsSnapshotMode => _scanner is { IsSnapshot: true };
-
-    private void UpdateTitle()
-    {
-        var title = AdminHelper.IsAdmin ? "DiskTree (Administrator)" : "DiskTree";
-        if (_scanner is { IsSnapshot: true } s)
-            title += " – gespeicherter Scan" + (s.ScannedAt is { } t ? " vom " + t.ToString("g") : "");
-        Title = title;
-    }
-
-    private static string StampText(DateTime? t) => t is { } v ? v.ToString("g") : "unbekannter Zeit";
-
-    // ---------------------------------------------------------------- save
-
-    private async void SaveSnapshot_Click(object sender, RoutedEventArgs e)
-    {
-        var session = _cur;
-        var scanner = _scanner;
-        if (scanner?.Root == null)
-        {
-            Notice("Es gibt noch keinen Scan, den man speichern könnte.");
-            return;
-        }
-        if (_cts != null)
-        {
-            Notice("Der Scan läuft noch. Bitte warten oder abbrechen, dann speichern.");
-            return;
-        }
-
-        var target = scanner.ScanTarget ?? scanner.Root;
-        var name = new string((string.IsNullOrEmpty(target.Name) ? "Scan" : target.Name)
-            .Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c).ToArray()).Trim('_', ' ');
-        var dlg = new SaveFileDialog
-        {
-            Title = "Scan speichern",
-            Filter = "DiskTree-Scan (*.disktree)|*.disktree",
-            DefaultExt = SnapshotStore.Extension,
-            FileName = $"{(name.Length > 0 ? name : "Scan")}_{(scanner.ScannedAt ?? DateTime.Now):yyyy-MM-dd}",
-        };
-        if (dlg.ShowDialog(this) != true) return;
-
-        var file = dlg.FileName;
-        var at = scanner.ScannedAt ?? DateTime.Now;
-        SnapshotSaveButton.IsEnabled = false;
-        var before = session.Status;
-        SetStatus(session, "Scan wird gespeichert …");
-        try
-        {
-            await Task.Run(() => SnapshotStore.Save(file, scanner, at));
-            SetStatus(session, $"Scan gespeichert: {file} ({SizeFormat.Format(new FileInfo(file).Length)})");
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            SetStatus(session, before);
-            Notice("Speichern fehlgeschlagen:\n" + ex.Message);
-        }
-        finally
-        {
-            SnapshotSaveButton.IsEnabled = true;
-        }
-    }
-
-    // ---------------------------------------------------------------- open
-
-    private async void OpenSnapshot_Click(object sender, RoutedEventArgs e)
-    {
-        var dlg = new OpenFileDialog
-        {
-            Title = "Gespeicherten Scan öffnen",
-            Filter = "DiskTree-Scan (*.disktree)|*.disktree|Alle Dateien|*.*",
-        };
-        if (dlg.ShowDialog(this) == true) await LoadSnapshotAsync(dlg.FileName);
-    }
-
-    // A stored scan opens in a new tab (in the active one if that is still empty), so the scan being looked at
-    // stays; a scan running in another tab is not disturbed either.
-    private async Task LoadSnapshotAsync(string file)
-    {
-        if (TabsLocked) return;
-        var origin = _cur;
-        var before = origin.Status;
-        SetStatus(origin, "Scan wird geladen …");
-        LoadedSnapshot snap;
-        try
-        {
-            snap = await Task.Run(() => SnapshotStore.Load(file));
-        }
-        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
-        {
-            SetStatus(origin, before);
-            Notice($"Die Datei konnte nicht geladen werden:\n{file}\n\n{ex.Message}");
-            return;
-        }
-
-        SetStatus(origin, before);
-        if (TabsLocked) return;
-        var s = _cur.IsEmpty ? _cur : NewTab();
-        var scanner = Scanner.FromSnapshot(snap);
-        OnSnapshotAgeStamp(snap.AgeStamp); // the tab's choice follows the file (the scanner already carries it in Ages)
-        s.SelectedVm = null;
+        OnSnapshotAgeStamp(stamp); // the tab's choice follows the file (the scanner already carries it in Ages)
+        session.SelectedVm = null;
         _scanner = scanner;
         _scanTarget = scanner.ScanTarget;
         _root = new NodeVM(scanner.Root!, Kind.Dir, null, 0) { IsExpanded = true };
@@ -133,55 +37,19 @@ public partial class MainWindow
         ExpandToScanTarget();
         PathBox.Text = scanner.ScanTarget?.FullPath ?? "";
         CurrentText.Text = "";
+    }
 
-        var t = scanner.ScanTarget!;
-        string where = string.IsNullOrEmpty(t.FullPath) ? t.Name : t.FullPath;
-        s.SetTitle("💾 " + where, $"Gespeicherter Scan vom {StampText(scanner.ScannedAt)}: {where}");
-        s.StatusTip = null;
+    void ISnapshotHost.ShowSnapshotStatus(ScanSession session, string text)
+    {
+        session.StatusTip = null;
         StatusText.ToolTip = null;
-        SetStatus(s,
-            $"Gespeicherter Scan vom {StampText(scanner.ScannedAt)}: {t.DirCount + 1:N0} Ordner · {t.FileCount:N0} Dateien · " +
-            $"{SizeFormat.Format(t.Size)} · {t.FullPath}");
-        UpdateTitle();
-        _ = UpdatePieAsync();
-        RefreshTop();
+        SetStatus(session, text);
     }
 
-    // ---------------------------------------------------------------- actions that need the disk
-
-    private static bool Exists(string path) => Directory.Exists(path) || File.Exists(path);
-
-    private void Notice(string text) =>
-        Dialogs.Info(this, text);
-
-    private void SnapshotHint() =>
-        Notice($"Das ist ein gespeicherter Scan vom {StampText(_scanner?.ScannedAt)}, nicht der aktuelle Stand der Platte.\n\n" +
-               "Löschen und das Windows-Kontextmenü gibt es nur in einem aktuellen Scan (Scannen). " +
-               "Mit „Ab hier neu scannen“ lässt sich ein Ordner, der auf diesem Rechner existiert, neu einlesen.");
-
-    /// <summary>Rescan below a loaded snapshot only makes sense when the folder exists here.</summary>
-    private bool CanRescan(Node node)
+    void ISnapshotHost.RefreshViews()
     {
-        if (_scanner is not { IsSnapshot: true } || Directory.Exists(node.FullPath)) return true;
-        Notice($"Der Ordner existiert auf diesem Rechner nicht:\n{node.FullPath}\n\nEr kann nicht neu gescannt werden.");
-        return false;
-    }
-
-    /// <summary>In a snapshot the Windows menu (with "Löschen") is replaced by a small menu with our own entries.</summary>
-    private void ShowSnapshotMenu(string path, bool isDir)
-    {
-        var menu = new ContextMenu();
-        foreach (var (text, run) in Extras(path, isDir))
-        {
-            // Rescan and "open in Explorer" need the path to exist on this machine.
-            bool needsDisk = !text.StartsWith("Pfad");
-            var item = new MenuItem { Header = text, IsEnabled = !needsDisk || Exists(isDir ? path : Path.GetDirectoryName(path) ?? "") };
-            item.Click += (_, _) => run();
-            menu.Items.Add(item);
-        }
-        menu.Items.Add(new Separator());
-        menu.Items.Add(new MenuItem { Header = "Gespeicherter Scan: Löschen nicht möglich", IsEnabled = false });
-        menu.IsOpen = true;
+        _ = RefreshChartsAsync();
+        TopPane.Refresh(_scanner);
     }
 
     // ---------------------------------------------------------------- jump from the comparison

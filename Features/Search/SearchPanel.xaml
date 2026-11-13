@@ -96,8 +96,8 @@
 
         <ListBox x:Name="Results" Grid.Row="5" BorderThickness="0" Background="Transparent" SelectionMode="Extended"
                  HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                 PreviewMouseRightButtonDown="Results_RightDown" MouseRightButtonUp="Results_RightUp"
-                 MouseDoubleClick="Results_DoubleClick" PreviewKeyDown="Results_KeyDown">
+                
+                 MouseDoubleClick="Results_DoubleClick">
             <ListBox.ItemTemplate>
                 <DataTemplate DataType="{x:Type local:SearchHitRow}">
                     <Grid Margin="0,3" ToolTip="{Binding ToolTipText}">
