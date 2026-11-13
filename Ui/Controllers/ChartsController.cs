@@ -94,7 +94,6 @@ public sealed class ChartsController : IScanViews
     }
 
     /// <summary>The owner view for the folder the charts describe.</summary>
-    // PHASE-D: OwnerPanel.SetFolder fails when the folder was deleted behind the program's back
     public void ShowOwnerFolder() => _owner.SetFolder(_tree.CurrentChartTarget().Node?.FullPath);
 
     // ---- IScanViews: what a running scan (or a change of the tree) asks of the views

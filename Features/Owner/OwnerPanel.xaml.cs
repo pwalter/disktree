@@ -51,6 +51,13 @@ public partial class OwnerPanel : UserControl
 
     private async Task ShowOwnerAsync()
     {
+        // Started fire-and-forget from SetFolder: a vanished folder must end up as a message, never as an unobserved fault.
+        try { await ShowOwnerCoreAsync(); }
+        catch { OwnerText.Text = "Besitzer: nicht lesbar"; }
+    }
+
+    private async Task ShowOwnerCoreAsync()
+    {
         int v = ++_version;
         string? path = _path;
         FolderText.Text = path == null ? "Besitzer" : System.IO.Path.GetFileName(path.TrimEnd('\\')) is { Length: > 0 } n ? n : path;
@@ -93,7 +100,8 @@ public partial class OwnerPanel : UserControl
         var ui = Dispatcher;
         long lastTick = 0;
 
-        OwnerResult result;
+        OwnerResult? result = null;
+        string? failure = null;
         try
         {
             // Few threads: owner lookups on a network share are latency-bound, and the file server should not be flooded.
@@ -110,17 +118,29 @@ public partial class OwnerPanel : UserControl
                     ui.BeginInvoke(() => { if (_cts == cts) ProgressText.Text = $"{seen:N0} Dateien geprüft · {failed:N0} ohne Zugriff"; });
                 }, cts.Token));
         }
+        catch (Exception ex)
+        {
+            // async void: nothing may escape here (a deleted folder, a lost share, ... must not end the process)
+            failure = ex.Message;
+        }
         finally
         {
             Bar.Visibility = Visibility.Collapsed;
             RunButton.Content = "Analysieren";
             _cts = null;
+            cts.Dispose();
             RunButton.IsEnabled = _path != null;
         }
 
         if (path != _path) return; // another folder was selected meanwhile
-        ProgressText.Text = result.Cancelled ? "Abgebrochen." : "Fertig.";
-        Show(result, min > 0);
+        failure ??= result?.Error;
+        if (failure != null)
+        {
+            ProgressText.Text = "Analyse nicht möglich: " + failure;
+            if (result == null || result.Rows.Count == 0) return;
+        }
+        else ProgressText.Text = result!.Cancelled ? "Abgebrochen." : "Fertig.";
+        Show(result!, min > 0);
     }
 
     private void Show(OwnerResult r, bool sampled)
