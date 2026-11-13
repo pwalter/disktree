@@ -1,0 +1,108 @@
+﻿=== S3 RustFS ===
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [assembly load] AWSSDK.S3 at 33 ms
+  [assembly load] AWSSDK.Core at 37 ms
+checksum=default(WHEN_SUPPORTED), ForcePathStyle=True: PUT+GET+LIST ok (14 bytes)
+checksum=default(WHEN_SUPPORTED), ForcePathStyle=False: PUT+GET+LIST ok (14 bytes)
+checksum=WHEN_REQUIRED, ForcePathStyle=True: PUT+GET+LIST ok (14 bytes)
+checksum=WHEN_REQUIRED, ForcePathStyle=False: PUT+GET+LIST ok (14 bytes)
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [assembly load] AWSSDK.S3 at 40 ms
+  [assembly load] AWSSDK.Core at 46 ms
+seed: 5617 objects, 8581241 bytes in 6395 ms; rejected by server: 3 '/leading-slash.txt' -> SignatureDoesNotMatch/The request signature we calculated does not match the signature you provided. Check your key and signing method.; 'double//slash.txt' -> InvalidArgument/Invalid argument; 'a//b/c.txt' -> InvalidArgument/Invalid argument
+round 0 flat     :    6 requests, 5614 objects, 8581200 bytes, 2673 ms
+  keys roundtrip ok: False (missing: double//slash.txt | a//b/c.txt | /leading-slash.txt)
+  sample keys: mit Leerzeichen/Größe äöü ß.txt
+round 0 delim seq:  117 requests, 5614 objects, 8581200 bytes, 114 prefixes, 2317 ms, sum equal: True
+round 0 delim p8:  117 requests, 5614 objects, 8581200 bytes, 114 prefixes, 781 ms, sum equal: True
+round 1 flat     :    6 requests, 5614 objects, 8581200 bytes, 2331 ms
+round 1 delim seq:  117 requests, 5614 objects, 8581200 bytes, 114 prefixes, 2006 ms, sum equal: True
+round 1 delim p8:  117 requests, 5614 objects, 8581200 bytes, 114 prefixes, 693 ms, sum equal: True
+round 2 flat     :    6 requests, 5614 objects, 8581200 bytes, 2193 ms
+round 2 delim seq:  117 requests, 5614 objects, 8581200 bytes, 114 prefixes, 2027 ms, sum equal: True
+round 2 delim p8:  117 requests, 5614 objects, 8581200 bytes, 114 prefixes, 689 ms, sum equal: True
+--- cold start (RustFS) ---
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [before first S3 use] 27 ms
+  [assembly load] AWSSDK.S3 at 33 ms
+  [assembly load] AWSSDK.Core at 39 ms
+  client create 197 ms, first request 309 ms, second request 10,8 ms
+=== S3 SeaweedFS ===
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [assembly load] AWSSDK.S3 at 31 ms
+  [assembly load] AWSSDK.Core at 35 ms
+checksum=default(WHEN_SUPPORTED), ForcePathStyle=True: PUT+GET+LIST ok (14 bytes)
+checksum=default(WHEN_SUPPORTED), ForcePathStyle=False: PUT+GET+LIST ok (14 bytes)
+checksum=WHEN_REQUIRED, ForcePathStyle=True: PUT+GET+LIST ok (14 bytes)
+checksum=WHEN_REQUIRED, ForcePathStyle=False: PUT+GET+LIST ok (14 bytes)
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [assembly load] AWSSDK.S3 at 30 ms
+  [assembly load] AWSSDK.Core at 35 ms
+seed: 5617 objects, 8581241 bytes in 3442 ms; rejected by server: 0 
+round 0 flat     :    6 requests, 5617 objects, 8581241 bytes, 187 ms
+  keys roundtrip ok: False (missing: double//slash.txt | a//b/c.txt | /leading-slash.txt)
+  sample keys: mit Leerzeichen/Größe äöü ß.txt
+round 0 delim seq:  120 requests, 5617 objects, 8581241 bytes, 117 prefixes, 529 ms, sum equal: True
+round 0 delim p8:  120 requests, 5617 objects, 8581241 bytes, 117 prefixes, 84 ms, sum equal: True
+round 1 flat     :    6 requests, 5617 objects, 8581241 bytes, 171 ms
+round 1 delim seq:  120 requests, 5617 objects, 8581241 bytes, 117 prefixes, 490 ms, sum equal: True
+round 1 delim p8:  120 requests, 5617 objects, 8581241 bytes, 117 prefixes, 81 ms, sum equal: True
+round 2 flat     :    6 requests, 5617 objects, 8581241 bytes, 142 ms
+round 2 delim seq:  120 requests, 5617 objects, 8581241 bytes, 117 prefixes, 432 ms, sum equal: True
+round 2 delim p8:  120 requests, 5617 objects, 8581241 bytes, 117 prefixes, 88 ms, sum equal: True
+--- cold start (SeaweedFS) ---
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [before first S3 use] 28 ms
+  [assembly load] AWSSDK.S3 at 35 ms
+  [assembly load] AWSSDK.Core at 40 ms
+  client create 190 ms, first request 319 ms, second request 5,7 ms
+=== SFTP ===
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [assembly load] Renci.SshNet at 92 ms
+  host key: ssh-ed25519, 256 bit, SHA256:Kx6A9ypVO0q+WbqjuBYftlvWYYiqZSTjggFDI2WOk6c
+connect+auth (password): 656 ms, server: SSH-2.0-OpenSSH_10.3
+  kex mlkem768x25519-sha256, cipher aes128-ctr, hostkey ssh-ed25519
+  meta broken-link    dir=False link=True  reg=False len=14     mtime=2026-11-13T11:21:19.0000000Z atime=2026-11-13T11:21:19.0000000Z uid=1001 gid=1001 perm=rwxrwxrwx
+  meta link-to-file   dir=False link=True  reg=False len=8      mtime=2026-11-13T11:21:19.0000000Z atime=2026-11-13T11:21:19.0000000Z uid=1001 gid=1001 perm=rwxrwxrwx
+  meta file.txt       dir=False link=False reg=True  len=6      mtime=2020-01-02T03:04:05.0000000Z atime=2020-01-02T03:04:05.0000000Z uid=1001 gid=1001 perm=rw-r-----
+  meta dir            dir=True  link=False reg=False len=4096   mtime=2026-11-13T11:21:19.0000000Z atime=2026-11-13T11:21:19.0000000Z uid=1001 gid=1001 perm=rwxr-xr-x
+  meta link-to-dir    dir=False link=True  reg=False len=3      mtime=2026-11-13T11:21:19.0000000Z atime=2026-11-13T11:21:19.0000000Z uid=1001 gid=1001 perm=rwxrwxrwx
+  Get(link) (stat follows link): link=False len=6; lstat via ListDirectory shows link=True
+  statvfs@openssh.com: block=4096 total=263940717 free=261119676 avail=247693808 => total 1081,1 GB, avail 1014,6 GB
+round 0 1 client seq   : 113 dirs, 5501 files, 5781230 bytes, ~477 SFTP requests, 611 ms
+round 0 1 client p4    : 113 dirs, 5501 files, 5781230 bytes, 184 ms
+round 0 1 client p8    : 113 dirs, 5501 files, 5781230 bytes, 98 ms
+round 0 4 clients p8  : 113 dirs, 5501 files, 5781230 bytes, 119 ms (connect not included)
+round 1 1 client seq   : 113 dirs, 5501 files, 5781230 bytes, ~477 SFTP requests, 654 ms
+round 1 1 client p4    : 113 dirs, 5501 files, 5781230 bytes, 193 ms
+round 1 1 client p8    : 113 dirs, 5501 files, 5781230 bytes, 145 ms
+round 1 4 clients p8  : 113 dirs, 5501 files, 5781230 bytes, 87 ms (connect not included)
+round 2 1 client seq   : 113 dirs, 5501 files, 5781230 bytes, ~477 SFTP requests, 547 ms
+round 2 1 client p4    : 113 dirs, 5501 files, 5781230 bytes, 166 ms
+round 2 1 client p8    : 113 dirs, 5501 files, 5781230 bytes, 104 ms
+round 2 4 clients p8  : 113 dirs, 5501 files, 5781230 bytes, 85 ms (connect not included)
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [assembly load] Renci.SshNet at 34 ms
+  host key: ssh-ed25519, 256 bit, SHA256:Kx6A9ypVO0q+WbqjuBYftlvWYYiqZSTjggFDI2WOk6c
+connect+auth (id_ed25519): 636 ms, server: SSH-2.0-OpenSSH_10.3
+  kex mlkem768x25519-sha256, cipher aes128-ctr, hostkey ssh-ed25519
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [assembly load] Renci.SshNet at 34 ms
+  host key: ssh-ed25519, 256 bit, SHA256:Kx6A9ypVO0q+WbqjuBYftlvWYYiqZSTjggFDI2WOk6c
+connect+auth (id_rsa): 767 ms, server: SSH-2.0-OpenSSH_10.3
+  kex mlkem768x25519-sha256, cipher aes128-ctr, hostkey ssh-ed25519
+--- cold start (SFTP) ---
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [before first SFTP use] 26 ms
+  [assembly load] Renci.SshNet at 33 ms
+  connect+auth 572 ms, first ListDirectory 9 ms, second 5,0 ms
+=== AWS profiles without AWSSDK.SSO/SSOOIDC/SecurityToken ===
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [assembly load] AWSSDK.Core at 31 ms
+sso-test: sso_account_id=111111111111 role_arn=
+  InvalidOperationException: Assembly AWSSDK.SSOOIDC could not be found or loaded. This assembly must be available at runtime to use Amazon.Runtime.Internal.SSOServiceClientHelpers, AWSSDK.Core, Version=4.0.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604.
+    inner FileNotFoundException: Could not load file or assembly 'AWSSDK.SSOOIDC, Culture=neutral, PublicKeyToken=null'. Das System kann die angegebene Datei nicht finden.
+role-test: sso_account_id= role_arn=arn:aws:iam::111111111111:role/ReadOnly
+  credentials object: AssumeRoleAWSCredentials
+  InvalidOperationException: Assembly AWSSDK.SecurityToken could not be found or loaded. This assembly must be available at runtime to use Amazon.Runtime.AssumeRoleAWSCredentials.
+    inner FileNotFoundException: Could not load file or assembly 'AWSSDK.SecurityToken, Culture=neutral, PublicKeyToken=null'. Das System kann die angegebene Datei nicht finden.

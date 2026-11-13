@@ -42,5 +42,25 @@
     <PackageReference Include="PDFsharp" Version="6.2.4" />
   </ItemGroup>
 
+  <!-- SPIKE (not for merging): size measurement for S3/SFTP packages.
+       dotnet publish ... -p:SpikeProbe=s3|sftp|both|s3sso   (results: spike/results/) -->
+  <ItemGroup>
+    <Compile Remove="spike\**" />
+    <None Remove="spike\**" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(SpikeProbe)' == 's3' Or '$(SpikeProbe)' == 'both' Or '$(SpikeProbe)' == 's3sso'">
+    <PackageReference Include="AWSSDK.S3" Version="4.1.0" />
+    <Compile Include="spike\SizeProbe\S3Probe.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(SpikeProbe)' == 's3sso'">
+    <PackageReference Include="AWSSDK.SSO" Version="4.1.0" />
+    <PackageReference Include="AWSSDK.SSOOIDC" Version="4.1.0" />
+    <PackageReference Include="AWSSDK.SecurityToken" Version="4.1.0" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(SpikeProbe)' == 'sftp' Or '$(SpikeProbe)' == 'both'">
+    <PackageReference Include="SSH.NET" Version="2026.0.0" />
+    <Compile Include="spike\SizeProbe\SftpProbe.cs" />
+  </ItemGroup>
+
 </Project>
 

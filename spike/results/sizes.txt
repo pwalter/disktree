@@ -1,0 +1,10 @@
+﻿none	full	62446669
+none	slim	2413042
+s3	full	63281674
+s3	slim	4831499
+sftp	full	65265544
+sftp	slim	8115531
+both	full	66100508
+both	slim	10534500
+s3sso	full	63393438
+s3sso	slim	5103874
