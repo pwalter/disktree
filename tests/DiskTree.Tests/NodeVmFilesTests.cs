@@ -6,13 +6,31 @@ namespace DiskTree.Tests;
 
 public class NodeVmFilesTests : TestBase
 {
+    // In the app the file list is filled on the UI thread. In a test there is no dispatcher, so the loading
+    // continuation runs on a pool thread and can clear/fill Children while we read it: take snapshots defensively
+    // and only accept a state that stays the same for a moment.
     private static async Task<NodeVM> WaitForSettled(NodeVM files)
     {
-        for (int i = 0; i < 200; i++)
+        string[]? last = null;
+        for (int i = 0; i < 400; i++)
         {
-            var c = files.Children.ToArray();
-            if (!(c.Length == 1 && c[0].Name == "Lade…")) return files;
             await Task.Delay(25);
+            string[] names;
+            try
+            {
+                var c = files.Children.ToArray();
+                if (c.Any(x => x is null)) { last = null; continue; }
+                names = c.Select(x => x.Name).ToArray();
+            }
+            catch (Exception e) when (e is ArgumentException or InvalidOperationException or IndexOutOfRangeException)
+            {
+                last = null;
+                continue;
+            }
+
+            bool loading = names.Length == 0 || (names.Length == 1 && names[0] == "Lade…");
+            if (!loading && last != null && last.SequenceEqual(names)) return files;
+            last = loading ? null : names;
         }
         return files;
     }
