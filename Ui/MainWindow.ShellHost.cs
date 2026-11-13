@@ -17,7 +17,7 @@ public partial class MainWindow : IShellMenuHost
         TopPane.Refresh(_scanner);
     }
 
-    void IShellMenuHost.Rescan(Node? node) => _ = RescanAsync(node);
+    void IShellMenuHost.Rescan(Node? node) => _ = _scan.RescanAsync(node);
 
     IReadOnlyList<(string Text, Action Run)> IShellMenuHost.OperationExtras(string path, bool isDir) => OpExtras(path, isDir);
 }

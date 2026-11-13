@@ -356,7 +356,7 @@ public partial class MainWindow
 
         if (node.FileCount < 100_000)
         {
-            _ = RescanAsync(node);
+            _ = _scan.RescanAsync(node);
             return null;
         }
         return "Das Ziel liegt im Baum, ist aber groß: bitte „Ab hier neu scannen“ auf dem Zielordner ausführen.";

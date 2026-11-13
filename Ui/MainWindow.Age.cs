@@ -31,7 +31,7 @@ public partial class MainWindow
         };
         AgePane.RescanRequested += () =>
         {
-            if (!string.IsNullOrWhiteSpace(PathBox.Text)) _ = ScanPathAsync(PathBox.Text);
+            if (!string.IsNullOrWhiteSpace(PathBox.Text)) _ = _scan.ScanPathAsync(PathBox.Text);
         };
         UpdateAgeNotices();
     }

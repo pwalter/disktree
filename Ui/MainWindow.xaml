@@ -56,7 +56,7 @@
                     Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}"
                     ToolTip="Neu starten, damit auch geschützte Ordner gelesen werden können" />
             <Button x:Name="ScanButton" Grid.Column="4" Content="Scannen" Height="32" MinWidth="110" Margin="16,0,0,0"
-                    Style="{StaticResource ToolButton}" Click="Scan_Click" IsDefault="True"
+                    Style="{StaticResource ToolButton}" IsDefault="True"
                     ToolTip="Scannen / Abbrechen (Esc). F5 scannt den markierten Ordner neu." />
             <!-- second toolbar row: files, exclusions, appearance -->
             <StackPanel Grid.Row="1" Grid.ColumnSpan="5" Orientation="Horizontal" Margin="0,8,0,0">
