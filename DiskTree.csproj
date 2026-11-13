@@ -39,6 +39,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" Version="4.1.0" />
+    <PackageReference Include="AWSSDK.SecurityToken" Version="4.1.0" />
+    <PackageReference Include="AWSSDK.SSO" Version="4.1.0" />
+    <PackageReference Include="AWSSDK.SSOOIDC" Version="4.1.0" />
     <PackageReference Include="PDFsharp" Version="6.2.4" />
   </ItemGroup>
 

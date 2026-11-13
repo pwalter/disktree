@@ -49,17 +49,20 @@ public sealed class ListRun
     /// </summary>
     public void BeforeRequest()
     {
-        Cancellation.ThrowIfCancellationRequested();
-        if (!_open.IsSet) _open.Wait(Cancellation);
-
-        long n = Interlocked.Increment(ref _requests);
-        bool raise = false;
-        lock (_gate)
+        bool raise;
+        while (true)
         {
-            if (RequestLimit > 0 && n == RequestLimit)
+            Cancellation.ThrowIfCancellationRequested();
+            if (!_open.IsSet) _open.Wait(Cancellation);
+            // Check and count under one lock: a request that passed the wait just before another one hit the limit
+            // must wait as well instead of slipping through.
+            lock (_gate)
             {
-                _open.Reset();
-                raise = true;
+                if (!_open.IsSet) continue;
+                long n = Interlocked.Increment(ref _requests);
+                raise = RequestLimit > 0 && n == RequestLimit;
+                if (raise) _open.Reset();
+                break;
             }
         }
         if (raise) LimitReached?.Invoke(this);
