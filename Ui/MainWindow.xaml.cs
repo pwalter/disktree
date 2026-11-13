@@ -7,6 +7,7 @@ using System.Windows.Threading;
 using DiskTree.Core;
 using DiskTree.Core.Snapshots;
 using DiskTree.Infrastructure;
+using DiskTree.Ui.Controllers;
 using Microsoft.Win32;
 
 namespace DiskTree.Ui;
@@ -17,6 +18,7 @@ public partial class MainWindow : Window
     private static readonly TimeSpan RefreshDelay = TimeSpan.FromMilliseconds(120);
 
     private readonly AppSettings _settings = AppSettings.Load();
+    private UpdateController _updater = null!;
     // Scan state (_scanner, _root, _cts ...) belongs to the active scan tab: see MainWindow.Tabs.cs.
 
     public MainWindow()
@@ -72,7 +74,9 @@ public partial class MainWindow : Window
         Theme.Changed += () => { _root?.RefreshTheme(); _ = UpdatePieAsync(); };
         ShowThemeButton();
         InitTabChips();
-        InitUpdate();
+        _updater = new UpdateController(this, _settings, UpdateButton, AutoUpdateItem, CheckUpdateItem, OpenReleasesItem,
+            () => PathBox.Text, () => Busy != null);
+        _ = new AppMenuController(this, _settings, VersionMenu, ExplorerItem, PortableItem);
         ShowExcludeButton();
         InitAge();
         InitAgeStamp();

@@ -34,7 +34,7 @@ public partial class MainWindow
     private ScanSession? Busy => _tabs.FirstOrDefault(t => t.Cts != null);
 
     // A file operation or the updater works on "the current tab" for a while: no tab changes meanwhile.
-    private bool TabsLocked => _opBusy || _updating;
+    private bool TabsLocked => _opBusy || _updater.IsUpdating;
 
     private void InitTabs()
     {

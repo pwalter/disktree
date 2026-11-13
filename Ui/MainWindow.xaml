@@ -266,18 +266,18 @@
             <ProgressBar x:Name="ScanProgress" Grid.Column="2" Width="160" Height="6" Margin="16,0,0,0"
                          Minimum="0" Maximum="1" Visibility="Collapsed" Foreground="{StaticResource Accent}"
                          Background="{DynamicResource TrackBg}" BorderThickness="0" VerticalAlignment="Center" />
-            <Button x:Name="UpdateButton" Grid.Column="3" Margin="16,0,0,0" Padding="8,2" Click="Update_Click"
+            <Button x:Name="UpdateButton" Grid.Column="3" Margin="16,0,0,0" Padding="8,2"
                     Style="{StaticResource ToolButton}" Background="Transparent" Foreground="{DynamicResource Muted}"
                     ToolTip="Version und Updates (Rechtsklick: Einstellungen)">
                 <Button.ContextMenu>
-                    <ContextMenu Opened="UpdateMenu_Opened">
-                        <MenuItem Header="Nach Updates suchen" Click="CheckUpdate_Click" />
-                        <MenuItem x:Name="AutoUpdateItem" Header="Beim Start automatisch suchen" IsCheckable="True" Click="AutoUpdate_Click" />
-                        <MenuItem Header="Alle Versionen im Browser öffnen" Click="OpenReleases_Click" />
+                    <ContextMenu x:Name="VersionMenu">
+                        <MenuItem x:Name="CheckUpdateItem" Header="Nach Updates suchen" />
+                        <MenuItem x:Name="AutoUpdateItem" Header="Beim Start automatisch suchen" IsCheckable="True" />
+                        <MenuItem x:Name="OpenReleasesItem" Header="Alle Versionen im Browser öffnen" />
                         <Separator />
-                        <MenuItem x:Name="ExplorerItem" Header="Im Explorer-Kontextmenü anzeigen" IsCheckable="True" Click="ExplorerItem_Click"
+                        <MenuItem x:Name="ExplorerItem" Header="Im Explorer-Kontextmenü anzeigen" IsCheckable="True"
                                   ToolTip="Fügt „Mit DiskTree analysieren“ zum Rechtsklick auf Ordner, Laufwerke und Ordnerhintergrund hinzu (nur für diesen Benutzer, ohne Administratorrechte). Unter Windows 11 unter „Weitere Optionen anzeigen“." />
-                        <MenuItem x:Name="PortableItem" Header="Portable-Modus (Einstellungen neben der exe)" IsCheckable="True" Click="PortableItem_Click"
+                        <MenuItem x:Name="PortableItem" Header="Portable-Modus (Einstellungen neben der exe)" IsCheckable="True"
                                   ToolTip="Speichert settings.json neben der exe statt in %AppData%\DiskTree (Marker-Datei DiskTree.portable). Ein Explorer-Menü-Eintrag zeigt weiter auf den Pfad dieser exe und liegt in der Registry des Benutzers." />
                     </ContextMenu>
                 </Button.ContextMenu>
