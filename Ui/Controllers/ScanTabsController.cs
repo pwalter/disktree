@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using DiskTree.Features.Scan;
+using DiskTree.Infrastructure;
 
 namespace DiskTree.Ui.Controllers;
 
@@ -36,7 +37,7 @@ public sealed class ScanTabsController
         Current.IsActive = true;
         bar.ItemsSource = Tabs;
         bar.TabSelected += s => { if (!TabsLocked) Activate(s); };
-        bar.TabCloseRequested += s => _ = CloseAsync(s);
+        bar.TabCloseRequested += s => CloseAsync(s).Forget("CloseAsync");
         bar.NewTabRequested += () => { if (!TabsLocked) NewTab(); };
     }
 
@@ -149,7 +150,7 @@ public sealed class ScanTabsController
                 if (!TabsLocked) NewTab();
                 return true;
             case Key.W when !shift:
-                _ = CloseAsync(Current);
+                CloseAsync(Current).Forget("CloseAsync");
                 return true;
             case Key.Tab:
             case Key.PageDown when !shift:

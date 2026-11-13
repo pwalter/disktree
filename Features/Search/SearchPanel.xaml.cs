@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using DiskTree.Core;
 using DiskTree.Ui;
+using DiskTree.Infrastructure;
 
 namespace DiskTree.Features.Search;
 
@@ -75,13 +76,13 @@ public partial class SearchPanel : UserControl
     {
         if (e.Key != Key.Enter) return;
         e.Handled = true;
-        _ = StartAsync();
+        StartAsync().Forget("StartAsync");
     }
 
     private void Go_Click(object sender, RoutedEventArgs e)
     {
         if (_cts != null) _cts.Cancel();
-        else _ = StartAsync();
+        else StartAsync().Forget("StartAsync");
     }
 
     private async Task StartAsync()

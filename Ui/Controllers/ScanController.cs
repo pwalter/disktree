@@ -79,9 +79,9 @@ public sealed class ScanController
     public void RescanOrScan(Node? selectedFolder)
     {
         if (selectedFolder != null)
-            _ = RescanAsync(selectedFolder);
+            RescanAsync(selectedFolder).Forget("RescanAsync");
         else
-            _ = BeginScan();
+            BeginScan().Forget("BeginScan");
     }
 
     /// <summary>Scans what the path box says, in the active tab.</summary>

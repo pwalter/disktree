@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using DiskTree.Core;
 using DiskTree.Features.FileOperations;
+using DiskTree.Infrastructure;
 
 namespace DiskTree.Ui.Controllers;
 
@@ -415,7 +416,7 @@ public sealed class FileOpsController
 
         if (node.FileCount < 100_000)
         {
-            _ = _scan.RescanAsync(node);
+            _scan.RescanAsync(node).Forget("RescanAsync");
             return null;
         }
         return "Das Ziel liegt im Baum, ist aber groß: bitte „Ab hier neu scannen“ auf dem Zielordner ausführen.";

@@ -103,11 +103,11 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
         _scan = new ScanController(this, _settings, _winSettings, _tabs, _status, _tree, _snapshots, _charts, PathBox, ThreadsBox, ScanButton);
         AgePane.RescanRequested += () =>
         {
-            if (!string.IsNullOrWhiteSpace(PathBox.Text)) _ = _scan.ScanPathAsync(PathBox.Text);
+            if (!string.IsNullOrWhiteSpace(PathBox.Text)) _scan.ScanPathAsync(PathBox.Text).Forget("ScanPathAsync");
         };
 
         // PHASE-D: static event, the window never unsubscribes (a second window would be kept alive and refreshed)
-        Theme.Changed += () => { _tree.RefreshTheme(); _ = _charts.RefreshAsync(); };
+        Theme.Changed += () => { _tree.RefreshTheme(); _charts.RefreshAsync().Forget("RefreshAsync"); };
     }
 
     /// <summary>The panels of the side panel that use the shell menus: search, largest files, duplicates; clean-up actions; list keys.</summary>
@@ -299,7 +299,7 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
         _charts.RefreshViews();
     }
 
-    void IShellMenuHost.Rescan(Node? node) => _ = _scan.RescanAsync(node);
+    void IShellMenuHost.Rescan(Node? node) => _scan.RescanAsync(node).Forget("RescanAsync");
 
     IReadOnlyList<(string Text, Action Run)> IShellMenuHost.OperationExtras(string path, bool isDir) =>
         _fileOps.OperationExtras(path, isDir);

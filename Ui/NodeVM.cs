@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Windows.Media;
 using DiskTree.Core;
+using DiskTree.Infrastructure;
 
 namespace DiskTree.Ui;
 
@@ -168,7 +169,7 @@ public sealed class NodeVM : INotifyPropertyChanged
             if (value && !_loaded)
             {
                 _loaded = true;
-                if (Kind == Kind.Files) _ = LoadFilesAsync();
+                if (Kind == Kind.Files) LoadFilesAsync().Forget("LoadFilesAsync");
                 else SyncChildren();
             }
             Notify(nameof(IsExpanded));
@@ -198,7 +199,7 @@ public sealed class NodeVM : INotifyPropertyChanged
         {
             // Files were deleted (or the scan of the folder finished): re-read the list once.
             if (_loaded && _expanded && !_loadingFiles && Parent!._node!.Scanned && _node!.FileCount != _filesLoadedCount)
-                _ = LoadFilesAsync();
+                LoadFilesAsync().Forget("LoadFilesAsync");
             return;
         }
 

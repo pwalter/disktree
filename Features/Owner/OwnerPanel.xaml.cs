@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using DiskTree.Core;
 using DiskTree.Ui;
+using DiskTree.Infrastructure;
 
 namespace DiskTree.Features.Owner;
 
@@ -31,7 +32,7 @@ public partial class OwnerPanel : UserControl
     public OwnerPanel()
     {
         InitializeComponent();
-        IsVisibleChanged += (_, _) => { if (IsVisible) _ = ShowOwnerAsync(); };
+        IsVisibleChanged += (_, _) => { if (IsVisible) ShowOwnerAsync().Forget("ShowOwnerAsync"); };
     }
 
     /// <summary>Called when the tree selection changes. Cancels a running analysis (it belongs to the old folder).</summary>
@@ -46,7 +47,7 @@ public partial class OwnerPanel : UserControl
         ProgressText.Text = "";
         AclText.Text = "";
         AclExpander.IsExpanded = false;
-        _ = ShowOwnerAsync();
+        ShowOwnerAsync().Forget("ShowOwnerAsync");
     }
 
     private async Task ShowOwnerAsync()
