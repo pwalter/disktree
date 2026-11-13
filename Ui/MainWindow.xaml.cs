@@ -106,8 +106,15 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
             if (!string.IsNullOrWhiteSpace(PathBox.Text)) _scan.ScanPathAsync(PathBox.Text).Forget("ScanPathAsync");
         };
 
-        // PHASE-D: static event, the window never unsubscribes (a second window would be kept alive and refreshed)
-        Theme.Changed += () => { _tree.RefreshTheme(); _charts.RefreshAsync().Forget("RefreshAsync"); };
+        // Static event: only while the window is open (otherwise the closed window would be kept alive and refreshed).
+        Loaded += (_, _) => { Theme.Changed -= OnThemeChanged; Theme.Changed += OnThemeChanged; };
+        Closed += (_, _) => Theme.Changed -= OnThemeChanged;
+    }
+
+    private void OnThemeChanged()
+    {
+        _tree.RefreshTheme();
+        _charts.RefreshAsync().Forget("RefreshAsync");
     }
 
     /// <summary>The panels of the side panel that use the shell menus: search, largest files, duplicates; clean-up actions; list keys.</summary>

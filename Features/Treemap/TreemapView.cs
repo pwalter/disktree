@@ -42,7 +42,10 @@ public sealed class TreemapView : FrameworkElement
     {
         ToolTipService.SetInitialShowDelay(this, 0);
         ClipToBounds = true;
-        Theme.Changed += InvalidateVisual;
+        // Static event: subscribe while loaded only (a tab template loads and unloads the control again and again;
+        // -= first so that a repeated Loaded never subscribes twice).
+        Loaded += (_, _) => { Theme.Changed -= InvalidateVisual; Theme.Changed += InvalidateVisual; InvalidateVisual(); };
+        Unloaded += (_, _) => Theme.Changed -= InvalidateVisual;
         IsVisibleChanged += (_, _) =>
         {
             if (IsVisible && !_wasVisible) RefreshAsync().Forget("RefreshAsync");
