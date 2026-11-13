@@ -24,7 +24,17 @@ public sealed class ReportData
     public IReadOnlyList<FolderRow> Folders { get; init; } = Array.Empty<FolderRow>();
     public IReadOnlyList<TypeRow> Types { get; init; } = Array.Empty<TypeRow>();
     public IReadOnlyList<AgeRow> Ages { get; init; } = Array.Empty<AgeRow>();
+    /// <summary>The timestamp the age buckets were built from (the scan's own choice).</summary>
+    public AgeStamp AgeStamp { get; init; } = AgeStamp.Modified;
     public IReadOnlyList<Scanner.BigFile> TopFiles { get; init; } = Array.Empty<Scanner.BigFile>();
+
+    /// <summary>Heading of the age section: says which timestamp the buckets are based on.</summary>
+    public string AgeHeading => "Alter der Dateien (" + AgeStamp switch
+    {
+        AgeStamp.Created => "Erstellungsdatum",
+        AgeStamp.Accessed => "letzter Zugriff",
+        _ => "letzte Änderung",
+    } + ")";
 
     public const int FolderCount = 20;
     public const int FileCount = 50;

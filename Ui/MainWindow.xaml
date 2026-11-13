@@ -68,7 +68,7 @@
                         ToolTip="Gespeicherten Scan öffnen (oder .disktree-Datei auf das Fenster ziehen)" />
                 <Button x:Name="ExportButton" Content="Exportieren…" Height="30" Margin="6,0,0,0"
                         Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}"
-                        ToolTip="Baum oder größte Dateien als CSV (Excel) exportieren" />
+                        ToolTip="Baum oder größte Dateien als CSV (Excel) oder den Scan als HTML- oder PDF-Bericht exportieren" />
                 <Button x:Name="ExcludeButton" Content="Ausschlüsse…" Height="30" Margin="16,0,0,0"
                         Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}"
                         ToolTip="Ordner, die der Scan überspringt (gilt ab dem nächsten Scan)" />

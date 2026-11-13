@@ -277,7 +277,7 @@ public static class ReportPdf
     private static void Ages(Ctx c)
     {
         var d = c.Data;
-        Section(c, "Alter der Dateien (letzte Änderung)", 110);
+        Section(c, d.AgeHeading, 110);
         long sum = d.Ages.Sum(a => a.Size);
         if (sum <= 0) { Note(c, "Keine Altersdaten vorhanden."); return; }
 
