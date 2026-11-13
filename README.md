@@ -91,3 +91,7 @@ Ein Release mit eigener Nummer entsteht auch durch ein Tag `vX.Y.Z`:
 git tag v1.0.0
 git push origin v1.0.0
 ```
+
+## Lizenz
+
+DiskTree steht unter der [MIT-Lizenz](LICENSE). Hinweise zu verwendeten Komponenten stehen in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
