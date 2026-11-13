@@ -145,6 +145,8 @@ public sealed class SnapshotController
     // stays; a scan running in another tab is not disturbed either.
     private async Task LoadAsync(string file)
     {
+        // PHASE-D: TabsLocked does not cover a running scan; the scan can start while the file loads and the loaded scan is
+        // then shown in a tab the scan writes into (or in a new tab) without a check
         if (_host.TabsLocked) return;
         var origin = _host.Current;
         var before = origin.Status;
