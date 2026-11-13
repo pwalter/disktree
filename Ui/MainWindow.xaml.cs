@@ -26,6 +26,8 @@ public partial class MainWindow : Window, IExportSource
     private ScanController _scan = null!;
     private FileOpsController _fileOps = null!;
     private ChartsController _charts = null!;
+    private SideTabsController _sideTabs = null!;
+    private SearchController _search = null!;
 
     // transitional: what the other partial files still use, all pointing at the active scan tab
     private ScanSession _cur => _tabs.Current;
@@ -60,13 +62,13 @@ public partial class MainWindow : Window, IExportSource
             if (!string.IsNullOrWhiteSpace(PathBox.Text)) _ = _scan.ScanPathAsync(PathBox.Text);
         };
         _shell = new ShellMenuCoordinator(this, this, _snapshots);
-        InitSearch();
+        _sideTabs = new SideTabsController(SideTabs, TabChips);
+        _search = new SearchController(this, SearchPane, _sideTabs, SearchTab, _tree, _shell);
         InitFileOps();
         InitDuplicates();
         InitListInteraction();
 
         Theme.Changed += () => { _tree.RefreshTheme(); _ = _charts.RefreshAsync(); };
-        InitTabChips();
 
         _ = new ExportController(this, ExportButton, this);
         _updater = new UpdateController(this, _settings, UpdateButton, AutoUpdateItem, CheckUpdateItem, OpenReleasesItem,
@@ -196,33 +198,6 @@ public partial class MainWindow : Window, IExportSource
     Node? IExportSource.SelectedFolder => _tree.SelectedFolder;
     bool IExportSource.ScanRunning => _scan.IsRunning;
 
-    // ---------------------------------------------------------------- side panel tab chips
-
-    private bool _chipSync;
-
-    private void InitTabChips()
-    {
-        foreach (TabItem t in SideTabs.Items) TabChips.Items.Add(t.Header);
-        SideTabs.SelectedIndex = 0;
-        TabChips.SelectedIndex = 0;
-        // Programmatic selection (Ctrl+F, treemap ...) and clicks on the chips stay in step.
-        SideTabs.SelectionChanged += (s, e) =>
-        {
-            if (!ReferenceEquals(e.OriginalSource, SideTabs) || _chipSync) return;
-            _chipSync = true;
-            TabChips.SelectedIndex = SideTabs.SelectedIndex;
-            _chipSync = false;
-        };
-    }
-
-    private void TabChips_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_chipSync || TabChips.SelectedIndex < 0) return;
-        _chipSync = true;
-        SideTabs.SelectedIndex = TabChips.SelectedIndex;
-        _chipSync = false;
-    }
-
     private void Browse_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new OpenFolderDialog { Title = "Ordner zum Analysieren wählen" };
@@ -252,7 +227,7 @@ public partial class MainWindow : Window, IExportSource
         else if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control)
         {
             e.Handled = true;
-            ShowSearch();
+            _search.Show();
         }
         else if (e.Key == Key.Escape && _scan.IsRunning)
         {

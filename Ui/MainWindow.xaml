@@ -122,7 +122,7 @@
             </Grid.RowDefinitions>
             <!-- Tab headers as wrapping chips: eight tabs do not fit in one row, and a TabControl would reshuffle its rows. -->
             <ListBox x:Name="TabChips" Margin="0,0,0,6" BorderThickness="0" Background="Transparent"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="TabChips_SelectionChanged">
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
                 </ListBox.ItemsPanel>
