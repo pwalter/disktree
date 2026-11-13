@@ -18,6 +18,8 @@ public partial class MainWindow : Window, IExportSource
     private static readonly TimeSpan RefreshDelay = TimeSpan.FromMilliseconds(120);
 
     private readonly AppSettings _settings = AppSettings.Load();
+    private readonly WindowSettings _winSettings;
+    private readonly AdminStartup _admin;
     private UpdateController _updater = null!;
     // Scan state (_scanner, _root, _cts ...) belongs to the active scan tab: see MainWindow.Tabs.cs.
 
@@ -25,12 +27,8 @@ public partial class MainWindow : Window, IExportSource
     {
         InitializeComponent();
 
-        if (_settings.Width >= MinWidth && _settings.Height >= MinHeight)
-        {
-            Width = Math.Min(_settings.Width, SystemParameters.WorkArea.Width);
-            Height = Math.Min(_settings.Height, SystemParameters.WorkArea.Height);
-        }
-        if (_settings.Maximized) WindowState = WindowState.Maximized;
+        _winSettings = new WindowSettings(this, _settings, ThemeButton, ExcludeButton);
+        _winSettings.ApplyBounds();
 
         foreach (var d in DriveInfo.GetDrives())
         {
@@ -53,11 +51,7 @@ public partial class MainWindow : Window, IExportSource
                        ?? _settings.LastPath
                        ?? (PathBox.Items.Count > 0 ? (string)PathBox.Items[0]! : "");
 
-        if (AdminHelper.IsAdmin)
-        {
-            Title = "DiskTree (Administrator)";
-            AdminButton.Visibility = Visibility.Collapsed;
-        }
+        _admin = new AdminStartup(this, AdminButton, () => PathBox.Text);
 
         InitTabs();
         InitSnapshots();
@@ -72,13 +66,11 @@ public partial class MainWindow : Window, IExportSource
             () => ShellContextMenu.InvokeVerb(this, path, "delete"));
 
         Theme.Changed += () => { _root?.RefreshTheme(); _ = UpdatePieAsync(); };
-        ShowThemeButton();
         InitTabChips();
         _ = new ExportController(this, ExportButton, this);
         _updater = new UpdateController(this, _settings, UpdateButton, AutoUpdateItem, CheckUpdateItem, OpenReleasesItem,
             () => PathBox.Text, () => Busy != null);
         _ = new AppMenuController(this, _settings, VersionMenu, ExplorerItem, PortableItem);
-        ShowExcludeButton();
         InitAge();
         InitAgeStamp();
         Loaded += OnLoaded;
@@ -87,48 +79,16 @@ public partial class MainWindow : Window, IExportSource
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        var cli = App.Options;
-
-        // Optional: without admin rights protected folders are skipped. Declining is fine, the scan still works.
-        if (!AdminHelper.IsAdmin)
-        {
-            if (cli.Admin)
-            {
-                // --admin: restart right away, no question. If UAC is declined the program just carries on.
-                if (AdminHelper.RestartElevated(cli.ForwardArgs()))
-                {
-                    Application.Current.Shutdown();
-                    return;
-                }
-            }
-            else if (!cli.NoAdminPrompt && !AdminHelper.PromptSuppressed)
-            {
-                if (AdminHelper.Ask(this, out var never))
-                {
-                    if (AdminHelper.RestartElevated(cli.ForwardArgs()))
-                    {
-                        Application.Current.Shutdown();
-                        return;
-                    }
-                }
-                else if (never)
-                {
-                    AdminHelper.SuppressPrompt();
-                }
-            }
-        }
+        if (_admin.ElevateIfWanted()) return; // replaced by an elevated instance
 
         // A path on the command line is scanned right away.
-        if (cli.Path != null) await BeginScan();
+        if (App.Options.Path != null) await BeginScan();
     }
 
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         foreach (var tab in _tabs) tab.Cts?.Cancel(); // scans of all tabs stop with the window
-        var bounds = WindowState == WindowState.Maximized ? RestoreBounds : new Rect(0, 0, ActualWidth, ActualHeight);
-        _settings.Maximized = WindowState == WindowState.Maximized;
-        _settings.Width = bounds.Width;
-        _settings.Height = bounds.Height;
+        _winSettings.CaptureBounds();
         _settings.Threads = ThreadsBox.SelectedItem is int t ? t : 16;
         _settings.LastPath = PathBox.Text.Trim().Trim('"');
         _settings.Save();
@@ -138,24 +98,6 @@ public partial class MainWindow : Window, IExportSource
     Scanner? IExportSource.Scanner => _scanner;
     Node? IExportSource.SelectedFolder => Tree.SelectedItem is NodeVM { Kind: Kind.Dir, Node: { } sel } ? sel : null;
     bool IExportSource.ScanRunning => _cts != null;
-
-    // ---- exclusions: saved ones plus those from the command line (--exclude) ----
-    private ExcludeRules CurrentExcludes() => new(_settings.Excludes.Concat(App.Options.Excludes));
-
-    private void ShowExcludeButton()
-    {
-        int n = _settings.Excludes.Count + App.Options.Excludes.Count;
-        ExcludeButton.Content = n > 0 ? $"Ausschlüsse ({n})…" : "Ausschlüsse…";
-    }
-
-    private void Exclude_Click(object sender, RoutedEventArgs e)
-    {
-        var dlg = new ExcludeDialog(_settings.Excludes) { Owner = this };
-        if (dlg.ShowDialog() != true) return;
-        _settings.Excludes = dlg.Result;
-        _settings.Save();
-        ShowExcludeButton();
-    }
 
     // ---------------------------------------------------------------- side panel tab chips
 
@@ -182,36 +124,6 @@ public partial class MainWindow : Window, IExportSource
         _chipSync = true;
         SideTabs.SelectedIndex = TabChips.SelectedIndex;
         _chipSync = false;
-    }
-
-    private void Theme_Click(object sender, RoutedEventArgs e)
-    {
-        // Windows -> Hell -> Dunkel -> Windows ...
-        _settings.Theme = _settings.Theme switch
-        {
-            ThemeSetting.System => ThemeSetting.Light,
-            ThemeSetting.Light => ThemeSetting.Dark,
-            _ => ThemeSetting.System,
-        };
-        Theme.Setting = _settings.Theme;
-        ShowThemeButton();
-    }
-
-    private void ShowThemeButton() =>
-        ThemeButton.Content = _settings.Theme switch
-        {
-            ThemeSetting.Light => "☀ Hell",
-            ThemeSetting.Dark => "🌙 Dunkel",
-            _ => "🌗 Windows",
-        };
-
-    private void Admin_Click(object sender, RoutedEventArgs e)
-    {
-        // Hand the current path over so the elevated instance starts scanning it right away.
-        var args = PathList.Parse(PathBox.Text).Where(Directory.Exists).ToArray();
-
-        if (AdminHelper.RestartElevated(args))
-            Application.Current.Shutdown();
     }
 
     private async void Scan_Click(object sender, RoutedEventArgs e)
@@ -309,7 +221,7 @@ public partial class MainWindow : Window, IExportSource
 
         await RunAsync(s, ct =>
         {
-            var scanner = s.Scanner = new Scanner { Excludes = CurrentExcludes(), AgeStamp = s.AgePreferred };
+            var scanner = s.Scanner = new Scanner { Excludes = _winSettings.CurrentExcludes(), AgeStamp = s.AgePreferred };
             OnNewScanner(scanner);
             // Event instead of polling: the scanner reports changes from its worker threads, the UI reacts.
             scanner.Changed += () => Dispatcher.InvokeAsync(() => OnScannerChanged(s, scanner), DispatcherPriority.Background);
@@ -366,7 +278,7 @@ public partial class MainWindow : Window, IExportSource
             // The previous scan's last change event may never have been acknowledged (the UI had already
             // finished); without this the scanner stays silent and the row would not update.
             scanner.Acknowledge();
-            scanner.Excludes = CurrentExcludes(); // the same rules as the scan (incl. changes made since)
+            scanner.Excludes = _winSettings.CurrentExcludes(); // the same rules as the scan (incl. changes made since)
             var scan = scanner.RescanAsync(node, (int)ThreadsBox.SelectedItem, ct);
             s.Root?.FindDescendant(node)?.ResetForRescan();
             s.ScanTarget = scanner.ScanTarget;
