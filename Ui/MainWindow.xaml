@@ -63,7 +63,7 @@
                         Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="OpenSnapshot_Click"
                         ToolTip="Gespeicherten Scan öffnen (oder .disktree-Datei auf das Fenster ziehen)" />
                 <Button x:Name="ExportButton" Content="Exportieren…" Height="30" Margin="6,0,0,0"
-                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="Export_Click"
+                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}"
                         ToolTip="Baum oder größte Dateien als CSV (Excel) exportieren" />
                 <Button x:Name="ExcludeButton" Content="Ausschlüsse…" Height="30" Margin="16,0,0,0"
                         Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="Exclude_Click"

@@ -12,7 +12,7 @@ using Microsoft.Win32;
 
 namespace DiskTree.Ui;
 
-public partial class MainWindow : Window
+public partial class MainWindow : Window, IExportSource
 {
     // After a change notification the UI waits this long before redrawing, so bursts collapse into one update.
     private static readonly TimeSpan RefreshDelay = TimeSpan.FromMilliseconds(120);
@@ -74,6 +74,7 @@ public partial class MainWindow : Window
         Theme.Changed += () => { _root?.RefreshTheme(); _ = UpdatePieAsync(); };
         ShowThemeButton();
         InitTabChips();
+        _ = new ExportController(this, ExportButton, this);
         _updater = new UpdateController(this, _settings, UpdateButton, AutoUpdateItem, CheckUpdateItem, OpenReleasesItem,
             () => PathBox.Text, () => Busy != null);
         _ = new AppMenuController(this, _settings, VersionMenu, ExplorerItem, PortableItem);
@@ -132,6 +133,11 @@ public partial class MainWindow : Window
         _settings.LastPath = PathBox.Text.Trim().Trim('"');
         _settings.Save();
     }
+
+    // ---- IExportSource: what the export controller reads from the window
+    Scanner? IExportSource.Scanner => _scanner;
+    Node? IExportSource.SelectedFolder => Tree.SelectedItem is NodeVM { Kind: Kind.Dir, Node: { } sel } ? sel : null;
+    bool IExportSource.ScanRunning => _cts != null;
 
     // ---- exclusions: saved ones plus those from the command line (--exclude) ----
     private ExcludeRules CurrentExcludes() => new(_settings.Excludes.Concat(App.Options.Excludes));
