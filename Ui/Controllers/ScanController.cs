@@ -62,6 +62,17 @@ public sealed class ScanController
 
     private ScanSession Cur => _tabs.Current;
 
+    /// <summary>
+    /// A file operation (or the updater) works on the tree: a scan would change the same nodes at the same time.
+    /// Tells the user and returns true.
+    /// </summary>
+    private bool BlockedByOperation()
+    {
+        if (!_tabs.TabsLocked) return false;
+        Dialogs.Info(_window, "Eine Dateiaktion (oder ein Update) läuft gerade. Ein Scan ist erst danach möglich.");
+        return true;
+    }
+
     /// <summary>A scan or rescan of the active tab runs.</summary>
     public bool IsRunning => Cur.IsRunningOrPending;
 
@@ -94,7 +105,7 @@ public sealed class ScanController
     /// <summary>Scans another folder (in a new tab if asked); a running scan of the tab is cancelled first.</summary>
     public async Task ScanPathAsync(string path, bool newTab = false)
     {
-        if (_tabs.TabsLocked || _snapshots.BlockedByLoad()) return;
+        if (BlockedByOperation() || _snapshots.BlockedByLoad()) return;
         if (_tabs.Busy is { } other && (newTab || other != Cur)) { _tabs.NoticeBusy(other); return; }
         if (newTab && !Cur.IsEmpty) _tabs.NewTab();
 
@@ -118,7 +129,7 @@ public sealed class ScanController
     private async Task StartScan(ScanSession s)
     {
         if (s.IsRunningOrPending) return;
-        if (_snapshots.BlockedByLoad()) return;
+        if (BlockedByOperation() || _snapshots.BlockedByLoad()) return;
         if (_tabs.Busy is { } other) { _tabs.NoticeBusy(other); return; }
 
         var paths = PathList.Parse(_pathBox.Text);
@@ -175,7 +186,7 @@ public sealed class ScanController
     private async Task StartRescan(ScanSession s, Node node)
     {
         var scanner = s.Scanner!;
-        if (_snapshots.BlockedByLoad() || !_snapshots.CanRescan(node)) return;
+        if (BlockedByOperation() || _snapshots.BlockedByLoad() || !_snapshots.CanRescan(node)) return;
         if (_tabs.Busy is { } other && other != s) { _tabs.NoticeBusy(other); return; }
 
         // A running scan has to stop first. (s.ScanTask still is the old scan here: this method runs

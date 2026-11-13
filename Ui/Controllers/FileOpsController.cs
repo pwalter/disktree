@@ -334,8 +334,8 @@ public sealed class FileOpsController
         Report("In den Papierkorb gelegt", items, res, null);
     }
 
-    // PHASE-D: while the action runs a scan can still be started (the scan button and F5 do not look at _opBusy; only
-    // ScanPathAsync and the tab changes do)
+    // While the action runs no scan can be started (ScanController asks ScanTabsController.TabsLocked, which includes
+    // _opBusy), and Prepare refuses actions while a scan runs: the two never touch the node numbers at the same time.
     private async Task<OpResult> RunBusy(string status, Func<OpResult> work)
     {
         _opBusy = true;
