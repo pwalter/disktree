@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using DiskTree.Core;
+using DiskTree.Features.Scan;
 using DiskTree.Ui.Controllers;
 
 namespace DiskTree.Ui;
@@ -22,8 +23,8 @@ public partial class MainWindow : ISnapshotHost
     // ---- ISnapshotHost
     ScanSession ISnapshotHost.Current => _cur;
     bool ISnapshotHost.TabsLocked => TabsLocked;
-    ScanSession ISnapshotHost.NewTab() => NewTab();
-    void ISnapshotHost.SetStatus(ScanSession session, string text) => SetStatus(session, text);
+    ScanSession ISnapshotHost.NewTab() => _tabs.NewTab();
+    void ISnapshotHost.SetStatus(ScanSession session, string text) => _status.SetStatus(session, text);
 
     void ISnapshotHost.ShowSnapshot(ScanSession session, Scanner scanner, AgeStamp stamp)
     {
@@ -36,14 +37,12 @@ public partial class MainWindow : ISnapshotHost
         Tree.ItemsSource = new[] { _root };
         ExpandToScanTarget();
         PathBox.Text = scanner.ScanTarget?.FullPath ?? "";
-        CurrentText.Text = "";
+        _status.ClearCurrentLine();
     }
 
     void ISnapshotHost.ShowSnapshotStatus(ScanSession session, string text)
     {
-        session.StatusTip = null;
-        StatusText.ToolTip = null;
-        SetStatus(session, text);
+        _status.SetSnapshotStatus(session, text);
     }
 
     void ISnapshotHost.RefreshViews()
@@ -59,7 +58,7 @@ public partial class MainWindow : ISnapshotHost
         var node = _scanner?.FindNode(path);
         if (_root == null || node == null)
         {
-            StatusText.Text = $"Der Ordner ist im aktuellen Baum nicht vorhanden: {path}";
+            _status.ShowText($"Der Ordner ist im aktuellen Baum nicht vorhanden: {path}");
             return;
         }
 

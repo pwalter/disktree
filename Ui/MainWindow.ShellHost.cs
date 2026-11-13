@@ -8,13 +8,7 @@ public partial class MainWindow : IShellMenuHost
 {
     Scanner? IShellMenuHost.Scanner => _scanner;
 
-    bool IShellMenuHost.BlockedByOtherScan()
-    {
-        // only one scan at a time, nothing else meanwhile
-        if (Busy is not { } other || other == _cur) return false;
-        NoticeBusy(other);
-        return true;
-    }
+    bool IShellMenuHost.BlockedByOtherScan() => _tabs.BlockedByOtherScan();
 
     void IShellMenuHost.RefreshAfterDelete()
     {
@@ -22,9 +16,6 @@ public partial class MainWindow : IShellMenuHost
         _ = RefreshChartsAsync();
         TopPane.Refresh(_scanner);
     }
-
-    private void Notice(string text) =>
-        Dialogs.Info(this, text);
 
     void IShellMenuHost.Rescan(Node? node) => _ = RescanAsync(node);
 

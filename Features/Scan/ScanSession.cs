@@ -1,12 +1,13 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using DiskTree.Core;
+using DiskTree.Ui;
 
-namespace DiskTree.Ui;
+namespace DiskTree.Features.Scan;
 
 /// <summary>
 /// Everything that belongs to one scan tab: the scanner and its tree, the scan target, the progress line, the
-/// text of the path box, which timestamp the numbers were built from. <see cref="MainWindow"/> shows one session
+/// text of the path box, which timestamp the numbers were built from. the main window shows one session
 /// at a time (the active tab); the others keep their state here, and a scan that runs in the background only
 /// ever writes into its own session.
 /// </summary>

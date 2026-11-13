@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using DiskTree.Core;
 using DiskTree.Core.Snapshots;
+using DiskTree.Features.Scan;
 using DiskTree.Infrastructure;
 using DiskTree.Ui.Controllers;
 using Microsoft.Win32;
@@ -22,7 +23,18 @@ public partial class MainWindow : Window, IExportSource
     private AdminStartup _admin = null!;
     private UpdateController _updater = null!;
     private ShellMenuCoordinator _shell = null!;
-    // Scan state (_scanner, _root, _cts ...) belongs to the active scan tab: see MainWindow.Tabs.cs.
+    private ScanTabsController _tabs = null!;
+    private ScanStatusView _status = null!;
+
+    // transitional: what the other partial files still use, all pointing at the active scan tab
+    private ScanSession _cur => _tabs.Current;
+    private Scanner? _scanner { get => _cur.Scanner; set => _cur.Scanner = value; }
+    private NodeVM? _root { get => _cur.Root; set => _cur.Root = value; }
+    private Node? _scanTarget { get => _cur.ScanTarget; set => _cur.ScanTarget = value; }
+    private CancellationTokenSource? _cts { get => _cur.Cts; set => _cur.Cts = value; }
+    private ScanSession? Busy => _tabs.Busy;
+    private bool TabsLocked => _tabs.TabsLocked;
+    private void Notice(string text) => Dialogs.Info(this, text);
 
     // The order is the dependency order: every step only uses what the steps above it created.
     //   toolbar (path, threads) -> scan tabs -> snapshots -> shell menus (need snapshots) -> panels that use the
@@ -32,7 +44,10 @@ public partial class MainWindow : Window, IExportSource
         InitializeComponent();
 
         InitToolbar();
-        InitTabs();
+        _tabs = new ScanTabsController(this, ScanTabBar, () => _opBusy || _updater.IsUpdating, () => PathBox.Focus());
+        _tabs.Leaving += OnLeavingSession;
+        _tabs.Shown += ShowSession;
+        _status = new ScanStatusView(_tabs, ScanButton, StatusText, CurrentText, ScanProgress, TaskbarInfo);
         InitSnapshots();
         _shell = new ShellMenuCoordinator(this, this, _snapshots);
         InitSearch();
@@ -102,11 +117,65 @@ public partial class MainWindow : Window, IExportSource
 
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        foreach (var tab in _tabs) tab.Cts?.Cancel(); // scans of all tabs stop with the window
+        foreach (var tab in _tabs.Tabs) tab.Cts?.Cancel(); // scans of all tabs stop with the window
         _winSettings.CaptureBounds();
         _settings.Threads = ThreadsBox.SelectedItem is int t ? t : 16;
         _settings.LastPath = PathBox.Text.Trim().Trim('"');
         _settings.Save();
+    }
+
+    // ---------------------------------------------------------------- the active tab changes
+
+    /// <summary>The window is about to leave a tab: what it shows is part of the tab it belongs to.</summary>
+    private void OnLeavingSession(ScanSession old)
+    {
+        old.PathText = PathBox.Text;
+        if (Tree.SelectedItem is NodeVM sel) old.SelectedVm = sel;
+    }
+
+    /// <summary>Puts a session's state into the window: path box, tree, status line, and the side panel for its scan.</summary>
+    private void ShowSession(ScanSession s)
+    {
+        // Results of the other tab (search hits, duplicate groups) would point into its tree.
+        SearchPane.Reset();
+
+        PathBox.Text = s.PathText;
+        AgePane.ShowStamp(s.AgePreferred);
+
+        Tree.ItemsSource = null;
+        TopPane.Clear();
+        if (s.Root != null)
+        {
+            s.Root.Refresh();      // background scans / theme changes did not reach this tree
+            s.Root.RefreshTheme();
+            Tree.ItemsSource = new[] { s.Root };
+        }
+        Treemap.Reset(s.ScanTarget ?? s.Scanner?.Root);
+
+        _status.ShowScanButton(s.Cts != null);
+        _status.Apply(s);
+        _snapshots.UpdateTitle();
+        UpdateAgeNotices();
+        ShowAgeHeader();
+
+        // File types, age, treemap, owner for the folder that will be selected (the scan target until then).
+        _ = RefreshChartsAsync();
+        TopPane.Refresh(_scanner);
+        OwnerTab.SetFolder(CurrentChartTarget().Node?.FullPath);
+        Dup.Reset();
+
+        // Bring back the selection; the rows do not exist before the tree was laid out.
+        if (s.SelectedVm?.Node is { } n)
+            Dispatcher.InvokeAsync(() => { if (_cur == s) RevealNode(n); }, DispatcherPriority.Loaded);
+
+        _tabs.EnsureVisible(s);
+    }
+
+    /// <summary>Tab title and tooltip from what was scanned.</summary>
+    private static void SetTabTitle(ScanSession s, IReadOnlyList<string> paths)
+    {
+        string tip = PathList.Join(paths);
+        s.SetTitle(paths.Count > 1 ? $"{paths.Count} Pfade" : paths[0], tip);
     }
 
     // ---- IExportSource: what the export controller reads from the window
@@ -167,7 +236,7 @@ public partial class MainWindow : Window, IExportSource
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (TabKey(e)) { e.Handled = true; return; }
+        if (_tabs.HandleKey(e)) { e.Handled = true; return; }
         if (e.Key == Key.F5 && _cts == null)
         {
             e.Handled = true;
@@ -199,8 +268,8 @@ public partial class MainWindow : Window, IExportSource
     private async Task ScanPathAsync(string path, bool newTab = false)
     {
         if (TabsLocked) return;
-        if (Busy is { } other && (newTab || other != _cur)) { NoticeBusy(other); return; }
-        if (newTab && !_cur.IsEmpty) NewTab();
+        if (Busy is { } other && (newTab || other != _cur)) { _tabs.NoticeBusy(other); return; }
+        if (newTab && !_cur.IsEmpty) _tabs.NewTab();
 
         var s = _cur;
         if (s.Cts != null)
@@ -208,7 +277,7 @@ public partial class MainWindow : Window, IExportSource
             s.Cts.Cancel();
             await s.ScanTask;
         }
-        if (_cur != s) ActivateTab(s); // the user switched tabs while the old scan stopped
+        if (_cur != s) _tabs.Activate(s); // the user switched tabs while the old scan stopped
         PathBox.Text = path;
         await BeginScan();
     }
@@ -216,7 +285,7 @@ public partial class MainWindow : Window, IExportSource
     private async Task StartScan(ScanSession s)
     {
         if (s.Cts != null) return;
-        if (Busy is { } other) { NoticeBusy(other); return; }
+        if (Busy is { } other) { _tabs.NoticeBusy(other); return; }
 
         var paths = PathList.Parse(PathBox.Text);
         if (paths.Count == 0) paths.Add(""); // reports "Pfad nicht gefunden" like before
@@ -274,7 +343,7 @@ public partial class MainWindow : Window, IExportSource
     {
         var scanner = s.Scanner!;
         if (!_snapshots.CanRescan(node)) return;
-        if (Busy is { } other && other != s) { NoticeBusy(other); return; }
+        if (Busy is { } other && other != s) { _tabs.NoticeBusy(other); return; }
 
         // A running scan has to stop first. (s.ScanTask still is the old scan here: this method runs
         // synchronously up to the first await, before RescanAsync assigns its own task.)
@@ -306,7 +375,7 @@ public partial class MainWindow : Window, IExportSource
     private async Task RunAsync(ScanSession s, Func<CancellationToken, Task> begin)
     {
         var cts = s.Cts = new CancellationTokenSource();
-        if (s == _cur) ScanButton.Content = "Abbrechen";
+        if (s == _cur) _status.ShowScanButton(true);
         s.Sw.Restart();
 
         try
@@ -326,13 +395,8 @@ public partial class MainWindow : Window, IExportSource
             s.Cts = null;
             s.CurrentLine = "";
             s.ProgressVisible = false;
-            if (s == _cur)
-            {
-                ScanButton.Content = "Scannen";
-                CurrentText.Text = "";
-                ScanProgress.Visibility = Visibility.Collapsed;
-            }
-            UpdateTaskbar();
+            if (s == _cur) _status.ShowIdle();
+            _status.UpdateTaskbar();
         }
     }
 
@@ -342,7 +406,7 @@ public partial class MainWindow : Window, IExportSource
         bool active = s == _cur;
         if (active) s.Root?.Refresh(); // an inactive tab catches up when it is shown
         UpdateStatus(s, running: false, done: !canceled);
-        if (canceled) SetStatus(s, "Abgebrochen – " + s.Status);
+        if (canceled) _status.SetStatus(s, "Abgebrochen – " + s.Status);
         if (!active) return;
         _ = RefreshChartsAsync();
         TopPane.Refresh(_scanner);
@@ -415,8 +479,8 @@ public partial class MainWindow : Window, IExportSource
         session.ProgressKnown = known;
         session.ProgressFraction = fraction;
 
-        if (session == _cur) ApplyStatus(session);
-        else UpdateTaskbar();
+        if (session == _cur) _status.Apply(session);
+        else _status.UpdateTaskbar();
     }
 
     // ---------------------------------------------------------------- file-type chart

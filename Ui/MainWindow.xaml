@@ -9,6 +9,7 @@
         xmlns:top="clr-namespace:DiskTree.Features.TopFiles"
         xmlns:types="clr-namespace:DiskTree.Features.TypeChart"
         xmlns:age="clr-namespace:DiskTree.Features.Age"
+        xmlns:scan="clr-namespace:DiskTree.Features.Scan"
         Title="DiskTree" Width="1340" Height="780" MinWidth="1100" MinHeight="420"
         Icon="/app.ico" AllowDrop="True" Drop="Window_Drop" PreviewKeyDown="Window_PreviewKeyDown"
         Background="{DynamicResource WindowBg}" Foreground="{DynamicResource Ink}" FontFamily="Segoe UI" FontSize="13">
@@ -77,8 +78,8 @@
             </StackPanel>
         </Grid>
 
-        <!-- Scan tabs (MainWindow.Tabs.cs): several scans open at once -->
-        <local:ScanTabs x:Name="ScanTabBar" Grid.Row="1" Margin="0,0,10,2" />
+        <!-- Scan tabs (ScanTabsController): several scans open at once -->
+        <scan:ScanTabs x:Name="ScanTabBar" Grid.Row="1" Margin="0,0,10,2" />
 
         <!-- Column header -->
         <Grid Grid.Row="2" Margin="21,0,28,4">

@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using DiskTree.Core;
 using DiskTree.Core.Snapshots;
+using DiskTree.Features.Scan;
 using DiskTree.Infrastructure;
 using Microsoft.Win32;
 
