@@ -18,16 +18,44 @@ public partial class MainWindow : Window, IExportSource
     private static readonly TimeSpan RefreshDelay = TimeSpan.FromMilliseconds(120);
 
     private readonly AppSettings _settings = AppSettings.Load();
-    private readonly WindowSettings _winSettings;
-    private readonly AdminStartup _admin;
+    private WindowSettings _winSettings = null!;
+    private AdminStartup _admin = null!;
     private UpdateController _updater = null!;
     private ShellMenuCoordinator _shell = null!;
     // Scan state (_scanner, _root, _cts ...) belongs to the active scan tab: see MainWindow.Tabs.cs.
 
+    // The order is the dependency order: every step only uses what the steps above it created.
+    //   toolbar (path, threads) -> scan tabs -> snapshots -> shell menus (need snapshots) -> panels that use the
+    //   shell menus -> side panel (chips, charts; the age panel needs the settings and the active tab) -> app buttons.
     public MainWindow()
     {
         InitializeComponent();
 
+        InitToolbar();
+        InitTabs();
+        InitSnapshots();
+        _shell = new ShellMenuCoordinator(this, this, _snapshots);
+        InitSearch();
+        InitOps();
+        InitDuplicates();
+        InitListInteraction();
+
+        Theme.Changed += () => { _root?.RefreshTheme(); _ = RefreshChartsAsync(); };
+        InitTabChips();
+        InitAge();
+
+        _ = new ExportController(this, ExportButton, this);
+        _updater = new UpdateController(this, _settings, UpdateButton, AutoUpdateItem, CheckUpdateItem, OpenReleasesItem,
+            () => PathBox.Text, () => Busy != null);
+        _ = new AppMenuController(this, _settings, VersionMenu, ExplorerItem, PortableItem);
+
+        Loaded += OnLoaded;
+        Closing += OnClosing;
+    }
+
+    /// <summary>Window settings and admin button, then the path box (drives, last path) and the thread count.</summary>
+    private void InitToolbar()
+    {
         _winSettings = new WindowSettings(this, _settings, ThemeButton, ExcludeButton);
         _winSettings.ApplyBounds();
 
@@ -53,28 +81,15 @@ public partial class MainWindow : Window, IExportSource
                        ?? (PathBox.Items.Count > 0 ? (string)PathBox.Items[0]! : "");
 
         _admin = new AdminStartup(this, AdminButton, () => PathBox.Text);
+    }
 
-        InitTabs();
-        InitSnapshots();
-        _shell = new ShellMenuCoordinator(this, this, _snapshots);
-        InitSearch();
-        InitOps();
-        // Duplicate finder tab (DuplicatesPanel.xaml.cs): searches the selected folder, uses the shell menu from here.
+    // Duplicate finder tab (DuplicatesPanel.xaml.cs): searches the selected folder, uses the shell menu from here.
+    private void InitDuplicates()
+    {
         Dup.Settings = _settings;
         Dup.RootProvider = DuplicateRoot;
         Dup.ShellMenuRequested += _shell.ShowFileShellMenu;
         Dup.ShellDeleteRequested += _shell.DeleteFile;
-
-        Theme.Changed += () => { _root?.RefreshTheme(); _ = RefreshChartsAsync(); };
-        InitTabChips();
-        InitListInteraction();
-        _ = new ExportController(this, ExportButton, this);
-        _updater = new UpdateController(this, _settings, UpdateButton, AutoUpdateItem, CheckUpdateItem, OpenReleasesItem,
-            () => PathBox.Text, () => Busy != null);
-        _ = new AppMenuController(this, _settings, VersionMenu, ExplorerItem, PortableItem);
-        InitAge();
-        Loaded += OnLoaded;
-        Closing += OnClosing;
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
