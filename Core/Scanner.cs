@@ -315,8 +315,10 @@ public sealed partial class Scanner
             {
                 throw;
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
             {
+                // Expected access / path problems count as "nicht lesbar"; anything else (OutOfMemory, bugs) is not
+                // swallowed: it ends the scan with that exception, where it is logged and reported.
                 Interlocked.Increment(ref _errors);
             }
             finally
