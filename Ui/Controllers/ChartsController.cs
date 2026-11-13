@@ -50,7 +50,7 @@ public sealed class ChartsController : IScanViews
         sideTabs.SelectionChanged += (_, e) =>
         {
             if (!ReferenceEquals(e.OriginalSource, sideTabs) || !_ageTab.IsSelected) return;
-            _ = UpdateAgeAsync(_tree.CurrentChartTarget());
+            UpdateAgeAsync(_tree.CurrentChartTarget()).Forget("UpdateAgeAsync");
         };
 
         _age.InitThreshold(_settings.AgeThresholdMonths);
@@ -60,7 +60,7 @@ public sealed class ChartsController : IScanViews
             _settings.AgeThresholdMonths = AgeThreshold.Months;
             ShowAgeHeader();
             _tree.RefreshRows();
-            _ = UpdateAgeAsync(_tree.CurrentChartTarget());
+            UpdateAgeAsync(_tree.CurrentChartTarget()).Forget("UpdateAgeAsync");
         };
 
         _tabs.Current.AgePreferred = _settings.AgeStamp;
@@ -80,21 +80,20 @@ public sealed class ChartsController : IScanViews
     /// <summary>Brings treemap, age chart and file type chart up to date for the selected folder.</summary>
     public async Task RefreshAsync()
     {
-        _ = _treemap.RefreshAsync();
+        _treemap.RefreshAsync().Forget("RefreshAsync");
         var target = _tree.CurrentChartTarget();
-        _ = UpdateAgeAsync(target);
+        UpdateAgeAsync(target).Forget("UpdateAgeAsync");
         await _types.UpdateAsync(target);
     }
 
     /// <summary>The selection in the tree changed: charts and owner view describe the new folder.</summary>
     public void OnSelectionChanged()
     {
-        _ = RefreshAsync();
+        RefreshAsync().Forget("RefreshAsync");
         ShowOwnerFolder();
     }
 
     /// <summary>The owner view for the folder the charts describe.</summary>
-    // PHASE-D: OwnerPanel.SetFolder fails when the folder was deleted behind the program's back
     public void ShowOwnerFolder() => _owner.SetFolder(_tree.CurrentChartTarget().Node?.FullPath);
 
     // ---- IScanViews: what a running scan (or a change of the tree) asks of the views
@@ -106,7 +105,7 @@ public sealed class ChartsController : IScanViews
     /// <summary>Charts and the largest files for the scan of the active tab.</summary>
     public void RefreshViews()
     {
-        _ = RefreshAsync();
+        RefreshAsync().Forget("RefreshAsync");
         _top.Refresh(_tabs.Current.Scanner);
     }
 
@@ -114,7 +113,7 @@ public sealed class ChartsController : IScanViews
     {
         long now = Environment.TickCount64;
         if (!_types.IsBusy && now - _types.LastUpdateTick > 1000)
-            _ = RefreshAsync();
+            RefreshAsync().Forget("RefreshAsync");
         if (now - _top.LastRefreshTick > 1000)
             _top.Refresh(_tabs.Current.Scanner);
     }

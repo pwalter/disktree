@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using DiskTree.Core;
 using DiskTree.Ui;
+using DiskTree.Infrastructure;
 
 namespace DiskTree.Features.Treemap;
 
@@ -41,10 +42,13 @@ public sealed class TreemapView : FrameworkElement
     {
         ToolTipService.SetInitialShowDelay(this, 0);
         ClipToBounds = true;
-        Theme.Changed += InvalidateVisual;
+        // Static event: subscribe while loaded only (a tab template loads and unloads the control again and again;
+        // -= first so that a repeated Loaded never subscribes twice).
+        Loaded += (_, _) => { Theme.Changed -= InvalidateVisual; Theme.Changed += InvalidateVisual; InvalidateVisual(); };
+        Unloaded += (_, _) => Theme.Changed -= InvalidateVisual;
         IsVisibleChanged += (_, _) =>
         {
-            if (IsVisible && !_wasVisible) _ = RefreshAsync();
+            if (IsVisible && !_wasVisible) RefreshAsync().Forget("RefreshAsync");
             _wasVisible = IsVisible;
         };
     }
@@ -58,7 +62,7 @@ public sealed class TreemapView : FrameworkElement
         _dirty = true;
         FocusChanged?.Invoke();
         InvalidateVisual();
-        _ = RefreshAsync();
+        RefreshAsync().Forget("RefreshAsync");
     }
 
     public void SetFocus(Node? node)
@@ -66,7 +70,7 @@ public sealed class TreemapView : FrameworkElement
         if (node == FocusNode) return;
         FocusNode = node;
         FocusChanged?.Invoke();
-        _ = RefreshAsync();
+        RefreshAsync().Forget("RefreshAsync");
     }
 
     /// <summary>The selection in the tree moved. Inside the shown folder it is only highlighted, elsewhere the view follows.</summary>

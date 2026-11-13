@@ -92,7 +92,7 @@ public static class ReportHtml
         sb.Append("</section>\n");
 
         // --- ages
-        sb.Append("<section><h2>Alter der Dateien (letzte Änderung)</h2>");
+        sb.Append("<section><h2>").Append(d.AgeHeading).Append("</h2>");
         long ageSum = d.Ages.Sum(a => a.Size);
         if (ageSum <= 0) sb.Append("<p class=\"muted\">Keine Altersdaten vorhanden.</p>");
         else

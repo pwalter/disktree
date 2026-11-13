@@ -290,6 +290,16 @@ public class SnapshotStoreTests : TestBase
         Assert.Throws<FileNotFoundException>(() => SnapshotStore.Load(Path.Combine(T.Path, "nope.disktree")));
 
     [Fact]
+    public async Task FindByPath_SiblingWithSamePrefix_IsNotInside()
+    {
+        T.File(@"scan\Aa\f.txt", 1);
+        var s = await Scan.Run(T.Sub("scan", "Aa"));
+        Assert.Null(SnapshotStore.FindByPath(s.Root!, T.Sub("scan", "Aab")));
+        Assert.Null(SnapshotStore.FindByPath(s.Root!, T.Sub("scan", "Aab", "x")));
+        Assert.NotNull(SnapshotStore.FindByPath(s.Root!, T.Sub("scan", "aa")));
+    }
+
+    [Fact]
     public async Task FindByPath_FindsCaseInsensitive_NullOtherwise()
     {
         T.File(@"scan\Aa\Bb\f.txt", 1);

@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Windows.Media;
 using DiskTree.Core;
+using DiskTree.Infrastructure;
 
 namespace DiskTree.Ui;
 
@@ -52,6 +53,11 @@ public sealed class NodeVM : INotifyPropertyChanged
         Kind = Kind.Dummy;
     }
 
+    private string? _message;
+
+    /// <summary>A placeholder row that shows a message instead of "Lade…" (e.g. the files of a folder could not be read).</summary>
+    public static NodeVM Message(string text) => new() { _message = text };
+
     public NodeVM(Node node, Kind kind, NodeVM? parent, int level)
     {
         _node = node;
@@ -69,7 +75,7 @@ public sealed class NodeVM : INotifyPropertyChanged
 
     public string Name => Kind switch
     {
-        Kind.Dummy => "Lade…",
+        Kind.Dummy => _message ?? "Lade…",
         Kind.Files => $"Dateien ({_node!.FileCount:N0})",
         Kind.Dir when _node!.DriveTotal > 0 =>
             $"{_node.Name}   {SizeFormat.Format(_node.DriveTotal)} gesamt · {SizeFormat.Format(_node.DriveFree)} frei",
@@ -168,7 +174,7 @@ public sealed class NodeVM : INotifyPropertyChanged
             if (value && !_loaded)
             {
                 _loaded = true;
-                if (Kind == Kind.Files) _ = LoadFilesAsync();
+                if (Kind == Kind.Files) LoadFilesAsync().Forget("LoadFilesAsync");
                 else SyncChildren();
             }
             Notify(nameof(IsExpanded));
@@ -198,7 +204,7 @@ public sealed class NodeVM : INotifyPropertyChanged
         {
             // Files were deleted (or the scan of the folder finished): re-read the list once.
             if (_loaded && _expanded && !_loadingFiles && Parent!._node!.Scanned && _node!.FileCount != _filesLoadedCount)
-                _ = LoadFilesAsync();
+                LoadFilesAsync().Forget("LoadFilesAsync");
             return;
         }
 
@@ -339,7 +345,19 @@ public sealed class NodeVM : INotifyPropertyChanged
         try
         {
             var folder = _node.FullPath;
-            var files = await Task.Run(() => ListFiles(folder));
+            List<Node> files;
+            try
+            {
+                files = await Task.Run(() => ListFiles(folder));
+            }
+            catch (Exception)
+            {
+                // The folder is gone or unreadable (or the scan comes from another machine): without this the
+                // "Lade…" row would stay for good.
+                Children.Clear();
+                Children.Add(Message("Dateien nicht lesbar"));
+                return;
+            }
 
             Children.Clear();
             foreach (var f in files)

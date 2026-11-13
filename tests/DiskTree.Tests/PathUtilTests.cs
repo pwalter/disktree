@@ -97,9 +97,8 @@ public class FindNodeTests : TestBase
         Assert.Null(s.FindNode(@"\\srv\share\other"));
     }
 
-    // Known flaw (planned for a later phase): the prefix check in Scanner.FindNode has no separator boundary, so the
-    // sibling "\\srv\share\ab" is taken for a path inside "\\srv\share\a" and "...\ab" + "b" even finds the child "b".
-    [Fact(Skip = "Bekannter Fehler (wird separat behoben): FindNode prueft den Praefix ohne Trennzeichen-Grenze.")]
+    // The prefix check of Scanner.FindNode stops at a separator: the sibling "\\srv\share\ab" is not inside "\\srv\share\a".
+    [Fact]
     public void FindNode_SiblingWithSamePrefix_IsNotInside()
     {
         var s = NetworkScanner();

@@ -36,6 +36,15 @@ public sealed class ScanSession : INotifyPropertyChanged
 
     public bool IsBusy => _cts != null;
 
+    /// <summary>
+    /// A scan or rescan of this tab is about to start but waits for the running one to stop: between that scan's end and
+    /// the start of the new one <see cref="Cts"/> is null, yet nothing else may start in the tab.
+    /// </summary>
+    public bool Pending { get; set; }
+
+    /// <summary>A scan runs, or one waits to start (see <see cref="Pending"/>).</summary>
+    public bool IsRunningOrPending => _cts != null || Pending;
+
     // What the status line / progress bar showed last (restored when the tab becomes active again).
     public string PathText { get; set; } = "";
     public string Status { get; set; } = DefaultStatus;

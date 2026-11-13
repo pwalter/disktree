@@ -190,7 +190,6 @@ public sealed class TreeController
     /// <summary>Jump from the comparison: shows the folder with that path in the tree. False if the tree does not have it.</summary>
     public bool TryJumpToPath(string path)
     {
-        // PHASE-D: FindNode matches a path prefix without checking the separator ("C:\a" also finds "C:\ab")
         var node = _tabs.Current.Scanner?.FindNode(path);
         if (Root == null || node == null) return false;
         RevealLater(node, focus: true);

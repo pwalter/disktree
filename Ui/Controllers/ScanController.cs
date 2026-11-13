@@ -62,8 +62,19 @@ public sealed class ScanController
 
     private ScanSession Cur => _tabs.Current;
 
+    /// <summary>
+    /// A file operation (or the updater) works on the tree: a scan would change the same nodes at the same time.
+    /// Tells the user and returns true.
+    /// </summary>
+    private bool BlockedByOperation()
+    {
+        if (!_tabs.TabsLocked) return false;
+        Dialogs.Info(_window, "Eine Dateiaktion (oder ein Update) läuft gerade. Ein Scan ist erst danach möglich.");
+        return true;
+    }
+
     /// <summary>A scan or rescan of the active tab runs.</summary>
-    public bool IsRunning => Cur.Cts != null;
+    public bool IsRunning => Cur.IsRunningOrPending;
 
     /// <summary>Stops the scan of the active tab (it finishes as "Abgebrochen").</summary>
     public void Cancel() => Cur.Cts?.Cancel();
@@ -79,9 +90,9 @@ public sealed class ScanController
     public void RescanOrScan(Node? selectedFolder)
     {
         if (selectedFolder != null)
-            _ = RescanAsync(selectedFolder);
+            RescanAsync(selectedFolder).Forget("RescanAsync");
         else
-            _ = BeginScan();
+            BeginScan().Forget("BeginScan");
     }
 
     /// <summary>Scans what the path box says, in the active tab.</summary>
@@ -94,15 +105,21 @@ public sealed class ScanController
     /// <summary>Scans another folder (in a new tab if asked); a running scan of the tab is cancelled first.</summary>
     public async Task ScanPathAsync(string path, bool newTab = false)
     {
-        if (_tabs.TabsLocked) return;
+        if (BlockedByOperation() || _snapshots.BlockedByLoad()) return;
         if (_tabs.Busy is { } other && (newTab || other != Cur)) { _tabs.NoticeBusy(other); return; }
         if (newTab && !Cur.IsEmpty) _tabs.NewTab();
 
         var s = Cur;
+        if (s.Pending) return;
         if (s.Cts != null)
         {
-            s.Cts.Cancel();
-            await s.ScanTask;
+            s.Pending = true; // nothing may start in this tab while the old scan stops
+            try
+            {
+                s.Cts.Cancel();
+                await s.ScanTask;
+            }
+            finally { s.Pending = false; }
         }
         if (Cur != s) _tabs.Activate(s); // the user switched tabs while the old scan stopped
         _pathBox.Text = path;
@@ -111,7 +128,8 @@ public sealed class ScanController
 
     private async Task StartScan(ScanSession s)
     {
-        if (s.Cts != null) return;
+        if (s.IsRunningOrPending) return;
+        if (BlockedByOperation() || _snapshots.BlockedByLoad()) return;
         if (_tabs.Busy is { } other) { _tabs.NoticeBusy(other); return; }
 
         var paths = PathList.Parse(_pathBox.Text);
@@ -156,7 +174,6 @@ public sealed class ScanController
     {
         var scanner = Cur.Scanner;
         if (node == null || scanner == null) return Task.CompletedTask;
-        // PHASE-D: a snapshot's scanner never has IsMulti set, so the artificial root of a multi-path snapshot is not recognised here
         if (scanner.IsMulti && node == scanner.Root) return BeginScan(); // the artificial root: scan all paths again
         var s = Cur;
         return s.ScanTask = StartRescan(s, node);
@@ -169,16 +186,21 @@ public sealed class ScanController
     private async Task StartRescan(ScanSession s, Node node)
     {
         var scanner = s.Scanner!;
-        if (!_snapshots.CanRescan(node)) return;
+        if (BlockedByOperation() || _snapshots.BlockedByLoad() || !_snapshots.CanRescan(node)) return;
         if (_tabs.Busy is { } other && other != s) { _tabs.NoticeBusy(other); return; }
 
         // A running scan has to stop first. (s.ScanTask still is the old scan here: this method runs
         // synchronously up to the first await, before RescanAsync assigns its own task.)
-        // PHASE-D: between this wait and RunAsync another scan can still start in the same tab (no Cts is set meanwhile)
+        if (s.Pending) return; // another scan/rescan already waits for the old one to stop
         if (s.Cts != null)
         {
-            s.Cts.Cancel();
-            await s.ScanTask;
+            s.Pending = true; // F5, the scan button and drops see the tab as busy while the old scan stops
+            try
+            {
+                s.Cts.Cancel();
+                await s.ScanTask;
+            }
+            finally { s.Pending = false; }
         }
 
         await RunAsync(s, ct =>

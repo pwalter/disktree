@@ -18,7 +18,10 @@ public sealed class PieChart : FrameworkElement
     public PieChart()
     {
         ToolTipService.SetInitialShowDelay(this, 0);
-        Theme.Changed += InvalidateVisual;
+        // Static event: subscribe while loaded only (a tab template loads and unloads the control again and again;
+        // -= first so that a repeated Loaded never subscribes twice).
+        Loaded += (_, _) => { Theme.Changed -= InvalidateVisual; Theme.Changed += InvalidateVisual; InvalidateVisual(); };
+        Unloaded += (_, _) => Theme.Changed -= InvalidateVisual;
     }
 
     public void SetData(IReadOnlyList<PieSlice> slices, string centerTop, string centerBottom)

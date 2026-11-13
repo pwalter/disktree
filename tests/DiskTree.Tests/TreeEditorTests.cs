@@ -40,6 +40,28 @@ public class TreeEditorTests : TestBase
     }
 
     [Fact]
+    public async Task RemoveFolder_WithExcludedSubfolders_MatchesFreshScan()
+    {
+        var rules = new ExcludeRules(new[] { "skipme" });
+        T.File(@"keep\k.txt", 10);
+        T.File(@"keep\skipme\x.bin", 5);          // stays excluded (counted once)
+        T.File(@"gone\g.txt", 20);
+        T.File(@"gone\skipme\y.bin", 6);          // goes away with its parent
+        T.File(@"gone\sub\skipme\z.bin", 7);
+        T.File(@"gone\sub\h.txt", 30);
+        var s = await ScanT(rules);
+        Assert.Equal(3, s.Root!.Excluded);
+
+        var gone = Scan.Node(s, T.Sub("gone"));
+        Assert.Equal(2, gone.Excluded);
+        Directory.Delete(T.Sub("gone"), true);
+        TreeEditor.RemoveFolder(gone);
+
+        Assert.Equal(1, s.Root.Excluded);
+        TreeAssert.Equal((await ScanT(rules)).Root!, s.Root!);
+    }
+
+    [Fact]
     public async Task RemoveFolder_OnTheRoot_DoesNothing()
     {
         T.File(@"a\x.txt", 10);

@@ -16,6 +16,8 @@ public interface ISnapshotHost
     ScanSession Current { get; }
     /// <summary>A file operation or the updater works on the current tab: nothing may change it.</summary>
     bool TabsLocked { get; }
+    /// <summary>A scan or rescan runs in one of the tabs.</summary>
+    bool ScanRunning { get; }
     /// <summary>Adds an empty tab and shows it.</summary>
     ScanSession NewTab();
     /// <summary>Sets the status text of a tab; the window shows it if that tab is the active one.</summary>
@@ -50,6 +52,19 @@ public sealed class SnapshotController
     }
 
     private Scanner? CurrentScanner => _host.Current.Scanner;
+
+    private bool _loading;
+
+    /// <summary>A stored scan is being read from the disk right now (a scan must not start meanwhile).</summary>
+    public bool IsLoading => _loading;
+
+    /// <summary>While a stored scan loads no scan may start: tells the user and returns true.</summary>
+    public bool BlockedByLoad()
+    {
+        if (!_loading) return false;
+        Dialogs.Info(_window, "Es wird gerade ein gespeicherter Scan geladen. Bitte kurz warten.");
+        return true;
+    }
 
     public bool IsSnapshotMode => CurrentScanner is { IsSnapshot: true };
 
@@ -145,15 +160,27 @@ public sealed class SnapshotController
     // stays; a scan running in another tab is not disturbed either.
     private async Task LoadAsync(string file)
     {
-        // PHASE-D: TabsLocked does not cover a running scan; the scan can start while the file loads and the loaded scan is
-        // then shown in a tab the scan writes into (or in a new tab) without a check
         if (_host.TabsLocked) return;
+        // Only one load at a time (several dropped files), and never next to a running scan: the loaded scan would
+        // end up in a tab the scan writes into.
+        if (_loading)
+        {
+            Dialogs.Info(_window, "Es wird gerade ein gespeicherter Scan geladen. Bitte kurz warten.");
+            return;
+        }
+        if (_host.ScanRunning)
+        {
+            Dialogs.Info(_window, "Während ein Scan läuft, kann kein gespeicherter Scan geöffnet werden. Bitte den Scan abwarten oder abbrechen.");
+            return;
+        }
+
         var origin = _host.Current;
         var before = origin.Status;
-        _host.SetStatus(origin, "Scan wird geladen …");
+        _loading = true;
         LoadedSnapshot snap;
         try
         {
+            _host.SetStatus(origin, "Scan wird geladen …");
             snap = await Task.Run(() => SnapshotStore.Load(file));
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
@@ -161,6 +188,10 @@ public sealed class SnapshotController
             _host.SetStatus(origin, before);
             Dialogs.Info(_window, $"Die Datei konnte nicht geladen werden:\n{file}\n\n{ex.Message}");
             return;
+        }
+        finally
+        {
+            _loading = false;
         }
 
         _host.SetStatus(origin, before);

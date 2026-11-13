@@ -40,7 +40,7 @@ public partial class ComparePanel : UserControl
     public ComparePanel()
     {
         InitializeComponent();
-        Loaded += (_, _) => Theme.Changed += OnTheme;
+        Loaded += (_, _) => { Theme.Changed -= OnTheme; Theme.Changed += OnTheme; };
         Unloaded += (_, _) => Theme.Changed -= OnTheme;
     }
 

@@ -92,7 +92,7 @@ public static class TreeEditor
 
     /// <summary>
     /// A folder was deleted: its numbers leave all parents and it is cut out of the tree. A node without parent
-    /// (the root) cannot be removed. (The parents' <see cref="Node.Excluded"/> is left alone, as it always was.)
+    /// (the root) cannot be removed. Folders skipped by an exclusion rule below it leave the parents' <see cref="Node.Excluded"/> too.
     /// </summary>
     public static void RemoveFolder(Node node)
     {
@@ -101,6 +101,7 @@ public static class TreeEditor
 
         AgeBuckets.RemoveSubtree(node);
         AddToChain(parent, -node.Size, -node.FileCount, -(node.DirCount + 1));
+        if (Interlocked.Read(ref node.Excluded) is var excluded and > 0) AddExcluded(parent, -excluded);
         parent.RemoveChild(node);
     }
 

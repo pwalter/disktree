@@ -127,11 +127,9 @@ public sealed partial class Scanner
             return top.FindRelative(path[Math.Min(path.Length, top.FullPath.TrimEnd('\\').Length)..]);
         }
 
-        // Known flaw, left as it is on purpose (fixed separately): the prefix is compared WITHOUT a separator
-        // boundary, so below a root like "\\srv\share\a" the path "\\srv\share\ab" is taken for a path inside it.
-        // (Drive roots end in a backslash and are not affected.) See ScannerTests.FindNode_SiblingWithSamePrefix.
-        if (!path.StartsWith(cur.FullPath, StringComparison.OrdinalIgnoreCase)) return null;
-        return cur.FindRelative(path[cur.FullPath.Length..]);
+        // The prefix must end at a separator: below the root "\\srv\share\a" the sibling "\\srv\share\ab" is not inside.
+        if (!PathUtil.IsSameOrUnder(cur.FullPath, path)) return null;
+        return cur.FindRelative(path[Math.Min(path.Length, cur.FullPath.TrimEnd('\\').Length)..]);
     }
 
     /// <summary>(Re-)reads capacity and free space of the drive node.</summary>
@@ -277,9 +275,32 @@ public sealed partial class Scanner
                 TaskCreationOptions.LongRunning, TaskScheduler.Default))
             .ToArray();
 
-        await Task.WhenAll(workers);
+        try
+        {
+            await Task.WhenAll(workers);
+        }
+        catch (OperationCanceledException)
+        {
+            // All workers are done now. The folders still waiting in the queue were never taken: without this they
+            // would keep Open > 0 for good (spinner in the tree).
+            AbandonQueued(queue);
+            throw;
+        }
         ct.ThrowIfCancellationRequested();
         if (!IsMulti) ReadDrive(Root!);
+    }
+
+    /// <summary>
+    /// After a cancelled scan: folders that were queued but not read are closed like the one that was interrupted
+    /// (no longer "open", no spinner). Their numbers stay as they are (nothing was counted for them).
+    /// </summary>
+    private static void AbandonQueued(BlockingCollection<Node> queue)
+    {
+        while (queue.TryTake(out var dir))
+        {
+            dir.Scanned = true;
+            TreeEditor.CloseChain(dir);
+        }
     }
 
     private void Worker(BlockingCollection<Node> queue, CancellationToken ct)
@@ -294,8 +315,10 @@ public sealed partial class Scanner
             {
                 throw;
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
             {
+                // Expected access / path problems count as "nicht lesbar"; anything else (OutOfMemory, bugs) is not
+                // swallowed: it ends the scan with that exception, where it is logged and reported.
                 Interlocked.Increment(ref _errors);
             }
             finally
@@ -372,7 +395,7 @@ public sealed partial class Scanner
                     dir.AddChild(child);
                     subDirs++;
                     Interlocked.Increment(ref _pending);
-                    queue.Add(child, ct);
+                    queue.Add(child); // no token: a folder that is registered above must end up in the queue (see AbandonQueued)
                     Signal();
                 }
                 else

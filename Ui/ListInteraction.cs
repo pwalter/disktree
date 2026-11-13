@@ -34,9 +34,28 @@ public sealed class ListBehavior<TRow> where TRow : class
 public static class ListInteraction
 {
     /// <summary>Apps key or Shift+F10: the keyboard way to the context menu.</summary>
-    // PHASE-D: Shift+F10 arrives as Key.System with the real key in e.SystemKey, so the F10 case never matches
-    public static bool IsMenuKey(KeyEventArgs e) =>
-        e.Key == Key.Apps || (e.Key == Key.F10 && Keyboard.Modifiers == ModifierKeys.Shift);
+    public static bool IsMenuKey(KeyEventArgs e) => IsMenuKey(e.Key, e.SystemKey, Keyboard.Modifiers);
+
+    /// <summary>
+    /// Shift+F10 arrives in WPF as Key.System (a "system key" message) with the real key in SystemKey; the Apps key
+    /// arrives as itself.
+    /// </summary>
+    public static bool IsMenuKey(Key key, Key systemKey, ModifierKeys modifiers)
+    {
+        var real = key == Key.System ? systemKey : key;
+        return real == Key.Apps || (real == Key.F10 && modifiers == ModifierKeys.Shift);
+    }
+
+    /// <summary>
+    /// Where the menu opens for the keyboard: at the focused row of the list (below its top-left corner), else in the
+    /// list's corner. The mouse may be anywhere; the menu belongs to the selection.
+    /// </summary>
+    private static Point KeyboardMenuPosition(ItemsControl list)
+    {
+        if (Keyboard.FocusedElement is FrameworkElement { IsVisible: true } fe && (fe is ListBoxItem or TreeViewItem) && list.IsAncestorOf(fe))
+            return fe.PointToScreen(new Point(Math.Min(32, fe.ActualWidth), Math.Min(fe.ActualHeight, 20)));
+        return list.PointToScreen(new Point(Math.Min(32, list.ActualWidth), Math.Min(24, list.ActualHeight)));
+    }
 
     /// <summary>List box rows (single or multi selection): a right click inside the selection keeps it.</summary>
     public static void Attach<TRow>(ListBox list, ListBehavior<TRow> behavior) where TRow : class
@@ -91,7 +110,7 @@ public static class ListInteraction
             else if (IsMenuKey(e) && b.ShowMenu != null)
             {
                 e.Handled = true;
-                b.ShowMenu(row, list.PointToScreen(Mouse.GetPosition(list)));
+                b.ShowMenu(row, KeyboardMenuPosition(list));
             }
             else if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control && b.CopyText?.Invoke(row) is { } text)
             {

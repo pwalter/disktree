@@ -72,6 +72,7 @@ public static class ReportBuilder
             Folders = folders,
             Types = typeRows,
             Ages = ageRows,
+            AgeStamp = scanner.Ages.Stamp,
             TopFiles = top,
         };
     }

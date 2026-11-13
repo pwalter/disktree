@@ -77,7 +77,7 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
                        ?? _settings.LastPath
                        ?? (PathBox.Items.Count > 0 ? (string)PathBox.Items[0]! : "");
 
-        _admin = new AdminStartup(this, AdminButton, () => PathBox.Text);
+        _admin = new AdminStartup(this, AdminButton, () => PathBox.Text, SaveSettings);
     }
 
     /// <summary>Scan tabs, the tree, stored scans, the charts (the age panel needs the settings and the active tab) and the scan itself.</summary>
@@ -103,11 +103,18 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
         _scan = new ScanController(this, _settings, _winSettings, _tabs, _status, _tree, _snapshots, _charts, PathBox, ThreadsBox, ScanButton);
         AgePane.RescanRequested += () =>
         {
-            if (!string.IsNullOrWhiteSpace(PathBox.Text)) _ = _scan.ScanPathAsync(PathBox.Text);
+            if (!string.IsNullOrWhiteSpace(PathBox.Text)) _scan.ScanPathAsync(PathBox.Text).Forget("ScanPathAsync");
         };
 
-        // PHASE-D: static event, the window never unsubscribes (a second window would be kept alive and refreshed)
-        Theme.Changed += () => { _tree.RefreshTheme(); _ = _charts.RefreshAsync(); };
+        // Static event: only while the window is open (otherwise the closed window would be kept alive and refreshed).
+        Loaded += (_, _) => { Theme.Changed -= OnThemeChanged; Theme.Changed += OnThemeChanged; };
+        Closed += (_, _) => Theme.Changed -= OnThemeChanged;
+    }
+
+    private void OnThemeChanged()
+    {
+        _tree.RefreshTheme();
+        _charts.RefreshAsync().Forget("RefreshAsync");
     }
 
     /// <summary>The panels of the side panel that use the shell menus: search, largest files, duplicates; clean-up actions; list keys.</summary>
@@ -158,7 +165,7 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
     {
         _ = new ExportController(this, ExportButton, this);
         _updater = new UpdateController(this, _settings, UpdateButton, AutoUpdateItem, CheckUpdateItem, OpenReleasesItem,
-            () => PathBox.Text, () => _tabs.Busy != null);
+            () => PathBox.Text, () => _tabs.Busy != null, SaveSettings);
         _ = new AppMenuController(this, _settings, VersionMenu, ExplorerItem, PortableItem);
     }
 
@@ -168,7 +175,6 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        // PHASE-D: the settings are only saved in OnClosing, so the elevated instance starts without this run's changes
         if (_admin.ElevateIfWanted()) return; // replaced by an elevated instance
 
         // A path on the command line is scanned right away.
@@ -178,6 +184,12 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         foreach (var tab in _tabs.Tabs) tab.Cts?.Cancel(); // scans of all tabs stop with the window
+        SaveSettings();
+    }
+
+    /// <summary>Takes over what the window holds (size, threads, path) and writes settings.json. Also before a restart of the program.</summary>
+    private void SaveSettings()
+    {
         _winSettings.CaptureBounds();
         _settings.Threads = ThreadsBox.SelectedItem is int t ? t : 16;
         _settings.LastPath = PathBox.Text.Trim().Trim('"');
@@ -273,6 +285,7 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
     // ---- ISnapshotHost
     ScanSession ISnapshotHost.Current => Cur;
     bool ISnapshotHost.TabsLocked => _tabs.TabsLocked;
+    bool ISnapshotHost.ScanRunning => _tabs.Busy != null;
     ScanSession ISnapshotHost.NewTab() => _tabs.NewTab();
     void ISnapshotHost.SetStatus(ScanSession session, string text) => _status.SetStatus(session, text);
 
@@ -299,7 +312,7 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
         _charts.RefreshViews();
     }
 
-    void IShellMenuHost.Rescan(Node? node) => _ = _scan.RescanAsync(node);
+    void IShellMenuHost.Rescan(Node? node) => _scan.RescanAsync(node).Forget("RescanAsync");
 
     IReadOnlyList<(string Text, Action Run)> IShellMenuHost.OperationExtras(string path, bool isDir) =>
         _fileOps.OperationExtras(path, isDir);
