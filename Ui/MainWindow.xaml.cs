@@ -24,6 +24,7 @@ public partial class MainWindow : Window, IExportSource, IScanViews
     private ScanStatusView _status = null!;
     private TreeController _tree = null!;
     private ScanController _scan = null!;
+    private FileOpsController _fileOps = null!;
 
     // transitional: what the other partial files still use, all pointing at the active scan tab
     private ScanSession _cur => _tabs.Current;
@@ -43,7 +44,7 @@ public partial class MainWindow : Window, IExportSource, IScanViews
         InitializeComponent();
 
         InitToolbar();
-        _tabs = new ScanTabsController(this, ScanTabBar, () => _opBusy || _updater.IsUpdating, () => PathBox.Focus());
+        _tabs = new ScanTabsController(this, ScanTabBar, () => _fileOps.IsBusy || _updater.IsUpdating, () => PathBox.Focus());
         _tabs.Leaving += OnLeavingSession;
         _tabs.Shown += ShowSession;
         _status = new ScanStatusView(_tabs, ScanButton, StatusText, CurrentText, ScanProgress, TaskbarInfo);
@@ -57,7 +58,7 @@ public partial class MainWindow : Window, IExportSource, IScanViews
         _scan = new ScanController(this, _settings, _winSettings, _tabs, _status, _tree, _snapshots, this, PathBox, ThreadsBox, ScanButton);
         _shell = new ShellMenuCoordinator(this, this, _snapshots);
         InitSearch();
-        InitOps();
+        InitFileOps();
         InitDuplicates();
         InitListInteraction();
 
@@ -102,6 +103,24 @@ public partial class MainWindow : Window, IExportSource, IScanViews
                        ?? (PathBox.Items.Count > 0 ? (string)PathBox.Items[0]! : "");
 
         _admin = new AdminStartup(this, AdminButton, () => PathBox.Text);
+    }
+
+    // Move / ZIP / rename / delete work on the selection of the list the user is in: largest files, search hits, duplicates.
+    private void InitFileOps()
+    {
+        _fileOps = new FileOpsController(this, _tabs, _tree, _status, _snapshots, _scan, this,
+        [
+            new ListSelection(TopPane.List,
+                () => TopPane.SelectedRows.Select(r => new SelectedEntry(r.Path, false, r.Size))),
+            new ListSelection(SearchPane.Results,
+                () => SearchPane.SelectedHits.Select(h => new SelectedEntry(h.Path, h.IsDir, h.Size)),
+                prune: SearchPane.PruneMissing),
+            new ListSelection(Dup.List,
+                () => Dup.SelectedFiles().Select(f => new SelectedEntry(f.Path, false, f.Size)),
+                prune: Dup.PruneMissing, coversAllCopies: Dup.AllCopiesChecked),
+        ]);
+        SearchPane.ExtraKeyDown = _fileOps.HandleKey;
+        Dup.ExtraKeyDown = _fileOps.HandleKey;
     }
 
     // Duplicate finder tab (DuplicatesPanel.xaml.cs): searches the selected folder, uses the shell menu from here.
@@ -277,7 +296,7 @@ public partial class MainWindow : Window, IExportSource, IScanViews
         ListInteraction.Attach(Tree, new ListBehavior<NodeVM>
         {
             Selected = () => _tree.SelectedRow,
-            ExtraKey = OpsTreeKey, // F2
+            ExtraKey = _fileOps.HandleTreeKey, // F2
             CanDelete = ShellMenuCoordinator.CanUseShell,
             Delete = _shell.DeleteNode,
             ShowMenu = _shell.ShowTreeMenu,
@@ -285,6 +304,6 @@ public partial class MainWindow : Window, IExportSource, IScanViews
         });
         TopPane.ShowMenu = (row, pos) => _shell.ShowFileMenu(row.Path, row.Size, pos);
         TopPane.DeleteRow = row => _shell.DeleteFile(row.Path, row.Size);
-        TopPane.ExtraKeyDown = OpsKey; // F2, Delete on several rows
+        TopPane.ExtraKeyDown = _fileOps.HandleKey; // F2, Delete on several rows
     }
 }
