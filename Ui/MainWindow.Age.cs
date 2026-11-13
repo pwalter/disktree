@@ -1,104 +1,69 @@
 using System.Windows.Controls;
-using System.Windows.Media;
 using DiskTree.Core;
 
 namespace DiskTree.Ui;
 
-// Age analysis: "Alter" tab (donut + legend per age bucket) and the threshold for the "Älter" tree column.
+// Glue between the "Alter" tab (AgeChartPanel), the "Älter" column of the tree and the scan tabs.
 public partial class MainWindow
 {
-    // Green (recent) -> red (old); readable on the light and the dark panel alike.
-    private static readonly Brush[] AgeBrushes = new[] { 0x3FA66B, 0x9CC24A, 0xE8B923, 0xE8832A, 0xD0473E }
-        .Select(BrushFactory.Frozen).ToArray();
-
-    private int _ageVersion;
-
+    // Order matters: the threshold has to be set (AgeThreshold.Months) before anything is drawn with it,
+    // and the tab's timestamp choice comes from the settings before the notices are worked out.
     private void InitAge()
     {
-        AgeThreshold.Months = _settings.AgeThresholdMonths;
-        foreach (var m in AgeBuckets.LimitMonths)
-            AgeThresholdBox.Items.Add(AgeBuckets.ThresholdText(m));
-        AgeThresholdBox.SelectedIndex = AgeThreshold.OldFrom - 1;
+        AgePane.InitThreshold(_settings.AgeThresholdMonths);
         ShowAgeHeader();
-        AgeThresholdBox.SelectionChanged += AgeThreshold_Changed;
+        AgePane.ThresholdChanged += () =>
+        {
+            _settings.AgeThresholdMonths = AgeThreshold.Months;
+            ShowAgeHeader();
+            _root?.Refresh();
+            _ = UpdateAgeAsync(CurrentChartTarget());
+        };
+
+        _cur.AgePreferred = _settings.AgeStamp;
+        AgePane.InitStamp(_cur.AgePreferred);
+        // The choice belongs to the tab; a new scan of that tab adopts it (Scanner.AgeStamp, read when the scan starts).
+        AgePane.StampChosen += stamp =>
+        {
+            _cur.AgePreferred = stamp;
+            _settings.AgeStamp = stamp;
+            UpdateAgeNotices();
+        };
+        AgePane.RescanRequested += () =>
+        {
+            if (!string.IsNullOrWhiteSpace(PathBox.Text)) _ = ScanPathAsync(PathBox.Text);
+        };
+        UpdateAgeNotices();
     }
 
     private void ShowAgeHeader() =>
         OldHeader.Text = "Älter " + AgeBuckets.ThresholdText(AgeThreshold.Months);
 
-    private void AgeThreshold_Changed(object sender, SelectionChangedEventArgs e)
-    {
-        if (AgeThresholdBox.SelectedIndex < 0) return;
-        AgeThreshold.Months = AgeBuckets.LimitMonths[AgeThresholdBox.SelectedIndex];
-        _settings.AgeThresholdMonths = AgeThreshold.Months;
-        ShowAgeHeader();
-        _root?.Refresh();
-        var (node, ownOnly, title) = PieTarget();
-        _ = UpdateAgeAsync(node, ownOnly, title);
-    }
-
     private void SideTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!ReferenceEquals(e.OriginalSource, SideTabs) || !AgeTab.IsSelected) return;
-        var (node, ownOnly, title) = PieTarget();
-        _ = UpdateAgeAsync(node, ownOnly, title);
+        _ = UpdateAgeAsync(CurrentChartTarget());
     }
 
-    private async Task UpdateAgeAsync(Node? node, bool ownOnly, string title)
+    private async Task UpdateAgeAsync(ChartTarget target)
     {
         if (!AgeTab.IsSelected) return; // only worth the walk while it is visible
-        int version = ++_ageVersion;
         UpdateAgeNotices();
-
-        if (node == null)
-        {
-            AgePie.SetData(Array.Empty<PieSlice>(), "", "");
-            AgeLegend.ItemsSource = null;
-            AgeSummary.Text = "";
-            AgeTitle.Text = $"Alter ({AgeStamps.Lower[(int)_cur.AgeStamp]})";
-            return;
-        }
-
-        var (sizes, counts) = await Task.Run(() => SumAges(node, ownOnly));
-        if (version != _ageVersion) return;
-
-        long total = sizes.Sum(), files = counts.Sum();
-        double Share(long v) => total > 0 ? (double)v / total : 0;
-
-        string Detail(int i) => $"{SizeFormat.Format(sizes[i])} · {counts[i]:N0} Dateien · {Share(sizes[i]):P1}";
-
-        var rows = Enumerable.Range(0, AgeBuckets.Count).Where(i => counts[i] > 0).ToList();
-        AgePie.SetData(
-            rows.Select(i => new PieSlice(AgeBuckets.Names[i], sizes[i], AgeBrushes[i], Detail(i))).ToList(),
-            SizeFormat.Format(total), $"{files:N0} Dateien");
-        AgeLegend.ItemsSource = Enumerable.Range(0, AgeBuckets.Count).Select(i => new LegendRow
-        {
-            Brush = AgeBrushes[i],
-            Name = AgeBuckets.Names[i],
-            SizeText = SizeFormat.Format(sizes[i]),
-            PercentText = Share(sizes[i]).ToString("P1"),
-            Detail = Detail(i),
-        }).ToList();
-
-        long old = 0, oldFiles = 0;
-        for (int i = AgeThreshold.OldFrom; i < AgeBuckets.Count; i++) { old += sizes[i]; oldFiles += counts[i]; }
-        var shown = AgeStamps.Lower[(int)_cur.AgeStamp];
-        AgeSummary.Text = total > 0
-            ? $"Älter als {AgeBuckets.ThresholdText(AgeThreshold.Months)} ({shown}): {SizeFormat.Format(old)} ({Share(old):P0}) in {oldFiles:N0} Dateien"
-            : "";
-        AgeTitle.Text = $"Alter ({shown}) – " + title;
-        AgeTitle.ToolTip = AgeTitle.Text;
+        await AgePane.UpdateAsync(target, _cur.AgeStamp);
     }
 
-    private static (long[] Sizes, long[] Counts) SumAges(Node start, bool ownOnly)
+    /// <summary>A loaded snapshot knows which timestamp it holds; the choice follows it (the saved preference stays).</summary>
+    private void OnSnapshotAgeStamp(AgeStamp stamp)
     {
-        var sizes = new long[AgeBuckets.Count];
-        var counts = new long[AgeBuckets.Count];
-        foreach (var n in ownOnly ? [start] : start.Walk())
-        {
-            if (n.OwnAges is { } a)
-                for (int i = 0; i < AgeBuckets.Count; i++) { sizes[i] += a[i]; counts[i] += a[AgeBuckets.Count + i]; }
-        }
-        return (sizes, counts);
+        _cur.AgePreferred = stamp;
+        AgePane.ShowStamp(stamp);
+        UpdateAgeNotices();
+    }
+
+    private void UpdateAgeNotices()
+    {
+        var shown = _cur.AgeStamp;
+        OldHeader.ToolTip = $"Älter als der Schwellwert, nach dem Datum „{AgeStamps.Names[(int)shown]}“";
+        AgePane.UpdateNotices(shown, _cur.AgePreferred, hasTree: _root != null, snapshot: _snapshots.IsSnapshotMode);
     }
 }

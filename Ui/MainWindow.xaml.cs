@@ -65,7 +65,7 @@ public partial class MainWindow : Window, IExportSource
         Dup.ShellMenuRequested += _shell.ShowFileShellMenu;
         Dup.ShellDeleteRequested += _shell.DeleteFile;
 
-        Theme.Changed += () => { _root?.RefreshTheme(); _ = UpdatePieAsync(); };
+        Theme.Changed += () => { _root?.RefreshTheme(); _ = RefreshChartsAsync(); };
         InitTabChips();
         InitListInteraction();
         _ = new ExportController(this, ExportButton, this);
@@ -73,7 +73,6 @@ public partial class MainWindow : Window, IExportSource
             () => PathBox.Text, () => Busy != null);
         _ = new AppMenuController(this, _settings, VersionMenu, ExplorerItem, PortableItem);
         InitAge();
-        InitAgeStamp();
         Loaded += OnLoaded;
         Closing += OnClosing;
     }
@@ -330,7 +329,7 @@ public partial class MainWindow : Window, IExportSource
         UpdateStatus(s, running: false, done: !canceled);
         if (canceled) SetStatus(s, "Abgebrochen – " + s.Status);
         if (!active) return;
-        _ = UpdatePieAsync();
+        _ = RefreshChartsAsync();
         TopPane.Refresh(_scanner);
     }
 
@@ -366,8 +365,8 @@ public partial class MainWindow : Window, IExportSource
 
         // Chart and top list have to walk / copy a lot, so they are refreshed less often than the tree.
         long now = Environment.TickCount64;
-        if (!_pieBusy && now - _pieLastTick > 1000)
-            _ = UpdatePieAsync();
+        if (!TypePane.IsBusy && now - TypePane.LastUpdateTick > 1000)
+            _ = RefreshChartsAsync();
         if (now - TopPane.LastRefreshTick > 1000)
             TopPane.Refresh(_scanner);
     }
@@ -409,9 +408,9 @@ public partial class MainWindow : Window, IExportSource
 
     private void Tree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
-        Treemap.SetTreeSelection(PieTarget().Node);
-        _ = UpdatePieAsync();
-        OwnerTab.SetFolder(PieTarget().Node?.FullPath);
+        Treemap.SetTreeSelection(CurrentChartTarget().Node);
+        _ = RefreshChartsAsync();
+        OwnerTab.SetFolder(CurrentChartTarget().Node?.FullPath);
     }
 
     // Treemap click / dive: select that folder in the tree (opening the path down to it).
@@ -446,106 +445,31 @@ public partial class MainWindow : Window, IExportSource
         }
     }
 
-    private int _pieVersion;
-    private bool _pieBusy;
-    private long _pieLastTick;
-
-    private static readonly Brush[] CategoryBrushesLight = MakeCategoryBrushes(false);
-    private static readonly Brush[] CategoryBrushesDark = MakeCategoryBrushes(true);
-    private static Brush[] CategoryBrushes => Theme.IsDark ? CategoryBrushesDark : CategoryBrushesLight;
-
-    // On the dark panel the darkest categories (e.g. programs, #3F4A57) would vanish: lighten them a little.
-    private static Brush[] MakeCategoryBrushes(bool dark) => FileTypes.All.Select(c =>
-    {
-        byte r = (byte)(c.Color >> 16), g = (byte)(c.Color >> 8), bl = (byte)c.Color;
-        if (dark && 0.299 * r + 0.587 * g + 0.114 * bl < 110)
-        {
-            r = (byte)(r + (255 - r) * 0.45); g = (byte)(g + (255 - g) * 0.45); bl = (byte)(bl + (255 - bl) * 0.45);
-        }
-        return BrushFactory.Frozen(r, g, bl);
-    }).ToArray();
-
-    // What the chart describes: the selected folder with everything below it, or just the files of one folder.
-    private (Node? Node, bool OwnOnly, string Title) PieTarget()
+    // What the charts describe: the selected folder with everything below it, or just the files of one folder.
+    private ChartTarget CurrentChartTarget()
     {
         switch (Tree.SelectedItem as NodeVM)
         {
             case { Kind: Kind.Dir } d:
-                return (d.Node, false, d.Node?.Name ?? "");
+                return new(d.Node, false, d.Node?.Name ?? "");
             case { Kind: Kind.Files } f:
-                return (f.Parent?.Node, true, "Dateien in " + f.Parent?.Node?.Name);
+                return new(f.Parent?.Node, true, "Dateien in " + f.Parent?.Node?.Name);
             case { Kind: Kind.File } file:
                 var dir = file.Parent?.Parent;
-                return (dir?.Node, true, "Dateien in " + dir?.Node?.Name);
+                return new(dir?.Node, true, "Dateien in " + dir?.Node?.Name);
         }
         var target = _scanTarget ?? _root?.Node;
-        return (target, false, target?.Name ?? "");
+        return new(target, false, target?.Name ?? "");
     }
 
-    private async Task UpdatePieAsync()
+    /// <summary>Brings treemap, age chart and file type chart up to date for the selected folder.</summary>
+    private async Task RefreshChartsAsync()
     {
         _ = Treemap.RefreshAsync();
-        var (node, ownOnly, title) = PieTarget();
-        _ = UpdateAgeAsync(node, ownOnly, title);
-        int version = ++_pieVersion;
-        _pieLastTick = Environment.TickCount64;
-
-        if (node == null)
-        {
-            Pie.SetData(Array.Empty<PieSlice>(), "", "");
-            Legend.ItemsSource = null;
-            PieTitle.Text = "Dateitypen";
-            return;
-        }
-
-        _pieBusy = true;
-        long[] sizes, counts;
-        try
-        {
-            (sizes, counts) = await Task.Run(() => SumTypes(node, ownOnly));
-        }
-        finally
-        {
-            _pieBusy = false;
-        }
-        if (version != _pieVersion) return; // a newer request is on its way
-
-        long total = sizes.Sum(), files = counts.Sum();
-        var order = Enumerable.Range(0, FileTypes.Count)
-            .Where(i => counts[i] > 0)
-            .OrderByDescending(i => sizes[i])
-            .ToList();
-
-        string Detail(int i) =>
-            $"{SizeFormat.Format(sizes[i])} · {counts[i]:N0} Dateien · {(total > 0 ? (double)sizes[i] / total : 0):P1}";
-
-        Pie.SetData(
-            order.Select(i => new PieSlice(FileTypes.All[i].Name, sizes[i], CategoryBrushes[i], Detail(i))).ToList(),
-            SizeFormat.Format(total), $"{files:N0} Dateien");
-        Legend.ItemsSource = order.Select(i => new LegendRow
-        {
-            Brush = CategoryBrushes[i],
-            Name = FileTypes.All[i].Name,
-            SizeText = SizeFormat.Format(sizes[i]),
-            PercentText = (total > 0 ? (double)sizes[i] / total : 0).ToString("P1"),
-            Detail = Detail(i),
-        }).ToList();
-        PieTitle.Text = "Dateitypen – " + title;
+        var target = CurrentChartTarget();
+        _ = UpdateAgeAsync(target);
+        await TypePane.UpdateAsync(target);
     }
-
-    private static (long[] Sizes, long[] Counts) SumTypes(Node start, bool ownOnly)
-    {
-        var sizes = new long[FileTypes.Count];
-        var counts = new long[FileTypes.Count];
-        foreach (var n in ownOnly ? [start] : start.Walk())
-        {
-            if (n.OwnTypes is { } types)
-                foreach (var t in types) { sizes[t.Cat] += t.Size; counts[t.Cat] += t.Count; }
-        }
-        return (sizes, counts);
-    }
-
-    // ---------------------------------------------------------------- largest files
 
     // Folder for the duplicate search: the selected folder (or the folder of the selected file), else what was scanned.
     private string? DuplicateRoot()

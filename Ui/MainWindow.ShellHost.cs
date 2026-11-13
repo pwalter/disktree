@@ -19,7 +19,7 @@ public partial class MainWindow : IShellMenuHost
     void IShellMenuHost.RefreshAfterDelete()
     {
         _root?.Refresh();
-        _ = UpdatePieAsync();
+        _ = RefreshChartsAsync();
         TopPane.Refresh(_scanner);
     }
 

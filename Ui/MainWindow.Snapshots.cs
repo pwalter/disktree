@@ -48,7 +48,7 @@ public partial class MainWindow : ISnapshotHost
 
     void ISnapshotHost.RefreshViews()
     {
-        _ = UpdatePieAsync();
+        _ = RefreshChartsAsync();
         TopPane.Refresh(_scanner);
     }
 

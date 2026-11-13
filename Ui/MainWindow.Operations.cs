@@ -318,7 +318,7 @@ public partial class MainWindow
     {
         if (_scanner?.Root is { } drive) Scanner.ReadDrive(drive);
         _root?.Refresh();
-        _ = UpdatePieAsync();
+        _ = RefreshChartsAsync();
         TopPane.Refresh(_scanner);
         SearchPane.PruneMissing();
         Dup.PruneMissing();

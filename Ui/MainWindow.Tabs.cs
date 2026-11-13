@@ -84,9 +84,7 @@ public partial class MainWindow
         SearchPane.Reset();
 
         PathBox.Text = s.PathText;
-        _settingStampBox = true;
-        AgeStampBox.SelectedIndex = (int)s.AgePreferred;
-        _settingStampBox = false;
+        AgePane.ShowStamp(s.AgePreferred);
 
         Tree.ItemsSource = null;
         TopPane.Clear();
@@ -105,9 +103,9 @@ public partial class MainWindow
         ShowAgeHeader();
 
         // File types, age, treemap, owner for the folder that will be selected (the scan target until then).
-        _ = UpdatePieAsync();
+        _ = RefreshChartsAsync();
         TopPane.Refresh(_scanner);
-        OwnerTab.SetFolder(PieTarget().Node?.FullPath);
+        OwnerTab.SetFolder(CurrentChartTarget().Node?.FullPath);
         Dup.Reset();
 
         // Bring back the selection; the rows do not exist before the tree was laid out.
