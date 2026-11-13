@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using DiskTree.Core;
+using DiskTree.Core.Storage;
 
 namespace DiskTree.Features.Search;
 
@@ -25,6 +26,36 @@ public partial class SearchPanel
     }
 
     private void Attr_Changed(object sender, RoutedEventArgs e) => UpdateFilterHeader();
+
+    /// <summary>
+    /// The filters the source of the active tab can answer: attributes and the "geöffnet" / "erstellt" dates only where
+    /// the source has them (S3 knows only "zuletzt geändert"). Unavailable choices are greyed out with the reason.
+    /// </summary>
+    public void SetSource(IStorageProvider provider)
+    {
+        var attrWhy = StorageFeatures.WhyNot(provider, StorageFeature.Attributes);
+        AttrPanel.IsEnabled = attrWhy == null;
+        AttrPanel.ToolTip = attrWhy;
+        ToolTipService.SetShowOnDisabled(AttrPanel, true);
+        if (attrWhy != null)
+            foreach (var c in AttrPanel.Children.OfType<CheckBox>()) c.IsChecked = false;
+
+        for (int i = 1; i < StampBox.Items.Count && i < StampChoices.Length; i++)
+        {
+            if (StampBox.Items[i] is not ComboBoxItem item || StampChoices[i] is not { } stamp) continue;
+            var why = stamp switch
+            {
+                AgeStamp.Created => StorageFeatures.WhyNot(provider, StorageFeature.CreatedTime),
+                AgeStamp.Accessed => StorageFeatures.WhyNot(provider, StorageFeature.AccessedTime),
+                _ => null,
+            };
+            item.IsEnabled = why == null;
+            item.ToolTip = why;
+            ToolTipService.SetShowOnDisabled(item, true);
+            if (why != null && StampBox.SelectedIndex == i) StampBox.SelectedIndex = 0;
+        }
+        UpdateFilterHeader();
+    }
 
     private IEnumerable<AttributeChoice> CheckedAttributes() =>
         AttrPanel.Children.OfType<CheckBox>().Where(c => c.IsChecked == true).Select(c => AttributeChoice.All[int.Parse((string)c.Tag)]);

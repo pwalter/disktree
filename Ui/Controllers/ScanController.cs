@@ -63,6 +63,9 @@ public sealed class ScanController
 
     private ScanSession Cur => _tabs.Current;
 
+    /// <summary>A new scan (maybe of another source) has its scanner: the window adapts to what the source can do.</summary>
+    public event Action<ScanSession>? ScanStarted;
+
     /// <summary>
     /// A file operation (or the updater) works on the tree: a scan would change the same nodes at the same time.
     /// Tells the user and returns true.
@@ -186,6 +189,7 @@ public sealed class ScanController
                 : scanner.ScanAsync(path, threads, ct);
             _window.Dispatcher.InvokeAsync(_views.AgeNoticesChanged); // the scan has adopted the tab's choice by now
             SetTabTitle(s, paths, provider);
+            ScanStarted?.Invoke(s);
             _tree.ShowScan(s);
             return scan;
         });

@@ -47,6 +47,10 @@ public sealed class SearchController
             if (_tree.Reveal(hit.Node) is { } vm) _shell.ShowTreeMenu(vm, screenPos);
             _search.PruneMissing();
         }
+        else if (_shell.NotLocal != null)
+        {
+            _shell.ShowFileMenu(hit.Path, hit.Size, screenPos); // remote source: our own small menu
+        }
         else
         {
             RunShell(hit, () => ShellContextMenu.Show(_window, hit.Path, screenPos, _shell.Extras(hit.Path, isDir: false)));

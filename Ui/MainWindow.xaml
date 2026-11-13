@@ -186,10 +186,10 @@
                 <TabItem x:Name="SearchTab" Header="Suche">
                     <search:SearchPanel x:Name="SearchPane" />
                 </TabItem>
-                <TabItem Header="Duplikate">
+                <TabItem x:Name="DupTab" Header="Duplikate">
                     <dup:DuplicatesPanel x:Name="Dup" />
                 </TabItem>
-                <TabItem Header="Besitzer">
+                <TabItem x:Name="OwnerTabItem" Header="Besitzer">
                     <owner:OwnerPanel x:Name="OwnerTab" Margin="0,4,0,0" />
                 </TabItem>
                 <TabItem Header="Vergleich">

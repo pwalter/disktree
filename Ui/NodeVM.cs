@@ -116,7 +116,7 @@ public sealed class NodeVM : INotifyPropertyChanged
 
     public string Icon => Kind switch
     {
-        Kind.Dir when Level == 0 => "💽",
+        Kind.Dir when Level == 0 => _provider.Id == DiskProvider.ProviderId ? "💽" : "☁",
         Kind.Dir => "📁",
         Kind.Files => "🗂",
         Kind.File => "📄",
@@ -179,7 +179,10 @@ public sealed class NodeVM : INotifyPropertyChanged
             if (value && !_loaded)
             {
                 _loaded = true;
-                if (Kind == Kind.Files) LoadFilesAsync().Forget("LoadFilesAsync");
+                if (Kind == Kind.Files)
+                {
+                    if (MayList()) LoadFilesAsync().Forget("LoadFilesAsync");
+                }
                 else SyncChildren();
             }
             Notify(nameof(IsExpanded));
@@ -208,7 +211,8 @@ public sealed class NodeVM : INotifyPropertyChanged
         if (Kind == Kind.Files)
         {
             // Files were deleted (or the scan of the folder finished): re-read the list once.
-            if (_loaded && _expanded && !_loadingFiles && Parent!._node!.Scanned && _node!.FileCount != _filesLoadedCount)
+            if (_loaded && _expanded && !_loadingFiles && Parent!._node!.Scanned && _node!.FileCount != _filesLoadedCount
+                && StorageFeatures.Has(_provider, StorageFeature.LiveFileList))
                 LoadFilesAsync().Forget("LoadFilesAsync");
             return;
         }
@@ -341,6 +345,23 @@ public sealed class NodeVM : INotifyPropertyChanged
     }
 
     private void Notify(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
+    /// <summary>
+    /// Asked before the "Dateien" row lists a folder of a source where every listing is a (paid) request (S3): true =
+    /// go ahead. Set by the window; null = always list.
+    /// </summary>
+    public static Func<IStorageProvider, string, bool>? ConfirmListing { get; set; }
+
+    /// <summary>The "Dateien" row may read its folder now; if not, it says so and asks again on the next opening.</summary>
+    private bool MayList()
+    {
+        if (StorageFeatures.Has(_provider, StorageFeature.LiveFileList) || ConfirmListing == null) return true;
+        if (ConfirmListing(_provider, _node!.FullPath)) return true;
+        _loaded = false;
+        Children.Clear();
+        Children.Add(Message("Dateiliste nicht geladen (Anfrage an die Quelle) – zum Laden erneut aufklappen"));
+        return false;
+    }
 
     // Individual files are not kept in memory by the scanner; they are read when the "Dateien" row is opened.
     private async Task LoadFilesAsync()

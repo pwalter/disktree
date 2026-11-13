@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using DiskTree.Core;
+using DiskTree.Core.Storage;
 using DiskTree.Features.Scan;
 using DiskTree.Infrastructure;
 using DiskTree.Ui.Controllers;
@@ -100,6 +101,8 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
         _charts = new ChartsController(_settings, _tabs, _tree, _snapshots, TypePane, AgePane, AgeTab, SideTabs, OldHeader,
             Treemap, TopPane, OwnerTab);
         _scan = new ScanController(this, _settings, _winSettings, _tabs, _status, _tree, _snapshots, _charts, PathBox, ThreadsBox, ScanButton);
+        _scan.ScanStarted += s => { if (s == Cur) ApplyCaps(); };
+        NodeVM.ConfirmListing = ConfirmListing;
         AgePane.RescanRequested += () =>
         {
             if (!string.IsNullOrWhiteSpace(PathBox.Text)) _scan.ScanPathAsync(PathBox.Text).Forget("ScanPathAsync");
@@ -278,8 +281,39 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
             Dispatcher.InvokeAsync(() => { if (Cur == s) _tree.Reveal(n); }, DispatcherPriority.Loaded);
 
         _tabs.EnsureVisible(s);
+        ApplyCaps();
     }
 
+    /// <summary>
+    /// Adapts the window to what the source of the active tab can do (StorageCaps): owner and duplicate tabs, the
+    /// timestamps of the age tab, the search filters. For the disk everything stays on. The context menus ask on their
+    /// own (ShellMenuCoordinator, FileOpsController).
+    /// </summary>
+    private void ApplyCaps()
+    {
+        if (_sideTabs == null) return; // the first tab is shown while the window is still being built
+        var p = Cur.Provider;
+        _sideTabs.SetAvailable(OwnerTabItem, StorageFeatures.WhyNot(p, StorageFeature.Owner));
+        _sideTabs.SetAvailable(DupTab, StorageFeatures.WhyNot(p, StorageFeature.Duplicates));
+        _charts.ShowAgeStamp();
+        _charts.AgeNoticesChanged();
+        SearchPane.SetSource(p);
+    }
+
+    // Sources that answer the "Dateien" row with a paid request: ask once per source and app run.
+    private readonly HashSet<IStorageProvider> _listingAllowed = new();
+
+    private bool ConfirmListing(IStorageProvider provider, string folder)
+    {
+        if (_listingAllowed.Contains(provider)) return true;
+        bool yes = Dialogs.Confirm(this,
+            $"{StorageFeatures.WhyNot(provider, StorageFeature.LiveFileList)}\n\n" +
+            $"Die Dateiliste von\n{folder}\nwird jetzt von der Quelle gelesen (eine LIST-Anfrage je 1.000 Einträge).\n\n" +
+            "Laden? (Ja gilt für diese Quelle bis zum Programmende.)",
+            MessageBoxImage.Question);
+        if (yes) _listingAllowed.Add(provider);
+        return yes;
+    }
     // ---------------------------------------------------------------- what the controllers ask of the window
 
     // ---- IExportSource
@@ -301,6 +335,7 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
         session.Scanner = scanner;
         _tree.ShowScan(session);
         PathBox.Text = scanner.ScanTarget?.FullPath ?? "";
+        ApplyCaps();
         _status.ClearCurrentLine();
     }
 
