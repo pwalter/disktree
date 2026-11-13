@@ -275,9 +275,32 @@ public sealed partial class Scanner
                 TaskCreationOptions.LongRunning, TaskScheduler.Default))
             .ToArray();
 
-        await Task.WhenAll(workers);
+        try
+        {
+            await Task.WhenAll(workers);
+        }
+        catch (OperationCanceledException)
+        {
+            // All workers are done now. The folders still waiting in the queue were never taken: without this they
+            // would keep Open > 0 for good (spinner in the tree).
+            AbandonQueued(queue);
+            throw;
+        }
         ct.ThrowIfCancellationRequested();
         if (!IsMulti) ReadDrive(Root!);
+    }
+
+    /// <summary>
+    /// After a cancelled scan: folders that were queued but not read are closed like the one that was interrupted
+    /// (no longer "open", no spinner). Their numbers stay as they are (nothing was counted for them).
+    /// </summary>
+    private static void AbandonQueued(BlockingCollection<Node> queue)
+    {
+        while (queue.TryTake(out var dir))
+        {
+            dir.Scanned = true;
+            TreeEditor.CloseChain(dir);
+        }
     }
 
     private void Worker(BlockingCollection<Node> queue, CancellationToken ct)
@@ -370,7 +393,7 @@ public sealed partial class Scanner
                     dir.AddChild(child);
                     subDirs++;
                     Interlocked.Increment(ref _pending);
-                    queue.Add(child, ct);
+                    queue.Add(child); // no token: a folder that is registered above must end up in the queue (see AbandonQueued)
                     Signal();
                 }
                 else
