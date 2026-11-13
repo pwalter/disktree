@@ -273,6 +273,7 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
     // ---- ISnapshotHost
     ScanSession ISnapshotHost.Current => Cur;
     bool ISnapshotHost.TabsLocked => _tabs.TabsLocked;
+    bool ISnapshotHost.ScanRunning => _tabs.Busy != null;
     ScanSession ISnapshotHost.NewTab() => _tabs.NewTab();
     void ISnapshotHost.SetStatus(ScanSession session, string text) => _status.SetStatus(session, text);
 
