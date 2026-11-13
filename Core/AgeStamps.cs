@@ -1,5 +1,5 @@
 using System.IO;
-using System.IO.Enumeration;
+using DiskTree.Core.Storage;
 
 namespace DiskTree.Core;
 
@@ -26,11 +26,11 @@ public static class AgeStamps
     // Which timestamp a tree was built from is a property of its scan (AgeClassifier.Stamp, Scanner.Ages); the
     // user's choice for the next scan is kept per tab by the UI.
 
-    public static long TicksOf(ref FileSystemEntry e, AgeStamp stamp) => stamp switch
+    public static long TicksOf(in StorageEntry e, AgeStamp stamp) => stamp switch
     {
-        AgeStamp.Created => e.CreationTimeUtc.UtcTicks,
-        AgeStamp.Accessed => e.LastAccessTimeUtc.UtcTicks,
-        _ => e.LastWriteTimeUtc.UtcTicks,
+        AgeStamp.Created => e.CreatedTicks,
+        AgeStamp.Accessed => e.AccessedTicks,
+        _ => e.ModifiedTicks,
     };
 
     public static long TicksOfFile(string path, AgeStamp stamp) => stamp switch

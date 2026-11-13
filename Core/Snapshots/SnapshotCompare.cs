@@ -1,3 +1,5 @@
+using DiskTree.Core.Storage;
+
 namespace DiskTree.Core.Snapshots;
 
 /// <summary>Compares two scans by folder path: which folders grew, shrank, are new or were removed.</summary>
@@ -8,25 +10,27 @@ public static class SnapshotCompare
     /// scan against a folder scan would report everything outside the folder as "removed".
     /// A new or removed folder is one row for its top folder; its subfolders are not listed separately.
     /// Rows are sorted by the size of the change, biggest first.
+    /// Both scans must come from the same storage source; <paramref name="paths"/> are its path rules (null = Windows).
     /// </summary>
-    public static CompareResult Compare(Node oldTarget, Node newTarget)
+    public static CompareResult Compare(Node oldTarget, Node newTarget, PathOps? paths = null)
     {
-        var a = oldTarget.FullPath.TrimEnd('\\');
-        var b = newTarget.FullPath.TrimEnd('\\');
+        paths ??= DiskPathOps.Instance;
+        var a = paths.TrimEnd(oldTarget.FullPath);
+        var b = paths.TrimEnd(newTarget.FullPath);
 
         Node? na, nb;
         string common;
-        if (IsSameOrBelow(b, a))
+        if (IsSameOrBelow(b, a, paths))
         {
             // The newer scan covers the smaller area (or the same).
             nb = newTarget;
-            na = oldTarget.FindRelative(b[a.Length..]);
+            na = oldTarget.FindRelative(b[a.Length..], paths);
             common = newTarget.FullPath;
         }
-        else if (IsSameOrBelow(a, b))
+        else if (IsSameOrBelow(a, b, paths))
         {
             na = oldTarget;
-            nb = newTarget.FindRelative(a[b.Length..]);
+            nb = newTarget.FindRelative(a[b.Length..], paths);
             common = oldTarget.FullPath;
         }
         else
@@ -58,7 +62,7 @@ public static class SnapshotCompare
                 rows.Add(new DiffRow(n.FullPath, n.Name, n.Size > o.Size ? DiffKind.Grown : DiffKind.Shrunk,
                     o.Size, n.Size));
 
-            var oldKids = o.Snapshot().ToDictionary(c => c.Name, StringComparer.OrdinalIgnoreCase);
+            var oldKids = o.Snapshot().ToDictionary(c => c.Name, paths.Comparer);
             foreach (var c in n.Snapshot())
             {
                 oldKids.Remove(c.Name, out var match);
@@ -68,11 +72,14 @@ public static class SnapshotCompare
         }
 
         rows.Sort((x, y) => Math.Abs(y.Delta).CompareTo(Math.Abs(x.Delta)));
-        return new CompareResult { Rows = rows, CommonPath = common, OldTotal = na?.Size ?? 0, NewTotal = nb?.Size ?? 0 };
+        return new CompareResult
+        {
+            Rows = rows, CommonPath = common, OldTotal = na?.Size ?? 0, NewTotal = nb?.Size ?? 0, Paths = paths,
+        };
     }
 
-    private static bool IsSameOrBelow(string path, string ancestor) =>
-        path.Equals(ancestor, StringComparison.OrdinalIgnoreCase)
-        || (path.StartsWith(ancestor, StringComparison.OrdinalIgnoreCase)
-            && (ancestor.EndsWith('\\') || path[ancestor.Length] == '\\'));
+    private static bool IsSameOrBelow(string path, string ancestor, PathOps paths) =>
+        path.Equals(ancestor, paths.Comparison)
+        || (path.StartsWith(ancestor, paths.Comparison)
+            && (ancestor.EndsWith(paths.Separator) || path[ancestor.Length] == paths.Separator));
 }

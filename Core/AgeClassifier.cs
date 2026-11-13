@@ -1,4 +1,4 @@
-using System.IO.Enumeration;
+using DiskTree.Core.Storage;
 
 namespace DiskTree.Core;
 
@@ -37,7 +37,12 @@ public sealed class AgeClassifier
     }
 
     /// <summary>The timestamp of a directory entry that this scan sums up.</summary>
-    public long TicksOf(ref FileSystemEntry e) => AgeStamps.TicksOf(ref e, Stamp);
+    public long TicksOf(in StorageEntry e) => AgeStamps.TicksOf(in e, Stamp);
+
+    /// <summary>How the scan lists folders: errors are reported, only <see cref="Stamp"/> is read.</summary>
+    public ListOptions ListOptions => _listOptions ??= ListOptions.Strict with { Stamps = ListOptions.For(Stamp) };
+
+    private ListOptions? _listOptions;
 
     /// <summary>Bucket of an existing file, or -1 if it cannot be read.</summary>
     public int OfFile(string path)

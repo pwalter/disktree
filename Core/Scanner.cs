@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using System.IO;
-using System.IO.Enumeration;
+using DiskTree.Core.Storage;
 
 namespace DiskTree.Core;
 
@@ -17,6 +17,15 @@ public sealed partial class Scanner
     public long Bytes => Interlocked.Read(ref _bytes);
     public long Errors => Interlocked.Read(ref _errors);
     public string Current => _current;
+
+    /// <summary>
+    /// Where the scan reads from (default: the local file system). Set before ScanAsync / ScanManyAsync; a rescan and
+    /// everything that takes the tree's paths apart (<see cref="FindNode"/>, the largest-files list) use it too.
+    /// </summary>
+    public IStorageProvider Provider { get; set; } = DiskProvider.Instance;
+
+    /// <summary>Path rules of <see cref="Provider"/>.</summary>
+    public PathOps Paths => Provider.Paths;
 
     /// <summary>Folders to skip. Set before ScanAsync / RescanAsync; null = skip nothing.</summary>
     public ExcludeRules? Excludes { get; set; }
@@ -106,8 +115,8 @@ public sealed partial class Scanner
     {
         lock (_topLock)
         {
-            _top.RemoveAll(f => string.Equals(f.Path, path, StringComparison.OrdinalIgnoreCase)
-                                || PathUtil.IsUnder(path, f.Path));
+            var paths = Paths;
+            _top.RemoveAll(f => paths.NameEquals(f.Path, path) || paths.IsUnder(path, f.Path));
             Volatile.Write(ref _topMin, _top.Count >= TopCount ? _top.Min(f => f.Size) : 1 << 20);
         }
     }
@@ -117,33 +126,35 @@ public sealed partial class Scanner
     {
         var cur = Root;
         if (cur == null) return null;
+        var paths = Paths;
 
         if (IsMulti)
         {
             // The artificial root has no path: pick the scanned path that contains the requested one.
             if (path.Length == 0) return cur;
-            var top = cur.Snapshot().FirstOrDefault(c => PathUtil.IsSameOrUnder(c.FullPath, path));
+            var top = cur.Snapshot().FirstOrDefault(c => paths.IsSameOrUnder(c.FullPath, path));
             if (top == null) return null;
-            return top.FindRelative(path[Math.Min(path.Length, top.FullPath.TrimEnd('\\').Length)..]);
+            return top.FindRelative(paths.RelativeTo(top.FullPath, path), paths);
         }
 
         // The prefix must end at a separator: below the root "\\srv\share\a" the sibling "\\srv\share\ab" is not inside.
-        if (!PathUtil.IsSameOrUnder(cur.FullPath, path)) return null;
-        return cur.FindRelative(path[Math.Min(path.Length, cur.FullPath.TrimEnd('\\').Length)..]);
+        if (!paths.IsSameOrUnder(cur.FullPath, path)) return null;
+        return cur.FindRelative(paths.RelativeTo(cur.FullPath, path), paths);
     }
 
-    /// <summary>(Re-)reads capacity and free space of the drive node.</summary>
-    public static void ReadDrive(Node drive)
+    /// <summary>(Re-)reads capacity and free space of the drive node (local file system).</summary>
+    public static void ReadDrive(Node drive) => ReadCapacity(DiskProvider.Instance, drive);
+
+    /// <summary>(Re-)reads capacity and free space of the top node from this scan's <see cref="Provider"/>.</summary>
+    public void ReadCapacity(Node top) => ReadCapacity(Provider, top);
+
+    private static void ReadCapacity(IStorageProvider provider, Node top)
     {
-        try
+        // Unknown (network path etc.): the node keeps what it had, the tree then just starts at the scanned folder.
+        if (provider.TryGetCapacity(top.FullPath, out long total, out long free))
         {
-            var di = new DriveInfo(drive.FullPath);
-            drive.DriveTotal = di.TotalSize;
-            drive.DriveFree = di.AvailableFreeSpace;
-        }
-        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
-        {
-            // Network paths and the like have no capacity; the tree then just starts at the scanned folder.
+            top.DriveTotal = total;
+            top.DriveFree = free;
         }
     }
 
@@ -166,19 +177,20 @@ public sealed partial class Scanner
         // The tree always starts at the drive; a scan of a subfolder hangs below a chain of
         // placeholder nodes (one per path component), so percentages can refer to the whole drive.
         _ages = new AgeClassifier(AgeStamp, DateTime.UtcNow);
-        var full = Path.GetFullPath(path);
-        var driveRoot = Path.GetPathRoot(full) ?? full;
-        var top = new Node { Name = driveRoot, FullPath = driveRoot, Open = 1 };
-        ReadDrive(top);
+        var paths = Paths;
+        var where = Provider.ResolveRoot(path);
+        var full = where.Target;
+        var driveRoot = where.Top;
+        var top = new Node { Name = driveRoot, FullPath = driveRoot, Open = 1, DriveTotal = where.Total, DriveFree = where.Free };
 
         var root = top;
-        if (top.DriveTotal > 0 && !string.Equals(full.TrimEnd('\\'), driveRoot.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+        if (top.DriveTotal > 0 && !paths.NameEquals(paths.TrimEnd(full), paths.TrimEnd(driveRoot)))
         {
             top.PartialDrive = true;
             top.Scanned = true;
-            foreach (var part in full[driveRoot.Length..].Split('\\', StringSplitOptions.RemoveEmptyEntries))
+            foreach (var part in paths.Split(full[driveRoot.Length..]))
             {
-                var child = new Node { Name = part, FullPath = Path.Join(root.FullPath, part), Parent = root, Open = 1, Scanned = true };
+                var child = new Node { Name = part, FullPath = paths.Join(root.FullPath, part), Parent = root, Open = 1, Scanned = true };
                 root.AddChild(child);
                 root = child;
             }
@@ -211,7 +223,7 @@ public sealed partial class Scanner
         var starts = new List<Node>();
         foreach (var p in paths)
         {
-            var full = Path.GetFullPath(p);
+            var full = Provider.Normalize(p);
             var child = new Node { Name = full, FullPath = full, Parent = top, Open = 1 };
             top.AddChild(child);
             starts.Add(child);
@@ -246,7 +258,7 @@ public sealed partial class Scanner
         if (node == top)
         {
             top.PartialDrive = false;
-            ReadDrive(top);
+            ReadCapacity(top);
         }
         ExpectedBytes = node == top && top.DriveTotal > 0 ? Math.Max(0, top.DriveTotal - top.DriveFree) : 0;
 
@@ -287,7 +299,7 @@ public sealed partial class Scanner
             throw;
         }
         ct.ThrowIfCancellationRequested();
-        if (!IsMulti) ReadDrive(Root!);
+        if (!IsMulti) ReadCapacity(Root!);
     }
 
     /// <summary>
@@ -346,27 +358,22 @@ public sealed partial class Scanner
         Span<long> ageDelta = stackalloc long[AgeBuckets.Count];
 
         var classifier = Ages;
-        var options = new EnumerationOptions
-        {
-            AttributesToSkip = 0, // include hidden + system
-            IgnoreInaccessible = false,
-            RecurseSubdirectories = false,
-            ReturnSpecialDirectories = false,
-        };
+        var paths = Paths;
 
         try
         {
-            var entries = new FileSystemEnumerable<Entry>(dir.FullPath,
-                (ref FileSystemEntry e) =>
+            // Errors are not ignored (they count as "nicht lesbar"); only the timestamp of the age buckets is read.
+            var entries = Provider.Enumerate(dir.FullPath,
+                (in StorageEntry e) =>
                 {
                     bool isDir = e.IsDirectory;
                     long len = isDir ? 0 : e.Length;
                     // Folders need a name; files only when they could make it into the largest-files list.
-                    string? name = isDir || len >= Volatile.Read(ref _topMin) ? e.FileName.ToString() : null;
-                    return new Entry(name, isDir, len, (e.Attributes & FileAttributes.ReparsePoint) != 0,
-                        isDir ? 0 : FileTypes.CategoryOf(e.FileName),
-                        isDir ? 0 : classifier.Of(classifier.TicksOf(ref e)));
-                }, options);
+                    string? name = isDir || len >= Volatile.Read(ref _topMin) ? e.Name.ToString() : null;
+                    return new Entry(name, isDir, len, e.IsReparsePoint,
+                        isDir ? 0 : FileTypes.CategoryOf(e.Name),
+                        isDir ? 0 : classifier.Of(classifier.TicksOf(in e)));
+                }, classifier.ListOptions);
 
             foreach (var e in entries)
             {
@@ -375,16 +382,16 @@ public sealed partial class Scanner
                     // Junctions / symlinks would double count or loop.
                     if (e.Reparse) continue;
 
-                    if (Excludes is { IsEmpty: false } rules && rules.IsExcluded(e.Name!, dir.FullPath))
+                    if (Excludes is { IsEmpty: false } rules && rules.IsExcluded(e.Name!, dir.FullPath, paths))
                     {
-                        NoteExcluded(dir, Path.Join(dir.FullPath, e.Name));
+                        NoteExcluded(dir, paths.Join(dir.FullPath, e.Name!));
                         continue;
                     }
 
                     var child = new Node
                     {
                         Name = e.Name!,
-                        FullPath = Path.Join(dir.FullPath, e.Name),
+                        FullPath = paths.Join(dir.FullPath, e.Name!),
                         Parent = dir,
                         Open = 1,
                     };
@@ -410,7 +417,7 @@ public sealed partial class Scanner
                     ageCount[e.Age]++;
                     ageDelta[e.Age] += e.Length;
                     if (e.Name != null)
-                        OfferTop(Path.Join(dir.FullPath, e.Name), e.Length);
+                        OfferTop(paths.Join(dir.FullPath, e.Name), e.Length);
                 }
 
                 // Report progress upwards in batches so big folders show up live too.

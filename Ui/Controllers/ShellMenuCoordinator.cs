@@ -26,6 +26,7 @@ public interface IShellMenuHost
 /// <summary>
 /// The Windows shell context menu for the rows of the window (tree, largest files, search hits, duplicates): our own
 /// entries on top of it, the small menu of a stored scan, and keeping the tree in step when the menu removed the item.
+/// Local file system only (StorageCaps.ShellMenu): the paths go to the Windows shell as they are.
 /// </summary>
 public sealed class ShellMenuCoordinator
 {
@@ -86,7 +87,7 @@ public sealed class ShellMenuCoordinator
         if (isDir)
             list.Add(("Ab hier neu scannen", () => _host.Rescan(_host.Scanner?.FindNode(path))));
         else
-            list.Add(("Ordner dieser Datei neu scannen", () => _host.Rescan(_host.Scanner?.FindNode(Path.GetDirectoryName(path) ?? ""))));
+            list.Add(("Ordner dieser Datei neu scannen", () => _host.Rescan(_host.Scanner is { } s ? s.FindNode(s.Paths.ParentOf(path) ?? "") : null)));
 
         list.Add(("Übergeordneten Ordner öffnen", () => OpenInExplorer(path)));
         list.Add(("Pfad kopieren", () => Clipboard.SetText(path)));
@@ -126,11 +127,11 @@ public sealed class ShellMenuCoordinator
         var scanner = _host.Scanner;
         if (vm != null)
             vm.RemoveFromTree(ageBucket);
-        else if (isFile && scanner?.FindNode(Path.GetDirectoryName(path) ?? "") is { } dir)
-            TreeEditor.RemoveFile(dir, Path.GetFileName(path), size, ageBucket);
+        else if (isFile && scanner?.FindNode(scanner.Paths.ParentOf(path) ?? "") is { } dir)
+            TreeEditor.RemoveFile(dir, scanner.Paths.NameOf(path), size, ageBucket);
 
         scanner?.RemoveTop(path);
-        if (scanner?.Root is { } drive) Scanner.ReadDrive(drive);
+        if (scanner?.Root is { } drive) scanner.ReadCapacity(drive);
 
         _host.RefreshAfterDelete();
     }

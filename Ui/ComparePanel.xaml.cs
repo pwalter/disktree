@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using DiskTree.Core;
 using DiskTree.Core.Snapshots;
+using DiskTree.Core.Storage;
 using Microsoft.Win32;
 
 namespace DiskTree.Ui;
@@ -62,7 +63,7 @@ public partial class ComparePanel : UserControl
 
         var newTarget = scanner.ScanTarget;
         var newLabel = (scanner.IsSnapshot ? "Geladener Scan " : "Aktueller Scan ") + Stamp(scanner.ScannedAt);
-        await CompareAsync(file, null, newTarget, newLabel);
+        await CompareAsync(file, null, newTarget, scanner.Provider, newLabel);
     }
 
     private async void Two_Click(object sender, RoutedEventArgs e)
@@ -71,10 +72,10 @@ public partial class ComparePanel : UserControl
         if (older == null) return;
         var newer = PickFile("Neueren Scan wählen");
         if (newer == null) return;
-        await CompareAsync(older, newer, null, "");
+        await CompareAsync(older, newer, null, null, "");
     }
 
-    private async Task CompareAsync(string oldFile, string? newFile, Node? newTarget, string newLabel)
+    private async Task CompareAsync(string oldFile, string? newFile, Node? newTarget, IStorageProvider? newProvider, string newLabel)
     {
         SetBusy(true);
         try
@@ -84,14 +85,19 @@ public partial class ComparePanel : UserControl
                 var old = SnapshotStore.Load(oldFile);
                 var oldLbl = $"{System.IO.Path.GetFileName(oldFile)} ({Stamp(old.Info.ScannedAt)})";
                 var target = newTarget;
+                var provider = newProvider;
                 var lbl = newLabel;
                 if (target == null)
                 {
                     var nw = SnapshotStore.Load(newFile!);
                     target = nw.Target;
+                    provider = nw.Provider;
                     lbl = $"{System.IO.Path.GetFileName(newFile!)} ({Stamp(nw.Info.ScannedAt)})";
                 }
-                return (SnapshotCompare.Compare(old.Target, target), oldLbl, lbl);
+                if (provider != old.Provider)
+                    throw new InvalidOperationException(
+                        $"Die beiden Scans stammen aus verschiedenen Speicherquellen ({old.Provider.DisplayName}, {provider!.DisplayName}).");
+                return (SnapshotCompare.Compare(old.Target, target, old.Provider.Paths), oldLbl, lbl);
             });
 
             _result = result;
@@ -170,9 +176,10 @@ public partial class ComparePanel : UserControl
         };
 
         bool dark = Theme.IsDark;
+        var paths = _result.Paths;
         var rows = _result.Rows.Where(r => only == null || r.Kind == only).Take(MaxRows).Select(r =>
         {
-            var parent = System.IO.Path.GetDirectoryName(r.Path.TrimEnd('\\')) ?? "";
+            var parent = paths.ParentOf(r.Path) ?? "";
             var sizes = r.Kind switch
             {
                 DiffKind.New => $"neu · {SizeFormat.Format(r.NewSize)}",
