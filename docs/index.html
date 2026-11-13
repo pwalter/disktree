@@ -372,7 +372,7 @@
         </article>
       </div>
       <div class="dl-extra reveal">
-        <p><svg class="ic" aria-hidden="true"><use href="#i-file"/></svg><span><a href="https://github.com/pwalter/disktree/releases/latest/download/SHA256SUMS.txt"><code>SHA256SUMS.txt</code></a> enthält die Prüfsummen. Vergleiche sie nach dem Download, zum Beispiel mit <code>Get-FileHash .\DiskTree.exe</code> in PowerShell. Alle Dateien und älteren Versionen gibt es in den <a href="https://github.com/pwalter/disktree/releases">Releases auf GitHub</a>.</span></p>
+        <p><svg class="ic" aria-hidden="true"><use href="#i-file"/></svg><span><a href="https://github.com/pwalter/disktree/releases/latest/download/SHA256SUMS.txt"><code>SHA256SUMS.txt</code></a> enthält die Prüfsummen. Vergleiche sie nach dem Download, zum Beispiel mit <code>Get-FileHash .\DiskTree.exe</code> in PowerShell. Zusätzlich hat jede exe eine Herkunftsbestätigung von GitHub: <code>gh attestation verify DiskTree.exe --repo pwalter/disktree</code> belegt, dass sie aus diesem Repository gebaut wurde. Alle Dateien und älteren Versionen gibt es in den <a href="https://github.com/pwalter/disktree/releases">Releases auf GitHub</a>.</span></p>
       </div>
       <p class="note reveal"><strong>Hinweis zu Windows SmartScreen:</strong> Die Dateien sind nicht code-signiert. Windows SmartScreen kann deshalb beim ersten Start warnen („Der Computer wurde durch Windows geschützt“). Prüfe vor dem Start die SHA-256-Prüfsumme gegen <code>SHA256SUMS.txt</code> aus demselben Release; der Quellcode steht im <a href="https://github.com/pwalter/disktree">Repository</a>.</p>
     </div>
