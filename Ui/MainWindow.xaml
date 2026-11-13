@@ -97,8 +97,7 @@
             <TreeView x:Name="Tree" BorderThickness="0" Background="Transparent" Padding="2,4"
                       ScrollViewer.HorizontalScrollBarVisibility="Auto"
                       VirtualizingPanel.IsVirtualizing="True"
-                      VirtualizingPanel.VirtualizationMode="Recycling"
-                      SelectedItemChanged="Tree_SelectedItemChanged">
+                      VirtualizingPanel.VirtualizationMode="Recycling">
                 <TreeView.ItemContainerStyle>
                     <Style TargetType="TreeViewItem">
                         <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
@@ -172,7 +171,7 @@
                     <age:AgeChartPanel x:Name="AgePane" />
                 </TabItem>
                 <TabItem Header="Treemap">
-                    <treemap:TreemapPanel x:Name="Treemap" Margin="0,2,0,0" NodeClicked="Treemap_NodeClicked" />
+                    <treemap:TreemapPanel x:Name="Treemap" Margin="0,2,0,0" />
                 </TabItem>
                 <TabItem x:Name="SearchTab" Header="Suche">
                     <search:SearchPanel x:Name="SearchPane" />

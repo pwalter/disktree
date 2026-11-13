@@ -25,6 +25,7 @@ public partial class MainWindow : Window, IExportSource
     private ShellMenuCoordinator _shell = null!;
     private ScanTabsController _tabs = null!;
     private ScanStatusView _status = null!;
+    private TreeController _tree = null!;
 
     // transitional: what the other partial files still use, all pointing at the active scan tab
     private ScanSession _cur => _tabs.Current;
@@ -48,6 +49,12 @@ public partial class MainWindow : Window, IExportSource
         _tabs.Leaving += OnLeavingSession;
         _tabs.Shown += ShowSession;
         _status = new ScanStatusView(_tabs, ScanButton, StatusText, CurrentText, ScanProgress, TaskbarInfo);
+        _tree = new TreeController(Tree, Treemap, _tabs);
+        _tree.SelectionChanged += () =>
+        {
+            _ = RefreshChartsAsync();
+            OwnerTab.SetFolder(_tree.CurrentChartTarget().Node?.FullPath);
+        };
         InitSnapshots();
         _shell = new ShellMenuCoordinator(this, this, _snapshots);
         InitSearch();
@@ -55,7 +62,7 @@ public partial class MainWindow : Window, IExportSource
         InitDuplicates();
         InitListInteraction();
 
-        Theme.Changed += () => { _root?.RefreshTheme(); _ = RefreshChartsAsync(); };
+        Theme.Changed += () => { _tree.RefreshTheme(); _ = RefreshChartsAsync(); };
         InitTabChips();
         InitAge();
 
@@ -102,7 +109,7 @@ public partial class MainWindow : Window, IExportSource
     private void InitDuplicates()
     {
         Dup.Settings = _settings;
-        Dup.RootProvider = DuplicateRoot;
+        Dup.RootProvider = _tree.DuplicateRoot;
         Dup.ShellMenuRequested += _shell.ShowFileShellMenu;
         Dup.ShellDeleteRequested += _shell.DeleteFile;
     }
@@ -130,7 +137,7 @@ public partial class MainWindow : Window, IExportSource
     private void OnLeavingSession(ScanSession old)
     {
         old.PathText = PathBox.Text;
-        if (Tree.SelectedItem is NodeVM sel) old.SelectedVm = sel;
+        if (_tree.SelectedRow is { } sel) old.SelectedVm = sel;
     }
 
     /// <summary>Puts a session's state into the window: path box, tree, status line, and the side panel for its scan.</summary>
@@ -142,15 +149,9 @@ public partial class MainWindow : Window, IExportSource
         PathBox.Text = s.PathText;
         AgePane.ShowStamp(s.AgePreferred);
 
-        Tree.ItemsSource = null;
+        _tree.Clear();
         TopPane.Clear();
-        if (s.Root != null)
-        {
-            s.Root.Refresh();      // background scans / theme changes did not reach this tree
-            s.Root.RefreshTheme();
-            Tree.ItemsSource = new[] { s.Root };
-        }
-        Treemap.Reset(s.ScanTarget ?? s.Scanner?.Root);
+        _tree.ShowExisting(s);
 
         _status.ShowScanButton(s.Cts != null);
         _status.Apply(s);
@@ -161,12 +162,12 @@ public partial class MainWindow : Window, IExportSource
         // File types, age, treemap, owner for the folder that will be selected (the scan target until then).
         _ = RefreshChartsAsync();
         TopPane.Refresh(_scanner);
-        OwnerTab.SetFolder(CurrentChartTarget().Node?.FullPath);
+        OwnerTab.SetFolder(_tree.CurrentChartTarget().Node?.FullPath);
         Dup.Reset();
 
         // Bring back the selection; the rows do not exist before the tree was laid out.
         if (s.SelectedVm?.Node is { } n)
-            Dispatcher.InvokeAsync(() => { if (_cur == s) RevealNode(n); }, DispatcherPriority.Loaded);
+            Dispatcher.InvokeAsync(() => { if (_cur == s) _tree.Reveal(n); }, DispatcherPriority.Loaded);
 
         _tabs.EnsureVisible(s);
     }
@@ -180,7 +181,7 @@ public partial class MainWindow : Window, IExportSource
 
     // ---- IExportSource: what the export controller reads from the window
     Scanner? IExportSource.Scanner => _scanner;
-    Node? IExportSource.SelectedFolder => Tree.SelectedItem is NodeVM { Kind: Kind.Dir, Node: { } sel } ? sel : null;
+    Node? IExportSource.SelectedFolder => _tree.SelectedFolder;
     bool IExportSource.ScanRunning => _cts != null;
 
     // ---------------------------------------------------------------- side panel tab chips
@@ -241,7 +242,7 @@ public partial class MainWindow : Window, IExportSource
         {
             e.Handled = true;
             // A selected folder is scanned again in place (like Explorer's F5 for the current view), otherwise everything.
-            if (Tree.SelectedItem is NodeVM { Kind: Kind.Dir, Node: { } node })
+            if (_tree.SelectedFolder is { } node)
                 _ = RescanAsync(node);
             else
                 _ = BeginScan();
@@ -308,7 +309,7 @@ public partial class MainWindow : Window, IExportSource
             s.Root = null;
             s.ScanTarget = null;
             s.SelectedVm = null;
-            Tree.ItemsSource = null;
+            _tree.Clear();
             TopPane.Clear();
 
             // ScanAsync creates the tree (drive -> ... -> scanned folder) and starts the workers synchronously,
@@ -318,11 +319,7 @@ public partial class MainWindow : Window, IExportSource
                 : scanner.ScanAsync(path, (int)ThreadsBox.SelectedItem, ct);
             Dispatcher.InvokeAsync(UpdateAgeNotices); // the scan has adopted the tab's choice by now
             SetTabTitle(s, paths);
-            s.ScanTarget = scanner.ScanTarget;
-            s.Root = new NodeVM(scanner.Root!, Kind.Dir, null, 0) { IsExpanded = true };
-            Treemap.Reset(s.ScanTarget ?? scanner.Root);
-            Tree.ItemsSource = new[] { s.Root };
-            ExpandToScanTarget();
+            _tree.ShowScan(s);
             return scan;
         });
     }
@@ -412,18 +409,6 @@ public partial class MainWindow : Window, IExportSource
         TopPane.Refresh(_scanner);
     }
 
-    // When a subfolder is scanned the tree starts at the drive: open the chain down to the scanned folder.
-    private void ExpandToScanTarget()
-    {
-        var vm = _root;
-        while (vm != null && vm.Node != _scanTarget)
-        {
-            vm.IsExpanded = true;
-            vm = vm.Children.FirstOrDefault(c => c.Kind == Kind.Dir);
-        }
-        if (vm != null) vm.IsExpanded = true;
-    }
-
     private async Task OnScannerChanged(ScanSession s, Scanner scanner)
     {
         // Let more changes pile up, then acknowledge first so anything arriving during the redraw
@@ -483,80 +468,13 @@ public partial class MainWindow : Window, IExportSource
         else _status.UpdateTaskbar();
     }
 
-    // ---------------------------------------------------------------- file-type chart
-
-    private void Tree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
-    {
-        Treemap.SetTreeSelection(CurrentChartTarget().Node);
-        _ = RefreshChartsAsync();
-        OwnerTab.SetFolder(CurrentChartTarget().Node?.FullPath);
-    }
-
-    // Treemap click / dive: select that folder in the tree (opening the path down to it).
-    private void Treemap_NodeClicked(Node node)
-    {
-        if (_root == null) return;
-        var chain = new List<Node>();
-        for (var n = node; n != null; n = n.Parent) chain.Insert(0, n);
-        if (chain.Count == 0 || chain[0] != _root.Node) return;
-
-        var vm = _root;
-        foreach (var n in chain.Skip(1))
-        {
-            vm.IsExpanded = true;
-            vm = vm.FindDescendant(n);
-            if (vm == null) return;
-        }
-        vm.IsSelected = true;
-        Dispatcher.InvokeAsync(() => BringIntoView(vm), DispatcherPriority.Loaded);
-    }
-
-    private void BringIntoView(NodeVM vm)
-    {
-        var path = new List<NodeVM>();
-        for (var v = vm; v != null; v = v.Parent) path.Insert(0, v);
-        ItemsControl host = Tree;
-        for (int i = 0; i < path.Count; i++)
-        {
-            if (host.ItemContainerGenerator.ContainerFromItem(path[i]) is not TreeViewItem item) return;
-            if (i == path.Count - 1) { item.BringIntoView(); return; }
-            host = item;
-        }
-    }
-
-    // What the charts describe: the selected folder with everything below it, or just the files of one folder.
-    private ChartTarget CurrentChartTarget()
-    {
-        switch (Tree.SelectedItem as NodeVM)
-        {
-            case { Kind: Kind.Dir } d:
-                return new(d.Node, false, d.Node?.Name ?? "");
-            case { Kind: Kind.Files } f:
-                return new(f.Parent?.Node, true, "Dateien in " + f.Parent?.Node?.Name);
-            case { Kind: Kind.File } file:
-                var dir = file.Parent?.Parent;
-                return new(dir?.Node, true, "Dateien in " + dir?.Node?.Name);
-        }
-        var target = _scanTarget ?? _root?.Node;
-        return new(target, false, target?.Name ?? "");
-    }
-
     /// <summary>Brings treemap, age chart and file type chart up to date for the selected folder.</summary>
     private async Task RefreshChartsAsync()
     {
         _ = Treemap.RefreshAsync();
-        var target = CurrentChartTarget();
+        var target = _tree.CurrentChartTarget();
         _ = UpdateAgeAsync(target);
         await TypePane.UpdateAsync(target);
-    }
-
-    // Folder for the duplicate search: the selected folder (or the folder of the selected file), else what was scanned.
-    private string? DuplicateRoot()
-    {
-        var vm = Tree.SelectedItem as NodeVM;
-        if (vm is { Kind: Kind.File or Kind.Files }) vm = vm.Parent is { Kind: Kind.Dir } p ? p : vm.Parent?.Parent;
-        var path = vm is { Kind: Kind.Dir } ? vm.Path : (_scanTarget ?? _root?.Node)?.FullPath;
-        return string.IsNullOrEmpty(path) ? null : path;
     }
 
     // ---------------------------------------------------------------- tree and list: context menu and keys
@@ -566,7 +484,7 @@ public partial class MainWindow : Window, IExportSource
     {
         ListInteraction.Attach(Tree, new ListBehavior<NodeVM>
         {
-            Selected = () => Tree.SelectedItem as NodeVM,
+            Selected = () => _tree.SelectedRow,
             ExtraKey = OpsTreeKey, // F2
             CanDelete = ShellMenuCoordinator.CanUseShell,
             Delete = _shell.DeleteNode,

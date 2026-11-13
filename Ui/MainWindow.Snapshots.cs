@@ -17,7 +17,10 @@ public partial class MainWindow : ISnapshotHost
     {
         _snapshots = new SnapshotController(this, this, SnapshotSaveButton, OpenSnapshotButton);
         Compare.CurrentScanner = () => _cts == null ? _scanner : null;
-        Compare.JumpRequested += JumpToPath;
+        Compare.JumpRequested += path =>
+        {
+            if (!_tree.TryJumpToPath(path)) _status.ShowText($"Der Ordner ist im aktuellen Baum nicht vorhanden: {path}");
+        };
     }
 
     // ---- ISnapshotHost
@@ -30,12 +33,8 @@ public partial class MainWindow : ISnapshotHost
     {
         OnSnapshotAgeStamp(stamp); // the tab's choice follows the file (the scanner already carries it in Ages)
         session.SelectedVm = null;
-        _scanner = scanner;
-        _scanTarget = scanner.ScanTarget;
-        _root = new NodeVM(scanner.Root!, Kind.Dir, null, 0) { IsExpanded = true };
-        Treemap.Reset(_scanTarget ?? scanner.Root);
-        Tree.ItemsSource = new[] { _root };
-        ExpandToScanTarget();
+        session.Scanner = scanner;
+        _tree.ShowScan(session);
         PathBox.Text = scanner.ScanTarget?.FullPath ?? "";
         _status.ClearCurrentLine();
     }
@@ -49,49 +48,5 @@ public partial class MainWindow : ISnapshotHost
     {
         _ = RefreshChartsAsync();
         TopPane.Refresh(_scanner);
-    }
-
-    // ---------------------------------------------------------------- jump from the comparison
-
-    private void JumpToPath(string path)
-    {
-        var node = _scanner?.FindNode(path);
-        if (_root == null || node == null)
-        {
-            _status.ShowText($"Der Ordner ist im aktuellen Baum nicht vorhanden: {path}");
-            return;
-        }
-
-        var chain = new List<Node>();
-        for (var n = node; n != null; n = n.Parent) chain.Insert(0, n);
-
-        var vms = new List<NodeVM> { _root };
-        var vm = _root;
-        foreach (var n in chain.Skip(1))
-        {
-            vm.IsExpanded = true; // creates the child rows
-            vm = _root.FindDescendant(n);
-            if (vm == null) return;
-            vms.Add(vm);
-        }
-
-        // The containers only exist after the expanded rows were laid out.
-        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
-        {
-            ItemsControl parent = Tree;
-            TreeViewItem? item = null;
-            foreach (var v in vms)
-            {
-                parent.UpdateLayout();
-                item = parent.ItemContainerGenerator.ContainerFromItem(v) as TreeViewItem;
-                if (item == null) return;
-                if (!ReferenceEquals(v, vms[^1])) item.IsExpanded = true;
-                parent = item;
-            }
-            if (item == null) return;
-            item.IsSelected = true;
-            item.BringIntoView();
-            item.Focus();
-        });
     }
 }

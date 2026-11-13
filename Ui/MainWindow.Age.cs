@@ -17,7 +17,7 @@ public partial class MainWindow
             _settings.AgeThresholdMonths = AgeThreshold.Months;
             ShowAgeHeader();
             _root?.Refresh();
-            _ = UpdateAgeAsync(CurrentChartTarget());
+            _ = UpdateAgeAsync(_tree.CurrentChartTarget());
         };
 
         _cur.AgePreferred = _settings.AgeStamp;
@@ -42,7 +42,7 @@ public partial class MainWindow
     private void SideTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!ReferenceEquals(e.OriginalSource, SideTabs) || !AgeTab.IsSelected) return;
-        _ = UpdateAgeAsync(CurrentChartTarget());
+        _ = UpdateAgeAsync(_tree.CurrentChartTarget());
     }
 
     private async Task UpdateAgeAsync(ChartTarget target)

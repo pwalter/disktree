@@ -118,7 +118,7 @@ public partial class MainWindow
         var sel = ActiveSelection(path);
         if (sel.Count > 0) return sel;
 
-        if (Tree.SelectedItem is NodeVM vm && string.Equals(vm.Path, path, StringComparison.OrdinalIgnoreCase))
+        if (_tree.SelectedRow is { } vm && string.Equals(vm.Path, path, StringComparison.OrdinalIgnoreCase))
             return new List<OpItem> { ItemOf(path, isDir, vm.Size) };
 
         long size = 0;
