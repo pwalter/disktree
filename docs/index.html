@@ -11,6 +11,10 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="style.css">
+<script>
+  // Gespeichertes Farbschema vor dem ersten Zeichnen setzen (ohne Speicher: Systemeinstellung).
+  (function (r) { try { var t = localStorage.getItem('disktree-theme'); if (t === 'light' || t === 'dark') { r.setAttribute('data-theme', t); } } catch (e) {} })(document.documentElement);
+</script>
 <meta property="og:type" content="website">
 <meta property="og:locale" content="de_DE">
 <meta property="og:title" content="DiskTree – Speicherplatz-Analyse für Windows">
@@ -27,6 +31,38 @@
 <meta name="twitter:image:alt" content="Hauptfenster von DiskTree mit Ordnerbaum und Dateityp-Diagramm">
 </head>
 <body>
+<svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/></symbol>
+  <symbol id="i-caret" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="m8.5 7.5-4.5 4.5 4.5 4.5m7-9 4.5 4.5-4.5 4.5M13.5 5l-3 14"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/></symbol>
+  <symbol id="i-panels" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M14 4v16M14 9h7M14 14h7"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/></symbol>
+  <symbol id="i-contrast" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" class="fill"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol>
+  <symbol id="i-scale" viewBox="0 0 24 24"><path d="M12 4v16M7 20h10M5 7h14M5 7l-2.5 6a2.5 2.5 0 0 0 5 0zM19 7l-2.5 6a2.5 2.5 0 0 0 5 0z"/></symbol>
+  <symbol id="i-report" viewBox="0 0 24 24"><path d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M9.5 17v-3M12.5 17v-6M15.5 17v-4"/></symbol>
+  <symbol id="i-tabs" viewBox="0 0 24 24"><path d="M3 8V6a1 1 0 0 1 1-1h6l1.5 3H20a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M11.5 8 13 5h5l1 3"/></symbol>
+  <symbol id="i-drive" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 12h6"/><circle cx="17" cy="12" r="1"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.5-4.5M4 4v3h3M4 13a8 8 0 0 0 14.5 4.5M20 20v-3h-3"/></symbol>
+  <symbol id="i-broom" viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V4.5h5V7M6 7l1 12.5a1 1 0 0 0 1 .9h8a1 1 0 0 0 1-.9L18 7M10 11v6M14 11v6"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M12 3v9m0 0-3.5-3.5M12 12l3.5-3.5M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="17" rx="2"/><path d="M8 8.5h8M8 12h8M8 15.5h5"/></symbol>
+  <symbol id="i-usb" viewBox="0 0 24 24"><rect x="7" y="9" width="10" height="12" rx="2"/><path d="M9 9V3.5h6V9M11 6h0M13 6h0"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="m7 9.5 3 2.5-3 2.5M12.5 15H17"/></symbol>
+  <symbol id="i-network" viewBox="0 0 24 24"><rect x="8.5" y="3" width="7" height="5" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/><rect x="14" y="16" width="7" height="5" rx="1"/><path d="M12 8v4M6.5 16v-4h11v4"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 5h16l-6 7.5V19l-4-2v-4.5z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v5.5c0 4.4 3 8 7 9.5 4-1.5 7-5.1 7-9.5V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 1-2.3-5.6M20 4v4h-4"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+</svg>
+
 <a class="skip" href="#inhalt">Zum Inhalt springen</a>
 
 <header class="site">
@@ -35,184 +71,334 @@
     <nav aria-label="Hauptnavigation">
       <ul>
         <li><a href="#funktionen">Funktionen</a></li>
+        <li><a href="#seitenpanel">Auswertungen</a></li>
         <li><a href="#download">Download</a></li>
-        <li><a href="#anleitung">Kurzanleitung</a></li>
+        <li><a href="#anleitung">Anleitung</a></li>
         <li><a href="#faq">FAQ</a></li>
       </ul>
     </nav>
+    <button type="button" class="theme-btn" id="theme-btn" hidden>
+      <svg class="ic" aria-hidden="true"><use href="#i-contrast"/></svg><span class="theme-label">Design: Automatisch</span>
+    </button>
   </div>
 </header>
 
 <main id="inhalt">
   <div class="hero" id="top">
-    <div class="wrap">
-      <h1>DiskTree</h1>
-      <p class="lead">Speicherplatz-Analyse für Windows – schnell, live, ohne Installation.</p>
-      <p>
-        <a class="btn" href="https://github.com/pwalter/disktree/releases/latest">DiskTree herunterladen</a>
-        <a class="btn secondary" href="#funktionen">Funktionen ansehen</a>
-      </p>
-      <p class="meta" id="hero-version">Download über die GitHub-Releases · Windows x64</p>
-      <div class="shot">
+    <div class="hero-bg" aria-hidden="true">
+      <div class="hero-grid-lines"></div>
+      <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
+      <div class="mosaic">
+        <i style="--r:1/4;--c:1/6"></i><i style="--r:1/3;--c:6/9"></i><i style="--r:3/4;--c:6/8"></i><i style="--r:3/4;--c:8/9"></i>
+        <i style="--r:4/6;--c:1/4"></i><i style="--r:4/5;--c:4/7"></i><i style="--r:5/6;--c:4/5"></i><i style="--r:5/6;--c:5/7"></i><i style="--r:4/6;--c:7/9"></i>
+      </div>
+    </div>
+
+    <div class="wrap hero-layout">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Open Source · MIT · Windows x64</p>
+        <h1><span class="h1-brand">DiskTree</span> Sieh live, was deinen Speicher&nbsp;füllt.</h1>
+        <p class="lead">Laufwerk oder Ordner angeben – DiskTree scannt mit mehreren Threads und baut den Ordnerbaum sofort auf. Die größten Ordner stehen oben, Treemap, Duplikate und Berichte sind nur einen Klick entfernt. Eine einzelne exe, ohne Installation.</p>
+        <p class="cta">
+          <a class="btn btn-primary" href="#download"><svg class="ic" aria-hidden="true"><use href="#i-down"/></svg>DiskTree herunterladen</a>
+          <a class="btn btn-ghost" href="https://github.com/pwalter/disktree"><svg class="ic" aria-hidden="true"><use href="#i-code"/></svg>Auf GitHub ansehen</a>
+        </p>
+        <p class="meta" id="hero-version">Download über die GitHub-Releases · Windows x64</p>
+      </div>
+
+      <figure class="hero-visual">
+        <div class="lt" id="live-tree">
+          <p class="sr-only">Stilisierte Animation eines Scans mit Demo-Daten: Ordner erscheinen nacheinander, ihre Größenbalken wachsen und die Größen zählen hoch. Endstand: DiskTreeDemo 311 GB, davon Backups 143 GB, Archiv 70,1 GB, Videos 53,5 GB.</p>
+          <div class="lt-inner" aria-hidden="true">
+            <div class="lt-top">
+              <span class="lt-tab">C:\DiskTreeDemo</span>
+              <span class="lt-scan">Scannen</span>
+            </div>
+            <div class="lt-head"><span>Name</span><span>Anteil</span><span>Größe</span></div>
+            <ul class="lt-rows">
+              <li class="row" data-gb="311" data-pct="32.6" style="--d:0;--c:var(--h-32)"><span class="nm"><svg class="car open"><use href="#i-caret"/></svg><svg class="fo"><use href="#i-folder"/></svg><b>DiskTreeDemo</b><span class="spin"></span></span><span class="sh"><span class="bar"><i style="--p:.326"></i></span><span class="pc">32,6 %</span></span><span class="sz">311 GB</span></li>
+              <li class="row" data-gb="143" data-pct="46.1" style="--d:1;--c:var(--h-46)"><span class="nm"><svg class="car open"><use href="#i-caret"/></svg><svg class="fo"><use href="#i-folder"/></svg><b>Backups</b><span class="spin"></span></span><span class="sh"><span class="bar"><i style="--p:.461"></i></span><span class="pc">46,1 %</span></span><span class="sz">143 GB</span></li>
+              <li class="row" data-gb="82.5" data-pct="57.6" style="--d:2;--c:var(--h-57)"><span class="nm"><svg class="car"><use href="#i-caret"/></svg><svg class="fo"><use href="#i-folder"/></svg><b>Laptop</b><span class="spin"></span></span><span class="sh"><span class="bar"><i style="--p:.576"></i></span><span class="pc">57,6 %</span></span><span class="sz">82,5 GB</span></li>
+              <li class="row" data-gb="46.5" data-pct="32.4" style="--d:2;--c:var(--h-32)"><span class="nm"><svg class="car"><use href="#i-caret"/></svg><svg class="fo"><use href="#i-folder"/></svg><b>Server</b><span class="spin"></span></span><span class="sh"><span class="bar"><i style="--p:.324"></i></span><span class="pc">32,4 %</span></span><span class="sz">46,5 GB</span></li>
+              <li class="row" data-gb="70.1" data-pct="22.5" style="--d:1;--c:var(--h-22)"><span class="nm"><svg class="car"><use href="#i-caret"/></svg><svg class="fo"><use href="#i-folder"/></svg><b>Archiv</b><span class="spin"></span></span><span class="sh"><span class="bar"><i style="--p:.225"></i></span><span class="pc">22,5 %</span></span><span class="sz">70,1 GB</span></li>
+              <li class="row" data-gb="53.5" data-pct="17.2" style="--d:1;--c:var(--h-17)"><span class="nm"><svg class="car"><use href="#i-caret"/></svg><svg class="fo"><use href="#i-folder"/></svg><b>Videos</b><span class="spin"></span></span><span class="sh"><span class="bar"><i style="--p:.172"></i></span><span class="pc">17,2 %</span></span><span class="sz">53,5 GB</span></li>
+              <li class="row" data-gb="20.9" data-pct="6.7" style="--d:1;--c:var(--h-6)"><span class="nm"><svg class="car"><use href="#i-caret"/></svg><svg class="fo"><use href="#i-folder"/></svg><b>Projekte</b><span class="spin"></span></span><span class="sh"><span class="bar"><i style="--p:.067"></i></span><span class="pc">6,7 %</span></span><span class="sz">20,9 GB</span></li>
+              <li class="row" data-gb="14.2" data-pct="4.6" style="--d:1;--c:var(--h-6)"><span class="nm"><svg class="car"><use href="#i-caret"/></svg><svg class="fo"><use href="#i-folder"/></svg><b>Downloads</b><span class="spin"></span></span><span class="sh"><span class="bar"><i style="--p:.046"></i></span><span class="pc">4,6 %</span></span><span class="sz">14,2 GB</span></li>
+              <li class="row" data-gb="8.1" data-pct="2.6" style="--d:1;--c:var(--h-6)"><span class="nm"><svg class="car"><use href="#i-caret"/></svg><svg class="fo"><use href="#i-folder"/></svg><b>Fotos</b><span class="spin"></span></span><span class="sh"><span class="bar"><i style="--p:.026"></i></span><span class="pc">2,6 %</span></span><span class="sz">8,1 GB</span></li>
+              <li class="row" data-gb="0.636" data-pct="0.2" style="--d:1;--c:var(--h-6)"><span class="nm"><svg class="car"><use href="#i-caret"/></svg><svg class="fo"><use href="#i-folder"/></svg><b>Musik</b><span class="spin"></span></span><span class="sh"><span class="bar"><i style="--p:.002"></i></span><span class="pc">0,2 %</span></span><span class="sz">636 MB</span></li>
+            </ul>
+            <div class="lt-status"><span class="lt-state">Fertig: 81 Ordner · 1.107 Dateien · 311 GB</span></div>
+          </div>
+        </div>
+        <figcaption>
+          <span>Stilisierter Live-Baum mit Demo-Daten</span>
+          <button type="button" class="link-btn" id="lt-replay" hidden><svg class="ic" aria-hidden="true"><use href="#i-play"/></svg>Scan erneut abspielen</button>
+        </figcaption>
+      </figure>
+    </div>
+
+    <div class="wrap showcase">
+      <a class="zoom frame tilt" href="img/ueberblick-light.png" data-dark="img/ueberblick-dark.png" data-caption="Hauptfenster von DiskTree mit Ordnerbaum und Dateityp-Diagramm (Demo-Daten)">
         <picture>
           <source media="(prefers-color-scheme: dark)" srcset="img/ueberblick-dark.png">
           <img src="img/ueberblick-light.png" width="2010" height="1170" alt="Hauptfenster von DiskTree: links der Ordnerbaum mit Größenbalken, rechts das Dateityp-Diagramm. Die Demo-Daten sind frei erfunden.">
         </picture>
-      </div>
+        <span class="zoom-hint"><svg class="ic" aria-hidden="true"><use href="#i-expand"/></svg>Vergrößern</span>
+      </a>
     </div>
   </div>
 
-  <section id="funktionen" aria-labelledby="h-funktionen">
+  <section id="vorteile" class="band" aria-labelledby="h-vorteile">
     <div class="wrap">
-      <h2 id="h-funktionen">Was DiskTree kann</h2>
-      <p class="intro">Pfad oder Laufwerk angeben, DiskTree scannt mit mehreren Threads und baut den Ordnerbaum dabei live auf. Die Screenshots zeigen erfundene Demo-Daten; ein Klick auf ein Bild öffnet es in voller Größe.</p>
-
-      <ul class="cards">
-        <li class="card wide">
-          <figure><picture>
-            <source media="(prefers-color-scheme: dark)" srcset="img/baum-dark.png">
-            <img src="img/baum-light.png" width="1392" height="584" loading="lazy" alt="Ordnerbaum mit Größenbalken: Backups, Archiv und Videos sind aufgeklappt, die größten Ordner stehen oben.">
-          </picture></figure>
-          <div class="body"><h3>Live-Baum mit Balken</h3><p>Ordner erscheinen sofort, die Größe wächst mit. Pro Ebene stehen die größten Ordner oben, Balken zeigen den Anteil. Bei einem Laufwerk beziehen sich die Anteile auf dessen Kapazität, dazu kommen „Freier Speicher“ und „Nicht erfasst“. Ein einzelner Ordner lässt sich an Ort und Stelle neu scannen.</p></div>
-        </li>
-
-        <li class="card">
-          <figure><a href="img/dateitypen-voll-dark.webp"><picture>
-            <source media="(prefers-color-scheme: dark)" srcset="img/dateitypen-dark.png">
-            <img src="img/dateitypen-light.png" width="560" height="916" loading="lazy" alt="Ringdiagramm der Dateitypen: Datenträger-Abbilder, Videos, MSSQL-Backups und Archive belegen den meisten Platz.">
-          </picture></a></figure>
-          <div class="body"><h3>Dateityp-Diagramm</h3><p>Word, Excel, MSSQL-Datenbank und -Backup, Bilder, Videos, Archive und mehr – für den jeweils markierten Ordner.</p></div>
-        </li>
-
-        <li class="card">
-          <figure><a href="img/treemap-voll-dark.webp"><picture>
-            <source media="(prefers-color-scheme: dark)" srcset="img/treemap-dark.png">
-            <img src="img/treemap-light.png" width="560" height="916" loading="lazy" alt="Treemap: Unterordner als Rechtecke, die Fläche entspricht der Größe. Backups ist das größte Rechteck.">
-          </picture></a></figure>
-          <div class="body"><h3>Treemap</h3><p>Unterordner als Rechtecke nach Größe. Ein Klick markiert den Ordner im Baum, ein Doppelklick taucht ein.</p></div>
-        </li>
-
-        <li class="card">
-          <figure><a href="img/alter-voll-dark.webp"><picture>
-            <source media="(prefers-color-scheme: dark)" srcset="img/alter-dark.png">
-            <img src="img/alter-light.png" width="560" height="916" loading="lazy" alt="Altersauswertung als Ringdiagramm mit fünf Altersstufen von unter einem Monat bis über fünf Jahre.">
-          </picture></a></figure>
-          <div class="body"><h3>Alter der Dateien</h3><p>Auswertung nach „zuletzt geändert“, „erstellt“ oder „zuletzt geöffnet“. Der Schwellwert für „alt“ ist einstellbar, im Baum gibt es dazu eine Spalte „Älter als …“.</p></div>
-        </li>
-
-        <li class="card">
-          <figure><a href="img/groesste-dateien-voll-dark.webp"><picture>
-            <source media="(prefers-color-scheme: dark)" srcset="img/groesste-dateien-dark.png">
-            <img src="img/groesste-dateien-light.png" width="560" height="916" loading="lazy" alt="Liste der größten Dateien des Scans mit Name, Ordner und Größe, beginnend mit einem 42-GB-Festplattenabbild.">
-          </picture></a></figure>
-          <div class="body"><h3>Größte Dateien</h3><p>Die 200 größten Dateien des Scans auf einen Blick – mit Ordner und Größe.</p></div>
-        </li>
-
-        <li class="card">
-          <figure><a href="img/suche-voll-dark.webp"><picture>
-            <source media="(prefers-color-scheme: dark)" srcset="img/suche-dark.png">
-            <img src="img/suche-light.png" width="560" height="916" loading="lazy" alt="Suche nach Dateien mit Endung bak und Mindestgröße 1 GB; fünf Treffer in der Ergebnisliste.">
-          </picture></a></figure>
-          <div class="body"><h3>Suche und Filter</h3><p>Strg+F: Ordner und Dateien nach Name, Mindestgröße und Endung. Weitere Filter für Zugriffs-, Erstell- und Änderungsdatum sowie Dateiattribute (versteckt, System, komprimiert, Cloud-Platzhalter …).</p></div>
-        </li>
-
-        <li class="card">
-          <figure><a href="img/duplikate-voll-dark.webp"><picture>
-            <source media="(prefers-color-scheme: dark)" srcset="img/duplikate-dark.png">
-            <img src="img/duplikate-light.png" width="560" height="916" loading="lazy" alt="Duplikate-Ergebnis: zwei Gruppen gleicher Dateien, 6,3 GB verschwendeter Platz.">
-          </picture></a></figure>
-          <div class="body"><h3>Duplikate finden</h3><p>Gleiche Dateien werden über Größe, Teil-Hash und SHA-256 erkannt. Angezeigt wird der „verschwendete“ Platz.</p></div>
-        </li>
-
-        <li class="card">
-          <figure><a href="img/besitzer-voll-dark.webp"><picture>
-            <source media="(prefers-color-scheme: dark)" srcset="img/besitzer-dark.png">
-            <img src="img/besitzer-light.png" width="560" height="916" loading="lazy" alt="Speicher pro Besitzer als Ringdiagramm mit vier Demo-Konten.">
-          </picture></a></figure>
-          <div class="body"><h3>Besitzer und Rechte</h3><p>Besitzer und Zugriffsrechte (ACL) des markierten Ordners, dazu der Speicherverbrauch pro Besitzer – auf Knopfdruck. (Die Konten im Bild sind für den Screenshot erfunden.)</p></div>
-        </li>
-
-        <li class="card">
-          <figure><a href="img/vergleich-voll-dark.webp"><picture>
-            <source media="(prefers-color-scheme: dark)" srcset="img/vergleich-dark.png">
-            <img src="img/vergleich-light.png" width="560" height="916" loading="lazy" alt="Vergleich zweier Scans: 15 Ordner gewachsen, 2 geschrumpft, 1 neu, 1 entfernt; Liste mit Änderungen in GB.">
-          </picture></a></figure>
-          <div class="body"><h3>Scans speichern und vergleichen</h3><p>Scans lassen sich als <code>.disktree</code> speichern und später öffnen. Der Vergleich zeigt, welche Ordner gewachsen, geschrumpft, neu oder entfernt sind.</p></div>
-        </li>
-
-        <li class="card wide">
-          <figure><a href="img/scan-tabs-voll-dark.webp"><picture>
-            <source media="(prefers-color-scheme: dark)" srcset="img/scan-tabs-dark.png">
-            <img src="img/scan-tabs-light.png" width="1392" height="464" loading="lazy" alt="Zwei Scans in Tabs nebeneinander; der zweite Tab ist ein gespeicherter Scan und trägt ein Disketten-Symbol.">
-          </picture></a></figure>
-          <div class="body"><h3>Mehrere Scans in Tabs</h3><p>Aktuelle und gespeicherte Scans liegen in eigenen Tabs (Strg+T öffnet einen neuen). Mehrere Pfade, auch UNC-Pfade, lassen sich gemeinsam scannen.</p></div>
-        </li>
-
-        <li class="card narrow">
-          <figure><picture>
-            <source media="(prefers-color-scheme: dark)" srcset="img/export-dark.png">
-            <img src="img/export-light.png" width="658" height="520" loading="lazy" alt="Dialog „Exportieren“ mit den Optionen Baum, gesamter Scan, größte Dateien, Bericht als HTML und Bericht als PDF.">
-          </picture></figure>
-          <div class="body"><h3>Berichte und Export</h3><p>Export als CSV (Excel-tauglich) sowie Bericht als HTML oder PDF mit größten Ordnern, Dateitypen, Alter und größten Dateien.</p></div>
-        </li>
-
-        <li class="card">
-          <figure><div class="theme-pair">
-            <img src="img/baum-light.png" width="1392" height="584" loading="lazy" alt="Ausschnitt der hellen Oberfläche von DiskTree.">
-            <img src="img/baum-dark.png" width="1392" height="584" loading="lazy" alt="Ausschnitt der dunklen Oberfläche von DiskTree.">
-          </div></figure>
-          <div class="body"><h3>Hell und Dunkel</h3><p>Die Oberfläche folgt der Windows-Einstellung; per Schalter in der Symbolleiste lässt sie sich auch fest auf Hell oder Dunkel stellen.</p></div>
-        </li>
-      </ul>
-
-      <h3 style="margin-top:36px">Weitere Funktionen</h3>
-      <ul class="facts">
-        <li><strong>Aufräumen</strong><span>Dateien markieren (Größte Dateien, Suche, Duplikate) und verschieben, in ZIP archivieren, umbenennen (F2, auch per Muster) oder in den Papierkorb legen – immer mit Bestätigung.</span></li>
-        <li><strong>Self-Update</strong><span>Beim Start sucht DiskTree nach einer neuen Version, lädt sie von den GitHub-Releases, prüft die SHA-256-Prüfsumme und startet neu. Abschaltbar.</span></li>
-        <li><strong>Explorer-Kontextmenü</strong><span>Optional „Mit DiskTree analysieren“ per Rechtsklick auf Ordner.</span></li>
-        <li><strong>Portable-Modus</strong><span><code>DiskTree.portable</code> neben die exe legen oder <code>--portable</code> – Einstellungen bleiben neben der exe.</span></li>
-        <li><strong>Kommandozeile</strong><span>Pfad(e), Threads, Ausschlüsse und mehr per Argument, siehe <a href="#anleitung">Kurzanleitung</a>.</span></li>
-        <li><strong>UNC-Pfade</strong><span>Netzfreigaben wie <code>\\server\share</code> lassen sich scannen.</span></li>
-        <li><strong>Ausschlüsse</strong><span>Ordner nach Name, Muster (<code>*.tmp</code>) oder Pfad vom Scan ausnehmen.</span></li>
-        <li><strong>Windows-Kontextmenü</strong><span>Öffnen, Öffnen mit, Löschen, Eigenschaften … direkt im Baum, dazu „Ab hier neu scannen“.</span></li>
+      <h2 id="h-vorteile" class="reveal">Auf einen Blick</h2>
+      <ul class="stats" data-stagger>
+        <li class="reveal"><span class="num"><span class="count" data-to="1">1</span></span><span class="lbl">Datei, keine Installation – <code>DiskTree.exe</code> bringt alles mit</span></li>
+        <li class="reveal"><span class="num"><span class="count" data-to="8">8</span></span><span class="lbl">Auswertungen im Seitenpanel</span></li>
+        <li class="reveal"><span class="num"><span class="count" data-to="200">200</span></span><span class="lbl">größte Dateien des Scans auf einen Blick</span></li>
+        <li class="reveal"><span class="num">1–<span class="count" data-to="256">256</span></span><span class="lbl">Scan-Threads, einstellbar</span></li>
+        <li class="reveal"><span class="num num-icon"><svg class="ic" aria-hidden="true"><use href="#i-contrast"/></svg></span><span class="lbl">Hell &amp; Dunkel – folgt Windows oder fest eingestellt</span></li>
+        <li class="reveal"><span class="num num-icon"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg></span><span class="lbl">Läuft lokal, keine Telemetrie</span></li>
+        <li class="reveal"><span class="num num-text">CSV · HTML · PDF</span><span class="lbl">Export und Berichte</span></li>
+        <li class="reveal"><span class="num num-text">MIT</span><span class="lbl">Open Source, Quellcode auf GitHub</span></li>
       </ul>
     </div>
   </section>
 
-  <section id="download" aria-labelledby="h-download">
+  <section id="funktionen" aria-labelledby="h-funktionen">
     <div class="wrap">
-      <h2 id="h-download">Download</h2>
-      <p class="intro">Aktuelle Version: <strong id="rel-version">siehe GitHub-Releases</strong> <span id="rel-date"></span><br>
-        <a class="btn" href="https://github.com/pwalter/disktree/releases/latest">Zu den neuesten Releases auf GitHub</a></p>
-      <div class="dl-grid">
-        <div class="box">
-          <h3><code>DiskTree.exe</code> <small id="size-full"></small></h3>
-          <p>Eine einzelne Datei, alles dabei. Läuft unter Windows x64 ohne Installation und ohne zusätzliche Laufzeit.</p>
-        </div>
-        <div class="box">
-          <h3><code>DiskTree-slim.exe</code> <small id="size-slim"></small></h3>
-          <p>Sehr klein, braucht aber die <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET-10-Desktop-Laufzeit</a>.</p>
-        </div>
-        <div class="box">
-          <h3><code>SHA256SUMS.txt</code></h3>
-          <p>Prüfsummen der Dateien. Vergleiche sie nach dem Download, zum Beispiel mit <code>Get-FileHash .\DiskTree.exe</code> in PowerShell.</p>
+      <p class="kicker reveal">Funktionen</p>
+      <h2 id="h-funktionen" class="reveal">Was DiskTree kann</h2>
+      <p class="intro reveal">Pfad oder Laufwerk angeben, DiskTree scannt mit mehreren Threads und baut den Ordnerbaum dabei live auf. Die Screenshots zeigen erfundene Demo-Daten; ein Klick auf ein Bild vergrößert es.</p>
+
+      <ul class="cards" data-stagger>
+        <li class="card card-hero reveal">
+          <a class="zoom card-media" href="img/baum-light.png" data-dark="img/baum-dark.png" data-caption="Ordnerbaum mit Größenbalken (Demo-Daten)"><picture>
+            <source media="(prefers-color-scheme: dark)" srcset="img/baum-dark.png">
+            <img src="img/baum-light.png" width="1392" height="584" loading="lazy" alt="Ordnerbaum mit Größenbalken: Backups, Archiv und Videos sind aufgeklappt, die größten Ordner stehen oben.">
+          </picture></a>
+          <div class="body">
+            <span class="badge-ic" aria-hidden="true"><svg class="ic"><use href="#i-folder"/></svg></span>
+            <h3>Live-Baum mit Balken</h3>
+            <p>Ordner erscheinen sofort, die Größe wächst mit – Spinner und „…“ zeigen, was noch gezählt wird. Pro Ebene stehen die größten Ordner oben, Balken zeigen den Anteil. Bei einem Laufwerk beziehen sich die Anteile auf dessen Kapazität, dazu kommen „Freier Speicher“ und „Nicht erfasst“.</p>
+          </div>
+        </li>
+
+        <li class="card card-wide reveal">
+          <a class="zoom card-media" href="img/scan-tabs-voll-light.webp" data-dark="img/scan-tabs-voll-dark.webp" data-caption="Zwei Scans in Tabs (Demo-Daten)"><picture>
+            <source media="(prefers-color-scheme: dark)" srcset="img/scan-tabs-dark.png">
+            <img src="img/scan-tabs-light.png" width="1392" height="464" loading="lazy" alt="Zwei Scans in Tabs nebeneinander; der zweite Tab ist ein gespeicherter Scan und trägt ein Disketten-Symbol.">
+          </picture></a>
+          <div class="body">
+            <span class="badge-ic" aria-hidden="true"><svg class="ic"><use href="#i-tabs"/></svg></span>
+            <h3>Mehrere Scans in Tabs</h3>
+            <p>Aktuelle und gespeicherte Scans liegen in eigenen Tabs (<kbd>Strg</kbd>+<kbd>T</kbd> öffnet einen neuen). Mehrere Pfade, auch UNC-Pfade, lassen sich gemeinsam scannen.</p>
+          </div>
+        </li>
+
+        <li class="card reveal">
+          <a class="zoom card-media pad" href="img/export-light.png" data-dark="img/export-dark.png" data-caption="Dialog Exportieren"><picture>
+            <source media="(prefers-color-scheme: dark)" srcset="img/export-dark.png">
+            <img src="img/export-light.png" width="658" height="520" loading="lazy" alt="Dialog „Exportieren“ mit den Optionen Baum, gesamter Scan, größte Dateien, Bericht als HTML und Bericht als PDF.">
+          </picture></a>
+          <div class="body">
+            <span class="badge-ic" aria-hidden="true"><svg class="ic"><use href="#i-report"/></svg></span>
+            <h3>Berichte und Export</h3>
+            <p>Export als CSV (Excel-tauglich) sowie Bericht als HTML oder PDF mit größten Ordnern, Dateitypen, Alter und größten Dateien.</p>
+          </div>
+        </li>
+
+        <li class="card reveal">
+          <div class="card-media split">
+            <img src="img/baum-light.png" width="1392" height="584" loading="lazy" alt="Ausschnitt der hellen Oberfläche von DiskTree.">
+            <img class="split-b" src="img/baum-dark.png" width="1392" height="584" loading="lazy" alt="Ausschnitt der dunklen Oberfläche von DiskTree.">
+          </div>
+          <div class="body">
+            <span class="badge-ic" aria-hidden="true"><svg class="ic"><use href="#i-contrast"/></svg></span>
+            <h3>Hell und Dunkel</h3>
+            <p>Die Oberfläche folgt der Windows-Einstellung; per Schalter in der Symbolleiste lässt sie sich auch fest auf Hell oder Dunkel stellen.</p>
+          </div>
+        </li>
+
+        <li class="card card-text reveal">
+          <div class="body">
+            <span class="badge-ic" aria-hidden="true"><svg class="ic"><use href="#i-refresh"/></svg></span>
+            <h3>Neuscan an Ort und Stelle</h3>
+            <p>Ein einzelner Ordner lässt sich mit <kbd>F5</kbd> neu scannen; alle Ordner darüber werden korrigiert. Im Windows-Kontextmenü des Baums gibt es dazu „Ab hier neu scannen“.</p>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="seitenpanel" class="band" aria-labelledby="h-seitenpanel">
+    <div class="wrap">
+      <p class="kicker reveal">Seitenpanel</p>
+      <h2 id="h-seitenpanel" class="reveal">Acht Auswertungen, ein Klick</h2>
+      <p class="intro reveal">Neben dem Baum zeigt das Seitenpanel den markierten Ordner bzw. den ganzen Scan aus verschiedenen Blickwinkeln. Ein Klick auf das Bild öffnet das ganze Fenster.</p>
+
+      <div class="gallery reveal" id="gallery">
+        <div class="g-tabs" role="tablist" aria-label="Auswertungen im Seitenpanel" hidden></div>
+        <div class="g-panels">
+          <article class="g-panel" id="p-dateitypen" data-label="Dateitypen">
+            <div class="g-text">
+              <h3>Dateityp-Diagramm</h3>
+              <p>Word, Excel, MSSQL-Datenbank und -Backup, Bilder, Videos, Archive und mehr – für den jeweils markierten Ordner.</p>
+            </div>
+            <a class="zoom g-shot" href="img/dateitypen-voll-light.webp" data-dark="img/dateitypen-voll-dark.webp" data-caption="Dateityp-Diagramm im Hauptfenster (Demo-Daten)"><picture>
+              <source media="(prefers-color-scheme: dark)" srcset="img/dateitypen-dark.png">
+              <img src="img/dateitypen-light.png" width="560" height="916" loading="lazy" alt="Ringdiagramm der Dateitypen: Datenträger-Abbilder, Videos, MSSQL-Backups und Archive belegen den meisten Platz.">
+            </picture><span class="zoom-hint"><svg class="ic" aria-hidden="true"><use href="#i-expand"/></svg>Ganzes Fenster</span></a>
+          </article>
+          <article class="g-panel" id="p-groesste" data-label="Größte Dateien">
+            <div class="g-text">
+              <h3>Größte Dateien</h3>
+              <p>Die 200 größten Dateien des Scans auf einen Blick – mit Ordner und Größe. Von hier aus lassen sich Dateien markieren und aufräumen.</p>
+            </div>
+            <a class="zoom g-shot" href="img/groesste-dateien-voll-light.webp" data-dark="img/groesste-dateien-voll-dark.webp" data-caption="Größte Dateien im Hauptfenster (Demo-Daten)"><picture>
+              <source media="(prefers-color-scheme: dark)" srcset="img/groesste-dateien-dark.png">
+              <img src="img/groesste-dateien-light.png" width="560" height="916" loading="lazy" alt="Liste der größten Dateien des Scans mit Name, Ordner und Größe, beginnend mit einem 42-GB-Festplattenabbild.">
+            </picture><span class="zoom-hint"><svg class="ic" aria-hidden="true"><use href="#i-expand"/></svg>Ganzes Fenster</span></a>
+          </article>
+          <article class="g-panel" id="p-alter" data-label="Alter">
+            <div class="g-text">
+              <h3>Alter der Dateien</h3>
+              <p>Auswertung nach „zuletzt geändert“, „erstellt“ oder „zuletzt geöffnet“. Der Schwellwert für „alt“ ist einstellbar, im Baum gibt es dazu eine Spalte „Älter als …“.</p>
+            </div>
+            <a class="zoom g-shot" href="img/alter-voll-light.webp" data-dark="img/alter-voll-dark.webp" data-caption="Altersauswertung im Hauptfenster (Demo-Daten)"><picture>
+              <source media="(prefers-color-scheme: dark)" srcset="img/alter-dark.png">
+              <img src="img/alter-light.png" width="560" height="916" loading="lazy" alt="Altersauswertung als Ringdiagramm mit fünf Altersstufen von unter einem Monat bis über fünf Jahre.">
+            </picture><span class="zoom-hint"><svg class="ic" aria-hidden="true"><use href="#i-expand"/></svg>Ganzes Fenster</span></a>
+          </article>
+          <article class="g-panel" id="p-treemap" data-label="Treemap">
+            <div class="g-text">
+              <h3>Treemap</h3>
+              <p>Unterordner als Rechtecke nach Größe. Ein Klick markiert den Ordner im Baum, ein Doppelklick taucht ein.</p>
+            </div>
+            <a class="zoom g-shot" href="img/treemap-voll-light.webp" data-dark="img/treemap-voll-dark.webp" data-caption="Treemap im Hauptfenster (Demo-Daten)"><picture>
+              <source media="(prefers-color-scheme: dark)" srcset="img/treemap-dark.png">
+              <img src="img/treemap-light.png" width="560" height="916" loading="lazy" alt="Treemap: Unterordner als Rechtecke, die Fläche entspricht der Größe. Backups ist das größte Rechteck.">
+            </picture><span class="zoom-hint"><svg class="ic" aria-hidden="true"><use href="#i-expand"/></svg>Ganzes Fenster</span></a>
+          </article>
+          <article class="g-panel" id="p-suche" data-label="Suche">
+            <div class="g-text">
+              <h3>Suche und Filter</h3>
+              <p><kbd>Strg</kbd>+<kbd>F</kbd>: Ordner und Dateien nach Name, Mindestgröße und Endung. Weitere Filter für Zugriffs-, Erstell- und Änderungsdatum sowie Dateiattribute (versteckt, System, komprimiert, Cloud-Platzhalter …).</p>
+            </div>
+            <a class="zoom g-shot" href="img/suche-voll-light.webp" data-dark="img/suche-voll-dark.webp" data-caption="Suche im Hauptfenster (Demo-Daten)"><picture>
+              <source media="(prefers-color-scheme: dark)" srcset="img/suche-dark.png">
+              <img src="img/suche-light.png" width="560" height="916" loading="lazy" alt="Suche nach Dateien mit Endung bak und Mindestgröße 1 GB; fünf Treffer in der Ergebnisliste.">
+            </picture><span class="zoom-hint"><svg class="ic" aria-hidden="true"><use href="#i-expand"/></svg>Ganzes Fenster</span></a>
+          </article>
+          <article class="g-panel" id="p-duplikate" data-label="Duplikate">
+            <div class="g-text">
+              <h3>Duplikate finden</h3>
+              <p>Gleiche Dateien werden über Größe, Teil-Hash und SHA-256 erkannt. Angezeigt wird der „verschwendete“ Platz.</p>
+            </div>
+            <a class="zoom g-shot" href="img/duplikate-voll-light.webp" data-dark="img/duplikate-voll-dark.webp" data-caption="Duplikate im Hauptfenster (Demo-Daten)"><picture>
+              <source media="(prefers-color-scheme: dark)" srcset="img/duplikate-dark.png">
+              <img src="img/duplikate-light.png" width="560" height="916" loading="lazy" alt="Duplikate-Ergebnis: zwei Gruppen gleicher Dateien, 6,3 GB verschwendeter Platz.">
+            </picture><span class="zoom-hint"><svg class="ic" aria-hidden="true"><use href="#i-expand"/></svg>Ganzes Fenster</span></a>
+          </article>
+          <article class="g-panel" id="p-besitzer" data-label="Besitzer">
+            <div class="g-text">
+              <h3>Besitzer und Rechte</h3>
+              <p>Besitzer und Zugriffsrechte (ACL) des markierten Ordners, dazu der Speicherverbrauch pro Besitzer – auf Knopfdruck. (Die Konten im Bild sind für den Screenshot erfunden.)</p>
+            </div>
+            <a class="zoom g-shot" href="img/besitzer-voll-light.webp" data-dark="img/besitzer-voll-dark.webp" data-caption="Besitzer und Rechte im Hauptfenster (Demo-Daten)"><picture>
+              <source media="(prefers-color-scheme: dark)" srcset="img/besitzer-dark.png">
+              <img src="img/besitzer-light.png" width="560" height="916" loading="lazy" alt="Speicher pro Besitzer als Ringdiagramm mit vier Demo-Konten.">
+            </picture><span class="zoom-hint"><svg class="ic" aria-hidden="true"><use href="#i-expand"/></svg>Ganzes Fenster</span></a>
+          </article>
+          <article class="g-panel" id="p-vergleich" data-label="Vergleich">
+            <div class="g-text">
+              <h3>Scans speichern und vergleichen</h3>
+              <p>Scans lassen sich als <code>.disktree</code> speichern und später öffnen. Der Vergleich zeigt, welche Ordner gewachsen, geschrumpft, neu oder entfernt sind.</p>
+            </div>
+            <a class="zoom g-shot" href="img/vergleich-voll-light.webp" data-dark="img/vergleich-voll-dark.webp" data-caption="Vergleich zweier Scans im Hauptfenster (Demo-Daten)"><picture>
+              <source media="(prefers-color-scheme: dark)" srcset="img/vergleich-dark.png">
+              <img src="img/vergleich-light.png" width="560" height="916" loading="lazy" alt="Vergleich zweier Scans: 15 Ordner gewachsen, 2 geschrumpft, 1 neu, 1 entfernt; Liste mit Änderungen in GB.">
+            </picture><span class="zoom-hint"><svg class="ic" aria-hidden="true"><use href="#i-expand"/></svg>Ganzes Fenster</span></a>
+          </article>
         </div>
       </div>
-      <p class="note"><strong>Hinweis zu Windows SmartScreen:</strong> Die Dateien sind nicht code-signiert. Windows SmartScreen kann deshalb beim ersten Start warnen („Der Computer wurde durch Windows geschützt“). Prüfe vor dem Start die SHA-256-Prüfsumme gegen <code>SHA256SUMS.txt</code> aus demselben Release; der Quellcode steht im <a href="https://github.com/pwalter/disktree">Repository</a>.</p>
+    </div>
+  </section>
+
+  <section id="mehr" aria-labelledby="h-mehr">
+    <div class="wrap">
+      <p class="kicker reveal">Und außerdem</p>
+      <h2 id="h-mehr" class="reveal">Weitere Funktionen</h2>
+      <ul class="more" data-stagger>
+        <li class="reveal"><span class="badge-ic" aria-hidden="true"><svg class="ic"><use href="#i-broom"/></svg></span><div><h3>Aufräumen</h3><p>Dateien markieren (Größte Dateien, Suche, Duplikate) und verschieben, in ZIP archivieren, umbenennen (<kbd>F2</kbd>, auch per Muster) oder in den Papierkorb legen – immer mit Bestätigung.</p></div></li>
+        <li class="reveal"><span class="badge-ic" aria-hidden="true"><svg class="ic"><use href="#i-cloud"/></svg></span><div><h3>Self-Update</h3><p>Beim Start sucht DiskTree nach einer neuen Version, lädt sie von den GitHub-Releases, prüft die SHA-256-Prüfsumme und startet neu. Abschaltbar.</p></div></li>
+        <li class="reveal"><span class="badge-ic" aria-hidden="true"><svg class="ic"><use href="#i-menu"/></svg></span><div><h3>Explorer-Kontextmenü</h3><p>Optional „Mit DiskTree analysieren“ per Rechtsklick auf Ordner.</p></div></li>
+        <li class="reveal"><span class="badge-ic" aria-hidden="true"><svg class="ic"><use href="#i-usb"/></svg></span><div><h3>Portable-Modus</h3><p><code>DiskTree.portable</code> neben die exe legen oder <code>--portable</code> – Einstellungen bleiben neben der exe.</p></div></li>
+        <li class="reveal"><span class="badge-ic" aria-hidden="true"><svg class="ic"><use href="#i-terminal"/></svg></span><div><h3>Kommandozeile</h3><p>Pfad(e), Threads, Ausschlüsse und mehr per Argument, siehe <a href="#anleitung">Kurzanleitung</a>.</p></div></li>
+        <li class="reveal"><span class="badge-ic" aria-hidden="true"><svg class="ic"><use href="#i-network"/></svg></span><div><h3>UNC-Pfade</h3><p>Netzfreigaben wie <code>\\server\share</code> lassen sich scannen.</p></div></li>
+        <li class="reveal"><span class="badge-ic" aria-hidden="true"><svg class="ic"><use href="#i-filter"/></svg></span><div><h3>Ausschlüsse</h3><p>Ordner nach Name, Muster (<code>*.tmp</code>) oder Pfad vom Scan ausnehmen.</p></div></li>
+        <li class="reveal"><span class="badge-ic" aria-hidden="true"><svg class="ic"><use href="#i-list"/></svg></span><div><h3>Windows-Kontextmenü</h3><p>Öffnen, Öffnen mit, Löschen, Eigenschaften … direkt im Baum, dazu „Ab hier neu scannen“.</p></div></li>
+        <li class="reveal"><span class="badge-ic" aria-hidden="true"><svg class="ic"><use href="#i-shield"/></svg></span><div><h3>Administrator optional</h3><p>Läuft ohne Administratorrechte; auf Wunsch startet DiskTree als Administrator neu, um auch geschützte Ordner zu lesen.</p></div></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="download" class="band download" aria-labelledby="h-download">
+    <div class="wrap">
+      <p class="kicker reveal">Download</p>
+      <h2 id="h-download" class="reveal">DiskTree herunterladen</h2>
+      <p class="intro reveal">Aktuelle Version: <strong id="rel-version">siehe GitHub-Releases</strong> <span id="rel-date"></span> · Windows x64 · kostenlos unter MIT-Lizenz</p>
+      <div class="dl-grid" data-stagger>
+        <article class="dl-card dl-main reveal">
+          <p class="tag">Empfohlen</p>
+          <h3><code>DiskTree.exe</code></h3>
+          <p class="dl-size"><span id="size-full">Einzelne Datei</span></p>
+          <ul class="checks">
+            <li><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>Eine einzelne Datei, alles dabei</li>
+            <li><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>Ohne Installation, ohne zusätzliche Laufzeit</li>
+            <li><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>Windows x64</li>
+          </ul>
+          <a class="btn btn-primary" href="https://github.com/pwalter/disktree/releases/latest/download/DiskTree.exe"><svg class="ic" aria-hidden="true"><use href="#i-down"/></svg>DiskTree.exe laden</a>
+        </article>
+        <article class="dl-card reveal">
+          <p class="tag tag-muted">Klein</p>
+          <h3><code>DiskTree-slim.exe</code></h3>
+          <p class="dl-size"><span id="size-slim">Sehr kleine Datei</span></p>
+          <ul class="checks">
+            <li><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>Sehr klein</li>
+            <li><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg><span>Braucht die <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET-10-Desktop-Laufzeit</a></span></li>
+            <li><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>Windows x64</li>
+          </ul>
+          <a class="btn btn-ghost" href="https://github.com/pwalter/disktree/releases/latest/download/DiskTree-slim.exe"><svg class="ic" aria-hidden="true"><use href="#i-down"/></svg>DiskTree-slim.exe laden</a>
+        </article>
+      </div>
+      <div class="dl-extra reveal">
+        <p><svg class="ic" aria-hidden="true"><use href="#i-file"/></svg><span><a href="https://github.com/pwalter/disktree/releases/latest/download/SHA256SUMS.txt"><code>SHA256SUMS.txt</code></a> enthält die Prüfsummen. Vergleiche sie nach dem Download, zum Beispiel mit <code>Get-FileHash .\DiskTree.exe</code> in PowerShell. Alle Dateien und älteren Versionen gibt es in den <a href="https://github.com/pwalter/disktree/releases">Releases auf GitHub</a>.</span></p>
+      </div>
+      <p class="note reveal"><strong>Hinweis zu Windows SmartScreen:</strong> Die Dateien sind nicht code-signiert. Windows SmartScreen kann deshalb beim ersten Start warnen („Der Computer wurde durch Windows geschützt“). Prüfe vor dem Start die SHA-256-Prüfsumme gegen <code>SHA256SUMS.txt</code> aus demselben Release; der Quellcode steht im <a href="https://github.com/pwalter/disktree">Repository</a>.</p>
     </div>
   </section>
 
   <section id="anleitung" aria-labelledby="h-anleitung">
     <div class="wrap">
-      <h2 id="h-anleitung">Kurzanleitung</h2>
-      <ol class="steps">
-        <li>DiskTree starten, einen Pfad oder ein Laufwerk eingeben oder einen Ordner auf das Fenster ziehen.</li>
-        <li>Auf <strong>Scannen</strong> klicken. Der Baum füllt sich live, die größten Ordner stehen oben.</li>
-        <li>Einen Ordner markieren – das Seitenpanel zeigt Dateitypen, Alter, Treemap, größte Dateien und mehr dazu.</li>
+      <p class="kicker reveal">Kurzanleitung</p>
+      <h2 id="h-anleitung" class="reveal">In drei Schritten zum Überblick</h2>
+      <ol class="steps" data-stagger>
+        <li class="reveal"><span class="step-n" aria-hidden="true">1</span><p>DiskTree starten, einen Pfad oder ein Laufwerk eingeben oder einen Ordner auf das Fenster ziehen.</p></li>
+        <li class="reveal"><span class="step-n" aria-hidden="true">2</span><p>Auf <strong>Scannen</strong> klicken. Der Baum füllt sich live, die größten Ordner stehen oben.</p></li>
+        <li class="reveal"><span class="step-n" aria-hidden="true">3</span><p>Einen Ordner markieren – das Seitenpanel zeigt Dateitypen, Alter, Treemap, größte Dateien und mehr dazu.</p></li>
       </ol>
-      <p><kbd>F5</kbd> scannt den markierten Ordner neu · <kbd>Esc</kbd> bricht einen laufenden Scan ab · <kbd>Strg</kbd>+<kbd>F</kbd> öffnet die Suche · <kbd>Strg</kbd>+<kbd>T</kbd> öffnet einen neuen Scan-Tab · <kbd>F2</kbd> benennt um.</p>
-      <h3>Kommandozeile</h3>
-      <pre><code>DiskTree.exe [Pfad] [Optionen]
+      <h3 class="reveal">Tastenkürzel</h3>
+      <ul class="keys reveal">
+        <li><kbd>F5</kbd> markierten Ordner neu scannen</li>
+        <li><kbd>Esc</kbd> laufenden Scan abbrechen</li>
+        <li><kbd>Strg</kbd>+<kbd>F</kbd> Suche öffnen</li>
+        <li><kbd>Strg</kbd>+<kbd>T</kbd> neuer Scan-Tab</li>
+        <li><kbd>F2</kbd> umbenennen</li>
+      </ul>
+      <h3 class="reveal">Kommandozeile</h3>
+      <div class="term reveal">
+        <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i><span>PowerShell</span></div>
+        <pre><code>DiskTree.exe [Pfad] [Optionen]
 
   Pfad                  Laufwerk oder Ordner, der sofort gescannt wird (mehrere Pfade möglich)
   -t, --threads N       Anzahl der Scan-Threads (1-256)
@@ -222,35 +408,51 @@
       --admin           Direkt als Administrator neu starten
       --no-admin-prompt Die Frage nach Administratorrechten überspringen
   -h, --help, /?        Hilfe</code></pre>
-      <pre><code>DiskTree.exe D:\ --threads 32
-DiskTree.exe C:\Daten \\server\share --exclude node_modules --exclude *.tmp</code></pre>
+        <pre class="term-ex"><code><span class="prompt" aria-hidden="true">&gt; </span>DiskTree.exe D:\ --threads 32
+<span class="prompt" aria-hidden="true">&gt; </span>DiskTree.exe C:\Daten \\server\share --exclude node_modules --exclude *.tmp</code></pre>
+      </div>
     </div>
   </section>
 
-  <section id="faq" aria-labelledby="h-faq">
-    <div class="wrap">
-      <h2 id="h-faq">Häufige Fragen</h2>
-      <details><summary>Bleiben meine Daten lokal?</summary><p>Ja. DiskTree liest nur das Dateisystem auf deinem Rechner (oder Netzlaufwerk) und sendet keine Scan-Ergebnisse irgendwohin. Es gibt keine Telemetrie.</p></details>
-      <details><summary>Wann nimmt DiskTree Kontakt zum Internet auf?</summary><p>Beim Start fragt die App bei GitHub nach einer neuen Version. Das lässt sich abschalten: Rechtsklick auf die Versionsanzeige unten rechts oder Start mit <code>--no-update-check</code>. Diese Webseite lädt nur beim Öffnen die Versionsangabe von GitHub nach; sie verwendet keine Cookies, Tracker oder externen Schriften.</p></details>
-      <details><summary>Brauche ich Administratorrechte?</summary><p>Nein. Mit Administratorrechten kann DiskTree aber auch geschützte Ordner lesen. Die App bietet den Neustart als Administrator optional an (abschaltbar mit <code>--no-admin-prompt</code>).</p></details>
-      <details><summary>Welche Systemvoraussetzungen gibt es?</summary><p>Windows (x64). Die Variante <code>DiskTree.exe</code> bringt alles mit; <code>DiskTree-slim.exe</code> benötigt zusätzlich die .NET-10-Desktop-Laufzeit.</p></details>
-      <details><summary>Warum warnt Windows SmartScreen?</summary><p>Die Dateien sind nicht code-signiert, daher kann SmartScreen warnen. Prüfe die Prüfsumme (<code>SHA256SUMS.txt</code>) oder baue DiskTree selbst aus dem Quellcode (.NET-10-SDK).</p></details>
-      <details><summary>Wo melde ich Fehler oder Wünsche?</summary><p>Als <a href="https://github.com/pwalter/disktree/issues">Issue auf GitHub</a>.</p></details>
+  <section id="faq" class="band" aria-labelledby="h-faq">
+    <div class="wrap narrow">
+      <p class="kicker reveal">FAQ</p>
+      <h2 id="h-faq" class="reveal">Häufige Fragen</h2>
+      <div class="faq reveal">
+        <details><summary>Bleiben meine Daten lokal?</summary><p>Ja. DiskTree liest nur das Dateisystem auf deinem Rechner (oder Netzlaufwerk) und sendet keine Scan-Ergebnisse irgendwohin. Es gibt keine Telemetrie.</p></details>
+        <details><summary>Wann nimmt DiskTree Kontakt zum Internet auf?</summary><p>Beim Start fragt die App bei GitHub nach einer neuen Version. Das lässt sich abschalten: Rechtsklick auf die Versionsanzeige unten rechts oder Start mit <code>--no-update-check</code>. Diese Webseite lädt nur beim Öffnen die Versionsangabe von GitHub nach; sie verwendet keine Cookies, Tracker oder externen Schriften.</p></details>
+        <details><summary>Brauche ich Administratorrechte?</summary><p>Nein. Mit Administratorrechten kann DiskTree aber auch geschützte Ordner lesen. Die App bietet den Neustart als Administrator optional an (abschaltbar mit <code>--no-admin-prompt</code>).</p></details>
+        <details><summary>Welche Systemvoraussetzungen gibt es?</summary><p>Windows (x64). Die Variante <code>DiskTree.exe</code> bringt alles mit; <code>DiskTree-slim.exe</code> benötigt zusätzlich die .NET-10-Desktop-Laufzeit.</p></details>
+        <details><summary>Warum warnt Windows SmartScreen?</summary><p>Die Dateien sind nicht code-signiert, daher kann SmartScreen warnen. Prüfe die Prüfsumme (<code>SHA256SUMS.txt</code>) oder baue DiskTree selbst aus dem Quellcode (.NET-10-SDK).</p></details>
+        <details><summary>Wo melde ich Fehler oder Wünsche?</summary><p>Als <a href="https://github.com/pwalter/disktree/issues">Issue auf GitHub</a>.</p></details>
+      </div>
     </div>
   </section>
 </main>
 
 <footer>
-  <div class="wrap">
+  <div class="wrap foot">
+    <div>
+      <a class="brand" href="#top"><img src="favicon-32.png" width="24" height="24" alt="">DiskTree</a>
+      <p>Speicherplatz-Analyse für Windows. Die Screenshots zeigen frei erfundene Demo-Daten. Diese Seite verwendet keine Cookies und keine Tracker.</p>
+    </div>
     <ul>
       <li><a href="https://github.com/pwalter/disktree">Repository auf GitHub</a></li>
       <li><a href="https://github.com/pwalter/disktree/issues">Issues</a></li>
       <li><a href="https://github.com/pwalter/disktree/releases">Releases</a></li>
       <li><a href="https://github.com/pwalter/disktree/blob/main/LICENSE">Lizenz: MIT</a></li>
     </ul>
-    <p>Die Screenshots zeigen frei erfundene Demo-Daten.</p>
   </div>
 </footer>
+
+<dialog class="lightbox" id="lightbox" aria-labelledby="lb-cap">
+  <figure>
+    <img id="lb-img" alt="">
+    <figcaption id="lb-cap"></figcaption>
+  </figure>
+  <button type="button" class="lb-close" id="lb-close"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg><span class="sr-only">Schließen</span></button>
+</dialog>
+
 <script src="app.js" defer></script>
 </body>
 </html>
