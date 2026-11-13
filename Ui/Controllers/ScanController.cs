@@ -417,7 +417,7 @@ public sealed class ScanController
     private static string Requests(Scanner s)
     {
         if ((s.Provider.Caps & StorageCaps.CostsPerRequest) == 0) return "";
-        return $" · {s.Requests:N0} LIST-Anfragen" + (s.Run is { IsPaused: true } ? " (angehalten)" : "");
+        return $" · {s.Requests:N0} LIST-Anfragen" + (s.Run is { IsPaused: true, Cancellation.IsCancellationRequested: false } ? " (angehalten)" : "");
     }
 
     /// <summary>Tab title and tooltip from what was scanned (a saved source: its name and the bucket / folder).</summary>
