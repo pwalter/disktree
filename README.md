@@ -35,6 +35,15 @@ Die fertige Datei steht unter [Releases](../../releases):
 | `DiskTree.exe` | Eine einzelne Datei, läuft überall (Windows x64), nichts zu installieren |
 | `DiskTree-slim.exe` | Sehr klein, braucht die [.NET 10 Desktop-Laufzeit](https://dotnet.microsoft.com/download/dotnet/10.0) |
 
+Die Dateien sind nicht code-signiert. Prüfen lässt sich ein Download auf zwei Wegen:
+
+- **Prüfsumme:** `SHA256SUMS.txt` aus demselben Release mit `Get-FileHash .\DiskTree.exe` vergleichen.
+- **Herkunft:** Jede exe hat eine Herkunftsbestätigung (Build-Provenance), die belegt, dass sie von GitHub Actions aus diesem Repository gebaut wurde. Prüfen mit der [GitHub CLI](https://cli.github.com/):
+
+  ```
+  gh attestation verify DiskTree.exe --repo pwalter/disktree
+  ```
+
 ## Kommandozeile
 
 ```

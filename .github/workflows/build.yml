@@ -107,11 +107,22 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write       # Sigstore signing for the provenance attestation
+      attestations: write
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: DiskTree
           path: release
+
+      # Build provenance: anyone can check that an exe was built by this workflow from this repo:
+      #   gh attestation verify DiskTree.exe --repo pwalter/disktree
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            release/DiskTree.exe
+            release/DiskTree-slim.exe
 
       - name: Create GitHub release
         env:
@@ -120,4 +131,5 @@ jobs:
           # For a pushed tag the tag already exists; for main it is created here on the built commit.
           gh release create "${{ needs.build.outputs.tag }}" release/*             --repo "${{ github.repository }}"             --target "${{ github.sha }}"             --title "DiskTree ${{ needs.build.outputs.version }}"             --generate-notes             --notes "**DiskTree.exe** – eine einzelne Datei, läuft ohne Installation (Windows x64).
           **DiskTree-slim.exe** – sehr klein, braucht die .NET 10 Desktop-Laufzeit.
-          Prüfsummen: SHA256SUMS.txt"
+          Prüfsummen: SHA256SUMS.txt
+          Herkunft prüfen: gh attestation verify DiskTree.exe --repo ${{ github.repository }}"
