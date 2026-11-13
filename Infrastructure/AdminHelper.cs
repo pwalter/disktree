@@ -11,14 +11,14 @@ public static class AdminHelper
 {
     private static string SuppressFile => Path.Combine(Portable.DataDir, "no-admin-prompt");
 
-    public static bool IsAdmin
+    // The rights of a process do not change while it runs: ask Windows once.
+    private static readonly Lazy<bool> IsAdminCached = new(() =>
     {
-        get
-        {
-            using var id = WindowsIdentity.GetCurrent();
-            return new WindowsPrincipal(id).IsInRole(WindowsBuiltInRole.Administrator);
-        }
-    }
+        using var id = WindowsIdentity.GetCurrent();
+        return new WindowsPrincipal(id).IsInRole(WindowsBuiltInRole.Administrator);
+    });
+
+    public static bool IsAdmin => IsAdminCached.Value;
 
     public static bool PromptSuppressed => File.Exists(SuppressFile);
 

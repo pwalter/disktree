@@ -14,12 +14,15 @@ public sealed class AdminStartup
 {
     private readonly Window _window;
     private readonly Func<string> _pathText;
+    private readonly Action _saveSettings;
 
     /// <param name="pathText">Text of the path box: handed over so the elevated instance scans it right away.</param>
-    public AdminStartup(Window window, Button button, Func<string> pathText)
+    /// <param name="saveSettings">Writes the settings: the elevated instance reads them at its start, before this one closes.</param>
+    public AdminStartup(Window window, Button button, Func<string> pathText, Action saveSettings)
     {
         _window = window;
         _pathText = pathText;
+        _saveSettings = saveSettings;
 
         if (AdminHelper.IsAdmin)
         {
@@ -33,8 +36,15 @@ public sealed class AdminStartup
     {
         var args = PathList.Parse(_pathText()).Where(Directory.Exists).ToArray();
 
-        if (AdminHelper.RestartElevated(args))
+        if (RestartElevated(args))
             Application.Current.Shutdown();
+    }
+
+    /// <summary>The settings are saved first: the new process starts (and reads settings.json) before this one closes.</summary>
+    private bool RestartElevated(IEnumerable<string> args)
+    {
+        _saveSettings();
+        return AdminHelper.RestartElevated(args);
     }
 
     /// <summary>
@@ -49,7 +59,7 @@ public sealed class AdminStartup
         if (cli.Admin)
         {
             // --admin: restart right away, no question. If UAC is declined the program just carries on.
-            if (AdminHelper.RestartElevated(cli.ForwardArgs()))
+            if (RestartElevated(cli.ForwardArgs()))
             {
                 Application.Current.Shutdown();
                 return true;
@@ -59,7 +69,7 @@ public sealed class AdminStartup
         {
             if (AdminHelper.Ask(_window, out var never))
             {
-                if (AdminHelper.RestartElevated(cli.ForwardArgs()))
+                if (RestartElevated(cli.ForwardArgs()))
                 {
                     Application.Current.Shutdown();
                     return true;

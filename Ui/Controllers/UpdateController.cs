@@ -21,6 +21,7 @@ public sealed class UpdateController
     private readonly MenuItem _autoItem;
     private readonly Func<string> _pathText;
     private readonly Func<bool> _scanRunning;
+    private readonly Action _saveSettings;
 
     private UpdateInfo? _update;
 
@@ -29,8 +30,9 @@ public sealed class UpdateController
 
     /// <param name="pathText">Text of the path box: the new process scans it again after the restart.</param>
     /// <param name="scanRunning">Whether any scan runs (the update has to wait for it).</param>
+    /// <param name="saveSettings">Writes the settings (window size, last path ...): the new process reads them before this one closes.</param>
     public UpdateController(Window owner, AppSettings settings, Button button, MenuItem autoItem,
-        MenuItem checkItem, MenuItem releasesItem, Func<string> pathText, Func<bool> scanRunning)
+        MenuItem checkItem, MenuItem releasesItem, Func<string> pathText, Func<bool> scanRunning, Action saveSettings)
     {
         _owner = owner;
         _settings = settings;
@@ -38,6 +40,7 @@ public sealed class UpdateController
         _autoItem = autoItem;
         _pathText = pathText;
         _scanRunning = scanRunning;
+        _saveSettings = saveSettings;
 
         _autoItem.IsChecked = _settings.AutoCheckUpdates;
         ShowVersion();
@@ -134,7 +137,7 @@ public sealed class UpdateController
 
             _button.Content = "Installiere …";
             Updater.Install(file);
-            _settings.Save();
+            _saveSettings();
 
             var path = PathList.Normalize(_pathText());
             // No second question about administrator rights: the new process inherits the current one's rights anyway.
