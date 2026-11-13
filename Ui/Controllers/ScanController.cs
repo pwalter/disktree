@@ -156,7 +156,6 @@ public sealed class ScanController
     {
         var scanner = Cur.Scanner;
         if (node == null || scanner == null) return Task.CompletedTask;
-        // PHASE-D: a snapshot's scanner never has IsMulti set, so the artificial root of a multi-path snapshot is not recognised here
         if (scanner.IsMulti && node == scanner.Root) return BeginScan(); // the artificial root: scan all paths again
         var s = Cur;
         return s.ScanTask = StartRescan(s, node);

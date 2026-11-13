@@ -19,6 +19,8 @@ public sealed class LoadedSnapshot
     public required SnapshotInfo Info { get; init; }
     /// <summary>Timestamp the age buckets were built from (absent in older files = last modified).</summary>
     public AgeStamp AgeStamp { get; init; }
+    /// <summary>The root is the artificial "several paths" node (header field "multi"; absent in older files = false).</summary>
+    public bool IsMulti { get; init; }
 }
 
 /// <summary>
@@ -46,7 +48,7 @@ public static class SnapshotStore
         {
             using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
             using (var gz = new GZipStream(fs, CompressionLevel.Optimal))
-                Write(gz, root, target, scanner.ExpectedBytes, scanner.TopFiles(), scannedAt, scanner.Ages.Stamp);
+                Write(gz, root, target, scanner.ExpectedBytes, scanner.TopFiles(), scannedAt, scanner.Ages.Stamp, scanner.IsMulti);
             File.Move(tmp, file, overwrite: true);
         }
         finally
@@ -56,7 +58,7 @@ public static class SnapshotStore
     }
 
     internal static void Write(Stream stream, Node root, Node target, long expected,
-        IEnumerable<Scanner.BigFile> top, DateTime scannedAt, AgeStamp ageStamp)
+        IEnumerable<Scanner.BigFile> top, DateTime scannedAt, AgeStamp ageStamp, bool multi = false)
     {
         var buffer = new ArrayBufferWriter<byte>(4096);
         using var json = new Utf8JsonWriter(buffer);
@@ -78,6 +80,7 @@ public static class SnapshotStore
         json.WriteString("machine", Environment.MachineName);
         json.WriteNumber("expected", expected);
         json.WriteString("ageStamp", AgeStamps.ToKey(ageStamp));
+        if (multi) json.WriteBoolean("multi", true); // additive: older readers ignore it, older files simply lack it
         json.WriteEndObject();
         EndLine();
 
@@ -209,6 +212,7 @@ public static class SnapshotStore
                 ExpectedBytes = Num(h, "expected"),
                 Info = new SnapshotInfo(at),
                 AgeStamp = AgeStamps.FromKey(Str(h, "ageStamp")),
+                IsMulti = h.TryGetProperty("multi", out var multi) && multi.ValueKind == JsonValueKind.True,
             };
         }
         catch (JsonException ex)
