@@ -6,6 +6,7 @@
         xmlns:search="clr-namespace:DiskTree.Features.Search"
         xmlns:dup="clr-namespace:DiskTree.Features.Duplicates"
         xmlns:owner="clr-namespace:DiskTree.Features.Owner"
+        xmlns:top="clr-namespace:DiskTree.Features.TopFiles"
         Title="DiskTree" Width="1340" Height="780" MinWidth="1100" MinHeight="420"
         Icon="/app.ico" AllowDrop="True" Drop="Window_Drop" PreviewKeyDown="Window_PreviewKeyDown"
         Background="{DynamicResource WindowBg}" Foreground="{DynamicResource Ink}" FontFamily="Segoe UI" FontSize="13">
@@ -174,11 +175,7 @@
                     </Grid>
                 </TabItem>
                 <TabItem Header="Größte Dateien">
-                    <ListBox x:Name="TopList" BorderThickness="0" Background="Transparent" SelectionMode="Extended"
-                             ItemTemplate="{StaticResource TopFileRow}"
-                             HorizontalContentAlignment="Stretch"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                             MouseDoubleClick="TopList_DoubleClick" />
+                    <top:TopFilesPanel x:Name="TopPane" />
                 </TabItem>
                 <TabItem x:Name="AgeTab" Header="Alter">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">

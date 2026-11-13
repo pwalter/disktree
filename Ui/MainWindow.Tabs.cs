@@ -89,7 +89,7 @@ public partial class MainWindow
         _settingStampBox = false;
 
         Tree.ItemsSource = null;
-        TopList.ItemsSource = null;
+        TopPane.Clear();
         if (s.Root != null)
         {
             s.Root.Refresh();      // background scans / theme changes did not reach this tree
@@ -106,7 +106,7 @@ public partial class MainWindow
 
         // File types, age, treemap, owner for the folder that will be selected (the scan target until then).
         _ = UpdatePieAsync();
-        RefreshTop();
+        TopPane.Refresh(_scanner);
         OwnerTab.SetFolder(PieTarget().Node?.FullPath);
         Dup.Reset();
 

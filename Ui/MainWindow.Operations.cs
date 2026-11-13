@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using DiskTree.Core;
 using DiskTree.Features.FileOperations;
+using DiskTree.Features.TopFiles;
 using DiskTree.Ui.Controllers;
 
 namespace DiskTree.Ui;
@@ -84,7 +85,7 @@ public partial class MainWindow
     /// <summary>Selection of the list the user is working in (mouse over it, else keyboard focus).</summary>
     private List<OpItem> ActiveSelection(string? mustContain, bool preferFocus = false)
     {
-        var sources = new FrameworkElement[] { TopList, SearchPane.Results, Dup.List };
+        var sources = new FrameworkElement[] { TopPane.List, SearchPane.Results, Dup.List };
         var order = preferFocus
             ? sources.OrderBy(c => c.IsKeyboardFocusWithin ? 0 : 1)
             : sources.OrderBy(c => c.IsMouseOver ? 0 : c.IsKeyboardFocusWithin ? 1 : 2);
@@ -102,8 +103,8 @@ public partial class MainWindow
 
     private List<OpItem> SelectionOf(FrameworkElement c)
     {
-        if (c == TopList)
-            return TopList.SelectedItems.Cast<TopRow>().Select(r => ItemOf(r.Path, false, r.Size)).ToList();
+        if (c == TopPane.List)
+            return TopPane.SelectedRows.Select(r => ItemOf(r.Path, false, r.Size)).ToList();
         if (c == SearchPane.Results)
             return SearchPane.SelectedHits.Select(h => ItemOf(h.Path, h.IsDir, h.Size)).ToList();
         if (c == Dup.List)
@@ -318,7 +319,7 @@ public partial class MainWindow
         if (_scanner?.Root is { } drive) Scanner.ReadDrive(drive);
         _root?.Refresh();
         _ = UpdatePieAsync();
-        RefreshTop();
+        TopPane.Refresh(_scanner);
         SearchPane.PruneMissing();
         Dup.PruneMissing();
     }

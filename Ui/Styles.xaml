@@ -44,20 +44,6 @@
             </Grid>
         </DataTemplate>
 
-        <DataTemplate x:Key="TopFileRow" DataType="{x:Type local:TopRow}">
-            <Grid Margin="0,3" ToolTip="{Binding Path}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel>
-                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{Binding Folder}" FontSize="11" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-                <TextBlock Grid.Column="1" Text="{Binding SizeText}" FontWeight="SemiBold" Margin="10,0,0,0" VerticalAlignment="Center" />
-            </Grid>
-        </DataTemplate>
-
         <HierarchicalDataTemplate DataType="{x:Type local:NodeVM}" ItemsSource="{Binding Children}">
             <StackPanel Orientation="Horizontal" Height="24" ToolTip="{Binding Path}">
                 <Grid Width="{Binding NameWidth}">

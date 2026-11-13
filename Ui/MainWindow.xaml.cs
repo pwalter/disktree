@@ -226,7 +226,7 @@ public partial class MainWindow : Window, IExportSource
             s.ScanTarget = null;
             s.SelectedVm = null;
             Tree.ItemsSource = null;
-            TopList.ItemsSource = null;
+            TopPane.Clear();
 
             // ScanAsync creates the tree (drive -> ... -> scanned folder) and starts the workers synchronously,
             // so the tree can be shown right away and fills up while the scan is running.
@@ -331,7 +331,7 @@ public partial class MainWindow : Window, IExportSource
         if (canceled) SetStatus(s, "Abgebrochen – " + s.Status);
         if (!active) return;
         _ = UpdatePieAsync();
-        RefreshTop();
+        TopPane.Refresh(_scanner);
     }
 
     // When a subfolder is scanned the tree starts at the drive: open the chain down to the scanned folder.
@@ -368,8 +368,8 @@ public partial class MainWindow : Window, IExportSource
         long now = Environment.TickCount64;
         if (!_pieBusy && now - _pieLastTick > 1000)
             _ = UpdatePieAsync();
-        if (now - _topLastTick > 1000)
-            RefreshTop();
+        if (now - TopPane.LastRefreshTick > 1000)
+            TopPane.Refresh(_scanner);
     }
 
     private static string ExcludedTooltip(Scanner s)
@@ -547,38 +547,6 @@ public partial class MainWindow : Window, IExportSource
 
     // ---------------------------------------------------------------- largest files
 
-    private long _topLastTick;
-
-    private void RefreshTop()
-    {
-        _topLastTick = Environment.TickCount64;
-        if (_scanner == null)
-        {
-            TopList.ItemsSource = null;
-            return;
-        }
-
-        var selected = TopList.SelectedItems.Cast<TopRow>().Select(r => r.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var rows = _scanner.TopFiles().Select(f => new TopRow
-        {
-            Path = f.Path,
-            Name = Path.GetFileName(f.Path),
-            Folder = Path.GetDirectoryName(f.Path) ?? "",
-            Size = f.Size,
-            SizeText = SizeFormat.Format(f.Size),
-        }).ToList();
-
-        TopList.ItemsSource = rows;
-        foreach (var r in rows)
-            if (selected.Contains(r.Path)) TopList.SelectedItems.Add(r);
-    }
-
-    private void TopList_DoubleClick(object sender, MouseButtonEventArgs e)
-    {
-        if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource)?.DataContext is TopRow row)
-            ShellMenuCoordinator.OpenInExplorer(row.Path);
-    }
-
     // Folder for the duplicate search: the selected folder (or the folder of the selected file), else what was scanned.
     private string? DuplicateRoot()
     {
@@ -602,12 +570,8 @@ public partial class MainWindow : Window, IExportSource
             ShowMenu = _shell.ShowTreeMenu,
             CopyText = vm => vm.Path.Length > 0 ? vm.Path : null,
         });
-        ListInteraction.Attach(TopList, new ListBehavior<TopRow>
-        {
-            Selected = () => TopList.SelectedItem as TopRow,
-            ExtraKey = (key, _) => OpsKey(key), // F2, Delete on several rows
-            Delete = row => _shell.DeleteFile(row.Path, row.Size),
-            ShowMenu = (row, pos) => _shell.ShowFileMenu(row.Path, row.Size, pos),
-        });
+        TopPane.ShowMenu = (row, pos) => _shell.ShowFileMenu(row.Path, row.Size, pos);
+        TopPane.DeleteRow = row => _shell.DeleteFile(row.Path, row.Size);
+        TopPane.ExtraKeyDown = OpsKey; // F2, Delete on several rows
     }
 }

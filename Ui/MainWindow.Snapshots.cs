@@ -49,7 +49,7 @@ public partial class MainWindow : ISnapshotHost
     void ISnapshotHost.RefreshViews()
     {
         _ = UpdatePieAsync();
-        RefreshTop();
+        TopPane.Refresh(_scanner);
     }
 
     // ---------------------------------------------------------------- jump from the comparison

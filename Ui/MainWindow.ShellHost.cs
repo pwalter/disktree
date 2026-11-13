@@ -20,7 +20,7 @@ public partial class MainWindow : IShellMenuHost
     {
         _root?.Refresh();
         _ = UpdatePieAsync();
-        RefreshTop();
+        TopPane.Refresh(_scanner);
     }
 
     private void Notice(string text) =>
