@@ -50,6 +50,15 @@ internal sealed class SftpConnection : IDisposable
     {
         public SftpClient Client { get; } = client;
         public int Generation { get; } = generation;
+
+        /// <summary>Cancelled by <see cref="Abort"/>: ends the listings running on this client at once.</summary>
+        public CancellationTokenSource Stop { get; } = new();
+
+        /// <summary>
+        /// Taken out of service (reconnect, abort). SSH.NET may then fail requests that still run on it with odd errors
+        /// (even a NullReferenceException inside ListDirectoryAsync): they all count as a lost connection.
+        /// </summary>
+        public volatile bool Dropped;
         public bool IsConnected
         {
             get
@@ -117,23 +126,21 @@ internal sealed class SftpConnection : IDisposable
     /// <summary>Closes the connection; requests running on it end with <see cref="OperationCanceledException"/>.</summary>
     public void Abort()
     {
-        lock (_lock)
-        {
-            _abortedGeneration = _generation;
-            Drop();
-        }
+        // First (without waiting for a connect that may hold the lock): end what runs on the current client.
+        Volatile.Write(ref _abortedGeneration, Volatile.Read(ref _generation));
+        Volatile.Read(ref _live)?.Stop.Cancel();
+        lock (_lock) Drop();
     }
 
     public void Dispose()
     {
+        Volatile.Write(ref _abortedGeneration, int.MaxValue);
+        Volatile.Read(ref _live)?.Stop.Cancel();
         lock (_lock)
         {
             if (_disposed) return;
             _disposed = true;
-            _abortedGeneration = _generation;
-            var live = _live;
-            _live = null;
-            live?.Dispose();
+            Drop();
         }
     }
 
@@ -142,7 +149,9 @@ internal sealed class SftpConnection : IDisposable
     {
         var live = _live;
         _live = null;
-        if (live != null) Task.Run(live.Dispose);
+        if (live == null) return;
+        live.Dropped = true;
+        Task.Run(live.Dispose);
     }
 
     private bool IsAborted(int generation) => generation <= Volatile.Read(ref _abortedGeneration);
@@ -231,7 +240,9 @@ internal sealed class SftpConnection : IDisposable
             cts.CancelAfter(_o.ConnectTimeout);
             try
             {
-                client.ConnectAsync(cts.Token).GetAwaiter().GetResult();
+                var token = cts.Token;
+                var connect = SynchronizationContext.Current == null ? client.ConnectAsync(token) : Task.Run(() => client.ConnectAsync(token));
+                connect.GetAwaiter().GetResult();
             }
             catch (OperationCanceledException oce) when (!ct.IsCancellationRequested)
             {
@@ -335,7 +346,7 @@ internal sealed class SftpConnection : IDisposable
     /// reopened once and the request repeated; errors come out as <see cref="IOException"/> /
     /// <see cref="UnauthorizedAccessException"/>, an abort as <see cref="OperationCanceledException"/>.
     /// </summary>
-    private T Run<T>(string display, Func<SftpClient, T> request)
+    private T Run<T>(string display, Func<Live, T> request)
     {
         _slots.Wait();
         try
@@ -343,19 +354,21 @@ internal sealed class SftpConnection : IDisposable
             var live = Current();
             try
             {
-                return request(live.Client);
+                return request(live);
             }
-            catch (Exception ex) when (IsConnectionLoss(ex))
+            catch (Exception ex) when (IsLost(live, ex))
             {
                 if (IsAborted(live.Generation)) throw new OperationCanceledException("Abgebrochen.", ex);
                 live = Reconnect(live.Generation);
                 try
                 {
-                    return request(live.Client);
+                    return request(live);
                 }
-                catch (Exception ex2) when (IsConnectionLoss(ex2) && IsAborted(live.Generation))
+                catch (Exception ex2) when (IsLost(live, ex2))
                 {
-                    throw new OperationCanceledException("Abgebrochen.", ex2);
+                    // Lost again right away: this folder is "nicht lesbar" (or the whole thing was cancelled).
+                    if (IsAborted(live.Generation)) throw new OperationCanceledException("Abgebrochen.", ex2);
+                    throw new IOException($"Die Verbindung zu {_where} ist unterbrochen.", ex2);
                 }
             }
         }
@@ -369,11 +382,42 @@ internal sealed class SftpConnection : IDisposable
         }
     }
 
-    public List<RemoteEntry> List(string remotePath, string display) => Run(display, c =>
+    /// <summary>
+    /// Waits for an async SSH.NET request with the operation timeout; an <see cref="Abort"/> ends it at once (the
+    /// synchronous SSH.NET calls would keep waiting for their timeout after the client is closed).
+    /// </summary>
+    private TResult Await<TResult>(Live live, Func<CancellationToken, Task<TResult>> request)
     {
-        var files = c.ListDirectory(remotePath);
-        var list = new List<RemoteEntry>(files is ICollection<ISftpFile> coll ? coll.Count : 16);
-        foreach (var f in files)
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(live.Stop.Token);
+        cts.CancelAfter(_o.OperationTimeout);
+        try
+        {
+            // Blocking is fine on the scanner's threads; on a thread with a synchronization context (the UI listing the
+            // "Dateien" row) the request runs on the thread pool, so no continuation can wait for the blocked thread.
+            var token = cts.Token;
+            var task = SynchronizationContext.Current == null ? request(token) : Task.Run(() => request(token));
+            return task.GetAwaiter().GetResult();
+        }
+        catch (Exception ex) when (cts.IsCancellationRequested && ex is not OutOfMemoryException)
+        {
+            // Whatever SSH.NET throws once the token fired (usually OperationCanceledException, sometimes a
+            // NullReferenceException from inside ListDirectoryAsync): an abort ends the request as cancelled, our
+            // timeout is a connection problem (reconnect once), never a cancel of the scan.
+            if (live.Stop.IsCancellationRequested) throw new OperationCanceledException("Abgebrochen.", ex);
+            throw new SshOperationTimeoutException($"Zeitüberschreitung bei {_where}.", ex);
+        }
+        catch (Exception ex) when (ex is NullReferenceException or InvalidOperationException)
+        {
+            // SSH.NET clears its session when the connection goes down; requests still running on it then fail like
+            // this (seen in ListDirectoryAsync while the server was paused). Only SSH.NET code runs in here.
+            throw new SshConnectionException($"Die SFTP-Sitzung mit {_where} wurde beendet.", ex);
+        }
+    }
+
+    public List<RemoteEntry> List(string remotePath, string display) => Run(display, live => Await(live, async ct =>
+    {
+        var list = new List<RemoteEntry>();
+        await foreach (var f in live.Client.ListDirectoryAsync(remotePath, ct).ConfigureAwait(false))
         {
             var name = f.Name;
             if (name is "." or "..") continue;
@@ -382,16 +426,15 @@ internal sealed class SftpConnection : IDisposable
                 Ticks(f.LastWriteTimeUtc), Ticks(f.LastAccessTimeUtc)));
         }
         return list;
-    });
-
+    }));
     private static long Ticks(DateTime utc) => utc.Ticks <= DateTime.UnixEpoch.Ticks ? 0 : utc.Ticks;
 
     /// <summary>Is there a folder (following links, like the disk does)? Not found / no access: false.</summary>
-    public bool IsFolder(string remotePath, string display) => Run(display, c =>
+    public bool IsFolder(string remotePath, string display) => Run(display, live =>
     {
         try
         {
-            return c.GetAttributes(remotePath).IsDirectory;
+            return Await(live, ct => live.Client.GetAttributesAsync(remotePath, ct)).IsDirectory;
         }
         catch (Exception ex) when (ex is SftpPathNotFoundException or SftpPermissionDeniedException)
         {
@@ -400,11 +443,11 @@ internal sealed class SftpConnection : IDisposable
     });
 
     /// <summary>statvfs@openssh.com; null if the server does not offer it.</summary>
-    public RemoteCapacity? Capacity(string remotePath, string display) => Run(display, c =>
+    public RemoteCapacity? Capacity(string remotePath, string display) => Run(display, live =>
     {
         try
         {
-            var s = c.GetStatus(remotePath);
+            var s = Await(live, ct => live.Client.GetStatusAsync(remotePath, ct));
             ulong unit = s.BlockSize != 0 ? s.BlockSize : s.FileSystemBlockSize;   // f_frsize, else f_bsize
             if (unit == 0 || s.TotalBlocks == 0) return (RemoteCapacity?)null;
             return new RemoteCapacity(checked((long)(s.TotalBlocks * unit)), checked((long)(s.AvailableBlocks * unit)),
@@ -419,10 +462,13 @@ internal sealed class SftpConnection : IDisposable
     });
 
     public Stream OpenRead(string remotePath, string display) =>
-        new MappedStream(Run(display, c => (Stream)c.OpenRead(remotePath)), display);
+        new MappedStream(Run(display, live => (Stream)live.Client.OpenRead(remotePath)), display);
 
     // ------------------------------------------------------------------ errors
 
+    /// <summary>A lost connection, or the client was taken out of service under the request (<see cref="Live.Dropped"/>).</summary>
+    private static bool IsLost(Live live, Exception ex) =>
+        IsConnectionLoss(ex) || (live.Dropped && ex is not (OperationCanceledException or OutOfMemoryException));
     /// <summary>Did the connection itself fail (as opposed to the request)?</summary>
     internal static bool IsConnectionLoss(Exception ex) => ex is SshConnectionException or SshOperationTimeoutException
         or ObjectDisposedException or SocketException or ProxyException
