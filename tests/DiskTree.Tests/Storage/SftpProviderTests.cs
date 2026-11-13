@@ -9,6 +9,7 @@ using Xunit;
 namespace DiskTree.Tests.Storage;
 
 /// <summary>SFTP provider without a server: URIs, path rules, options, error mapping (no network except a closed local port).</summary>
+[Collection(SourceStateCollection.Name)]
 public class SftpProviderTests
 {
     private const string Secret = "Geheim-123!";

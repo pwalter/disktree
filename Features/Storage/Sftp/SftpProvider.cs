@@ -114,6 +114,27 @@ public sealed class SftpProvider : IStorageProvider, IConnectedStorage
 
     public void Connect(CancellationToken ct) => Connection.Connect(ct);
 
+    /// <summary>The folder the server starts the session in (usually the user's home, "/home/user"); null before connecting.</summary>
+    public string? HomeDirectory => Volatile.Read(ref _connection)?.Home;
+
+    /// <summary>Is this the home folder shortcut: the remote path "/~" or "/~/…" ("sftp://host/~/x", or "~" in a profile)?</summary>
+    public static bool IsHomePath(string remotePath) => remotePath == "/~" || remotePath.StartsWith("/~/", StringComparison.Ordinal);
+
+    /// <summary>
+    /// "sftp://user@host/~/x" as the absolute path below the user's home folder (connects if needed); other paths of
+    /// this server come back normalized. <see cref="IOException"/> if the server did not tell its start folder.
+    /// </summary>
+    public string ResolvePath(string path)
+    {
+        var target = Normalize(path);
+        var remote = RemotePath(target);
+        if (!IsHomePath(remote)) return target;
+        if (!IsConnected) Connect(CancellationToken.None);
+        var home = HomeDirectory ?? throw new IOException(
+            $"Der Server {RootUri} nennt kein Home-Verzeichnis; bitte einen absoluten Pfad angeben (z. B. /home/{_root.User}).");
+        return _root.Authority + SftpUri.NormalizePath(home + remote[2..]);
+    }
+
     public void Disconnect() => Volatile.Read(ref _connection)?.Abort();
 
     public IDisposable CancelWith(CancellationToken ct)
@@ -254,7 +275,7 @@ public sealed class SftpProvider : IStorageProvider, IConnectedStorage
         provider.Connect(ct);
         var connectTime = sw.Elapsed;
 
-        var folder = path == null ? provider.RootUri : provider.Normalize(SftpUri.HasScheme(path) ? path : provider._root.Authority + SftpUri.NormalizePath(path));
+        var folder = path == null ? provider.RootUri : provider.ResolvePath(SftpUri.HasScheme(path) ? path : provider._root.Authority + SftpUri.NormalizePath(path));
         using var cancel = provider.CancelWith(ct);
         var entries = provider.Connection.List(provider.RemotePath(folder), folder);
         ct.ThrowIfCancellationRequested();

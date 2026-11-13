@@ -11,6 +11,7 @@ using Xunit;
 namespace DiskTree.Tests.S3;
 
 /// <summary>Translation of SDK errors and the "Quelle" side of S3 (fields, checks, connection test).</summary>
+[Collection(DiskTree.Tests.Storage.SourceStateCollection.Name)]
 public sealed class S3KindAndErrorTests : IDisposable
 {
     private readonly Func<SourceProfile?, string?, IS3Client> _oldFactory = S3Provider.ClientFactory;

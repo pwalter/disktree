@@ -2,6 +2,7 @@ using System.Windows;
 using DiskTree.Core.Storage;
 using DiskTree.Features.Explorer;
 using DiskTree.Features.Storage.S3;
+using DiskTree.Features.Storage.Sftp;
 using DiskTree.Features.Update;
 using DiskTree.Infrastructure;
 using DiskTree.Ui;
@@ -45,9 +46,11 @@ public partial class App : Application
         }
 
         Portable.ForcedByFlag = Options.Portable;
-        // Remote sources: secrets in the Windows Credential Manager; registering S3 does not load the AWS SDK yet.
+        // Remote sources: secrets in the Windows Credential Manager; registering S3 / SFTP does not load the AWS SDK or
+        // SSH.NET yet (that happens on the first connection).
         SourceSecrets.Store = CredentialStore.Instance;
         S3Storage.Register();
+        SftpStorage.Register();
         Updater.CleanupOld();
         ExplorerIntegration.RefreshIfStale();
         Theme.Init(AppSettings.Load().Theme);

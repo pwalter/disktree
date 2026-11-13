@@ -6,6 +6,7 @@ using Xunit;
 namespace DiskTree.Tests.Storage;
 
 /// <summary>ListRun (cancellation, request counting, cost limit), saved profiles and their secrets.</summary>
+[Collection(SourceStateCollection.Name)]
 public class SourceInfraTests
 {
     private static FakeProvider Tree(int folders)

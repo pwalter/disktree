@@ -10,6 +10,7 @@ using Xunit;
 namespace DiskTree.Tests.S3;
 
 /// <summary>The S3 provider against an in-memory server: paths, listing, scan, errors, cancellation, profiles, snapshots.</summary>
+[Collection(DiskTree.Tests.Storage.SourceStateCollection.Name)]
 public sealed class S3ProviderTests : IDisposable
 {
     private readonly Func<SourceProfile?, string?, IS3Client> _oldFactory = S3Provider.ClientFactory;

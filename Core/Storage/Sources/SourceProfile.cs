@@ -70,6 +70,13 @@ public sealed class SourceProfile
 
     public SourceListing Listing { get; set; }
 
+    /// <summary>
+    /// SFTP: the server's host key the user trusted ("SHA256:…", not secret). Null until the first connection was
+    /// confirmed; a different key later is refused. Not written for other kinds (settings.json stays as it was).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? HostKeySha256 { get; set; }
+
     /// <summary>Further non-secret settings of a kind (key/value), for options that have no field of their own.</summary>
     public Dictionary<string, string>? Extra { get; set; }
 

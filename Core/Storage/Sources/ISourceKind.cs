@@ -14,6 +14,8 @@ public enum SourceField
     AwsProfile,
     Path,
     Listing,
+    /// <summary>The trusted host key (<see cref="SourceProfile.HostKeySha256"/>): shown with a reset button, not typed.</summary>
+    HostKey,
 }
 
 /// <summary>
@@ -67,6 +69,20 @@ public interface ISourceKind
 
     /// <summary>Profiles were changed or deleted: drop connections / clients built from old settings.</summary>
     void Forget(string profileId);
+
+    /// <summary>
+    /// Paths of this kind can only be scanned through a saved profile (SFTP: server, user and sign-in are needed).
+    /// False (S3): without a profile the provider uses the environment's defaults.
+    /// </summary>
+    bool RequiresProfile => false;
+
+    /// <summary>A new profile filled in from a path the user typed (server, user, folder), for "Quelle anlegen".</summary>
+    SourceProfile ProfileFor(string path)
+    {
+        var p = NewProfile();
+        p.Path = path;
+        return p;
+    }
 }
 
 /// <summary>The registered source kinds (S3, SFTP …).</summary>

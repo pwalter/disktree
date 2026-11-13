@@ -93,6 +93,9 @@ internal sealed class SftpConnection : IDisposable
 
     public string? ServerVersion { get; private set; }
 
+    /// <summary>The folder the server starts the session in ("/home/user"), once connected; null if unknown.</summary>
+    public string? Home { get; private set; }
+
     public bool IsConnected
     {
         get { lock (_lock) return _live?.IsConnected == true; }
@@ -261,6 +264,12 @@ internal sealed class SftpConnection : IDisposable
 
         Volatile.Write(ref _trustedKey, presented);
         ServerVersion = info.ServerVersion;
+        try
+        {
+            // The server's start folder (realpath ".", asked by SSH.NET while connecting): usually the home folder.
+            if (client.WorkingDirectory is { Length: > 0 } wd) Home = SftpUri.NormalizePath(wd);
+        }
+        catch (Exception ex) when (ex is SshException or InvalidOperationException) { /* unknown: "~" cannot be resolved */ }
         return new Live(client, extras, ++_generation);
     }
 

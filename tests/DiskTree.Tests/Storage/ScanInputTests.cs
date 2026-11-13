@@ -6,6 +6,7 @@ using Xunit;
 namespace DiskTree.Tests.Storage;
 
 /// <summary>What the path box / command line / a drop asks to scan: one provider, several paths of it, mixtures refused.</summary>
+[Collection(SourceStateCollection.Name)]
 public sealed class ScanInputTests : IDisposable
 {
     public ScanInputTests()

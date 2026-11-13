@@ -28,6 +28,7 @@ public sealed class S3IntegrationFactAttribute : FactAttribute
     }
 }
 
+[Collection(DiskTree.Tests.Storage.SourceStateCollection.Name)]
 public sealed class S3IntegrationTests : IDisposable
 {
     public const string EndpointVar = "DISKTREE_S3_TEST_ENDPOINT";

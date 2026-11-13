@@ -30,4 +30,10 @@ public interface IConnectedStorage : IDisposable
     /// operation is over.
     /// </summary>
     IDisposable CancelWith(CancellationToken ct);
+
+    /// <summary>
+    /// After <see cref="Connect"/>: a path whose start is only known on the server (SFTP "~" = the user's home folder)
+    /// as the absolute path. Other paths come back unchanged.
+    /// </summary>
+    string ResolvePath(string path) => path;
 }
