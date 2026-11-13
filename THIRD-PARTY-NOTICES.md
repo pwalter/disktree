@@ -11,7 +11,9 @@ bleiben.
 | [PDFsharp](https://github.com/empira/PDFsharp) (PDF-Berichte) | 6.2.4 | MIT | empira Software GmbH |
 | .NET-Laufzeit und Klassenbibliothek (nur in `DiskTree.exe`, nicht in `DiskTree-slim.exe`) | 10.x | MIT | .NET Foundation und Mitwirkende, Microsoft |
 | Windows Presentation Foundation (WPF) (nur in `DiskTree.exe`) | 10.x | MIT | .NET Foundation und Mitwirkende, Microsoft |
-| Microsoft.Extensions.Logging.Abstractions, Microsoft.Extensions.DependencyInjection.Abstractions (Abhängigkeiten von PDFsharp) | 8.0.x | MIT | .NET Foundation und Mitwirkende, Microsoft |
+| Microsoft.Extensions.Logging.Abstractions, Microsoft.Extensions.DependencyInjection.Abstractions (Abhängigkeiten von PDFsharp und SSH.NET) | 8.0.x | MIT | .NET Foundation und Mitwirkende, Microsoft |
+| [SSH.NET](https://github.com/sshnet/SSH.NET) (SFTP-Quellen) | 2026.0.0 | MIT | Renci und Mitwirkende |
+| [BouncyCastle.Cryptography](https://github.com/bcgit/bc-csharp) (Abhängigkeit von SSH.NET) | 2.7.0 | MIT | Legion of the Bouncy Castle Inc. |
 
 Nur für Entwicklung und Tests (nicht Teil der veröffentlichten Dateien): xUnit
 (Apache-2.0), Microsoft.NET.Test.Sdk, Microsoft.CodeCoverage und
@@ -28,6 +30,8 @@ keine Schriftdatei mitgeliefert.
 
 Copyright (c) PDFsharp: empira Software GmbH
 Copyright (c) .NET Foundation und Mitwirkende; Microsoft Corporation
+Copyright (c) SSH.NET: Renci 2010-2026 und Mitwirkende
+Copyright (c) BouncyCastle.Cryptography: Legion of the Bouncy Castle Inc. 2000-2026
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
