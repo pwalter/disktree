@@ -10,10 +10,11 @@ namespace DiskTree.Tests.Storage;
 
 /// <summary>
 /// Tests that change the app-wide source state (<see cref="SourceProfiles"/>, <see cref="SourceSecrets.Store"/>, the
-/// SFTP hooks) run one after the other, so one test's profiles never show up in another one's matching.
+/// SFTP hooks) run one after the other, so one test's profiles never show up in another one's matching. The SFTP
+/// container of <see cref="SftpSourceIntegrationTests"/> (<see cref="SftpTestServer"/>) only starts with DISKTREE_SFTP_TESTS=1.
 /// </summary>
 [CollectionDefinition(Name)]
-public sealed class SourceStateCollection
+public sealed class SourceStateCollection : ICollectionFixture<SftpTestServer>
 {
     public const string Name = "Quellen (globaler Zustand)";
 }
