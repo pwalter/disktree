@@ -57,10 +57,10 @@
             <!-- second toolbar row: files, exclusions, appearance -->
             <StackPanel Grid.Row="1" Grid.ColumnSpan="5" Orientation="Horizontal" Margin="0,8,0,0">
                 <Button x:Name="SnapshotSaveButton" Content="💾 Scan speichern…" Height="30"
-                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="SaveSnapshot_Click"
+                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}"
                         ToolTip="Den Scan als .disktree-Datei speichern (später ohne Neuscan wieder öffnen oder vergleichen)" />
-                <Button Content="📂 Scan öffnen…" Height="30" Margin="6,0,0,0"
-                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}" Click="OpenSnapshot_Click"
+                <Button x:Name="OpenSnapshotButton" Content="📂 Scan öffnen…" Height="30" Margin="6,0,0,0"
+                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}"
                         ToolTip="Gespeicherten Scan öffnen (oder .disktree-Datei auf das Fenster ziehen)" />
                 <Button x:Name="ExportButton" Content="Exportieren…" Height="30" Margin="6,0,0,0"
                         Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}"

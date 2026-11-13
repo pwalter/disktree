@@ -100,7 +100,7 @@ public partial class MainWindow
 
         ScanButton.Content = s.Cts != null ? "Abbrechen" : "Scannen";
         ApplyStatus(s);
-        UpdateTitle();
+        _snapshots.UpdateTitle();
         UpdateAgeNotices();
         ShowAgeHeader();
 

@@ -55,7 +55,7 @@ public partial class MainWindow
         AgeSwitchNotice.Visibility = mismatch ? Visibility.Visible : Visibility.Collapsed;
         if (mismatch)
         {
-            bool snap = IsSnapshotMode;
+            bool snap = _snapshots.IsSnapshotMode;
             AgeSwitchText.Text = $"Die Zahlen stammen vom Zeitstempel „{AgeStamps.Names[(int)shown]}“. " +
                 $"Für „{AgeStamps.Names[(int)wanted]}“ ist ein Neuscan nötig" +
                 (snap ? " (ein gespeicherter Scan enthält nur einen Zeitstempel)." : ".");

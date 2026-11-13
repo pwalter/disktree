@@ -142,11 +142,7 @@ public partial class MainWindow : Window, IExportSource
     private async void Window_Drop(object sender, DragEventArgs e)
     {
         if (e.Data.GetData(DataFormats.FileDrop) is not string[] { Length: > 0 } files) return;
-        if (files[0].EndsWith(SnapshotStore.Extension, StringComparison.OrdinalIgnoreCase) && File.Exists(files[0]))
-        {
-            await LoadSnapshotAsync(files[0]);
-            return;
-        }
+        if (await _snapshots.TryHandleDropAsync(files[0])) return;
         var paths = files.Select(f => File.Exists(f) ? Path.GetDirectoryName(f)! : f)
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         // With Ctrl or Shift held the folder opens in a new tab instead of replacing the scan of the current one.
@@ -222,7 +218,7 @@ public partial class MainWindow : Window, IExportSource
         await RunAsync(s, ct =>
         {
             var scanner = s.Scanner = new Scanner { Excludes = _winSettings.CurrentExcludes(), AgeStamp = s.AgePreferred };
-            OnNewScanner(scanner);
+            _snapshots.OnNewScanner(scanner);
             // Event instead of polling: the scanner reports changes from its worker threads, the UI reacts.
             scanner.Changed += () => Dispatcher.InvokeAsync(() => OnScannerChanged(s, scanner), DispatcherPriority.Background);
             s.Root = null;
@@ -262,7 +258,7 @@ public partial class MainWindow : Window, IExportSource
     private async Task StartRescan(ScanSession s, Node node)
     {
         var scanner = s.Scanner!;
-        if (!CanRescan(node)) return;
+        if (!_snapshots.CanRescan(node)) return;
         if (Busy is { } other && other != s) { NoticeBusy(other); return; }
 
         // A running scan has to stop first. (s.ScanTask still is the old scan here: this method runs
@@ -627,7 +623,7 @@ public partial class MainWindow : Window, IExportSource
 
     private void ShowFileMenu(TopRow row, Point screenPos)
     {
-        if (IsSnapshotMode) { ShowSnapshotMenu(row.Path, isDir: false); return; }
+        if (_snapshots.IsSnapshotMode) { ShowSnapshotMenu(row.Path, isDir: false); return; }
         ShowFileMenuShell(row, screenPos);
     }
 
@@ -679,7 +675,7 @@ public partial class MainWindow : Window, IExportSource
     private void ShowTreeMenu(NodeVM vm, Point screenPos)
     {
         if (!CanUseShell(vm)) return;
-        if (IsSnapshotMode) { ShowSnapshotMenu(vm.Path, vm.Kind == Kind.Dir); return; }
+        if (_snapshots.IsSnapshotMode) { ShowSnapshotMenu(vm.Path, vm.Kind == Kind.Dir); return; }
         RunShell(vm.Path, vm.Kind == Kind.File, vm.Size, vm,
             () => ShellContextMenu.Show(this, vm.Path, screenPos, Extras(vm.Path, vm.Kind == Kind.Dir)));
     }
@@ -711,7 +707,7 @@ public partial class MainWindow : Window, IExportSource
 
     private void RunShell(string path, bool isFile, long size, NodeVM? vm, Action action)
     {
-        if (IsSnapshotMode) { SnapshotHint(); return; }
+        if (_snapshots.IsSnapshotMode) { _snapshots.ShowHint(); return; }
         if (Busy is { } other && other != _cur) { NoticeBusy(other); return; } // only one scan at a time, nothing else meanwhile
         int ageBucket = isFile ? _scanner?.Ages.OfFile(path) ?? -1 : -1; // read before the file is gone
         try
