@@ -1,8 +1,8 @@
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using DiskTree.Core;
+using DiskTree.Core.Storage;
 using DiskTree.Features.Scan;
 using DiskTree.Infrastructure;
 
@@ -132,9 +132,11 @@ public sealed class ScanController
         if (BlockedByOperation() || _snapshots.BlockedByLoad()) return;
         if (_tabs.Busy is { } other) { _tabs.NoticeBusy(other); return; }
 
+        // The path box (and PathList) only knows the local file system so far; other sources get their own way in.
+        var provider = StorageProviders.Disk;
         var paths = PathList.Parse(_pathBox.Text);
         if (paths.Count == 0) paths.Add(""); // reports "Pfad nicht gefunden" like before
-        var missing = paths.Where(p => !Directory.Exists(p)).ToList();
+        var missing = paths.Where(p => !provider.FolderExists(p)).ToList();
         if (missing.Count > 0)
         {
             Dialogs.Warn(_window, $"Pfad nicht gefunden:\n{string.Join("\n", missing)}");
@@ -146,7 +148,7 @@ public sealed class ScanController
 
         await RunAsync(s, ct =>
         {
-            var scanner = s.Scanner = new Scanner { Excludes = _winSettings.CurrentExcludes(), AgeStamp = s.AgePreferred };
+            var scanner = s.Scanner = new Scanner { Provider = provider, Excludes = _winSettings.CurrentExcludes(), AgeStamp = s.AgePreferred };
             _snapshots.OnNewScanner(scanner);
             // Event instead of polling: the scanner reports changes from its worker threads, the UI reacts.
             scanner.Changed += () => _window.Dispatcher.InvokeAsync(() => OnScannerChanged(s, scanner), DispatcherPriority.Background);

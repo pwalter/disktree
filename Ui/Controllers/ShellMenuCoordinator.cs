@@ -26,6 +26,7 @@ public interface IShellMenuHost
 /// <summary>
 /// The Windows shell context menu for the rows of the window (tree, largest files, search hits, duplicates): our own
 /// entries on top of it, the small menu of a stored scan, and keeping the tree in step when the menu removed the item.
+/// Local file system only (StorageCaps.ShellMenu): the paths go to the Windows shell as they are.
 /// </summary>
 public sealed class ShellMenuCoordinator
 {
@@ -130,7 +131,7 @@ public sealed class ShellMenuCoordinator
             TreeEditor.RemoveFile(dir, Path.GetFileName(path), size, ageBucket);
 
         scanner?.RemoveTop(path);
-        if (scanner?.Root is { } drive) Scanner.ReadDrive(drive);
+        if (scanner?.Root is { } drive) scanner.ReadCapacity(drive);
 
         _host.RefreshAfterDelete();
     }

@@ -53,6 +53,10 @@ public sealed class ListSelection : ISelectionSource
 /// Clean-up actions on the selection (move, ZIP, rename, delete to the recycle bin): menu entries, keys, confirmation,
 /// and keeping tree / file types / age data / largest files in step afterwards (the tree numbers through
 /// <see cref="TreeEditor"/>). The file work itself is in FileOperations.
+/// <para>
+/// Local file system only (DiskProvider): the actions use System.IO and the Windows shell directly. Other storage
+/// sources will need their own write interface (see StorageCaps.Delete / Move / Rename / ZipCreate).
+/// </para>
 /// </summary>
 public sealed class FileOpsController
 {
@@ -298,7 +302,7 @@ public sealed class FileOpsController
             var newName = Path.GetFileName(newPath);
             if (item.IsDir)
             {
-                if (scanner?.FindNode(item.Path) is { } node) TreeEditor.RenameFolder(node, newName);
+                if (scanner?.FindNode(item.Path) is { } node) TreeEditor.RenameFolder(node, newName, scanner.Paths);
             }
             else if (scanner?.FindNode(item.Parent ?? "") is { } dir)
             {
@@ -377,7 +381,7 @@ public sealed class FileOpsController
 
     private void RefreshAfterChange()
     {
-        if (Scanner?.Root is { } drive) Scanner.ReadDrive(drive);
+        if (Scanner is { Root: { } drive } scanner) scanner.ReadCapacity(drive);
         _tree.RefreshRows();
         _views.RefreshViews();
         foreach (var s in _sources) s.PruneMissing();

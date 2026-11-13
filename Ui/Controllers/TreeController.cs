@@ -1,6 +1,7 @@
 using System.Windows.Controls;
 using System.Windows.Threading;
 using DiskTree.Core;
+using DiskTree.Core.Storage;
 using DiskTree.Features.Scan;
 using DiskTree.Features.Treemap;
 
@@ -40,6 +41,9 @@ public sealed class TreeController
 
     private NodeVM? Root => _tabs.Current.Root;
 
+    /// <summary>The storage source of the active tab's scan.</summary>
+    public IStorageProvider Provider => _tabs.Current.Provider;
+
     public NodeVM? SelectedRow => _tree.SelectedItem as NodeVM;
 
     /// <summary>The folder selected in the tree, or null (a file, the "Dateien" row or nothing is selected).</summary>
@@ -56,7 +60,7 @@ public sealed class TreeController
     {
         var scanner = s.Scanner!;
         s.ScanTarget = scanner.ScanTarget;
-        s.Root = new NodeVM(scanner.Root!, Kind.Dir, null, 0) { IsExpanded = true };
+        s.Root = new NodeVM(scanner.Root!, Kind.Dir, null, 0, scanner.Provider) { IsExpanded = true };
         _treemap.Reset(s.ScanTarget ?? scanner.Root);
         _tree.ItemsSource = new[] { s.Root };
         ExpandToScanTarget(s);

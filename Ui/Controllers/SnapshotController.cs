@@ -221,7 +221,8 @@ public sealed class SnapshotController
     /// <summary>Rescan below a loaded snapshot only makes sense when the folder exists here.</summary>
     public bool CanRescan(Node node)
     {
-        if (!IsSnapshotMode || Directory.Exists(node.FullPath)) return true;
+        var provider = CurrentScanner?.Provider ?? DiskTree.Core.Storage.StorageProviders.Disk;
+        if (!IsSnapshotMode || provider.FolderExists(node.FullPath)) return true;
         Dialogs.Info(_window, $"Der Ordner existiert auf diesem Rechner nicht:\n{node.FullPath}\n\nEr kann nicht neu gescannt werden.");
         return false;
     }

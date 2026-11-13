@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using DiskTree.Core;
+using DiskTree.Core.Storage;
 using DiskTree.Ui;
 
 namespace DiskTree.Features.Scan;
@@ -17,6 +18,12 @@ public sealed class ScanSession : INotifyPropertyChanged
     public const string DefaultStatus = "Pfad oder Laufwerk eingeben (oder Ordner hierher ziehen) und auf „Scannen“ klicken.";
 
     public Scanner? Scanner { get; set; }
+
+    /// <summary>
+    /// Where this tab's scan reads from (its scanner's provider). Without a scan: the local file system, the only
+    /// source the path box understands so far.
+    /// </summary>
+    public IStorageProvider Provider => Scanner?.Provider ?? DiskProvider.Instance;
     public NodeVM? Root { get; set; }
     public Node? ScanTarget { get; set; }
     public Task ScanTask { get; set; } = Task.CompletedTask;

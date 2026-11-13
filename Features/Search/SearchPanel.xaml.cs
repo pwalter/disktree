@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using DiskTree.Core;
+using DiskTree.Core.Storage;
 using DiskTree.Ui;
 using DiskTree.Infrastructure;
 
@@ -14,6 +15,8 @@ public partial class SearchPanel : UserControl
 
     /// <summary>Folder to search below (selected folder, else the scan root); null if nothing was scanned.</summary>
     public Func<Node?>? ScopeProvider { get; set; }
+    /// <summary>The storage source of the scan that is searched (null = the local file system).</summary>
+    public Func<IStorageProvider>? StorageProvider { get; set; }
     /// <summary>Jump to the hit in the tree.</summary>
     public Action<SearchHit>? Navigate { get; set; }
     /// <summary>Show the Windows shell menu for the hit at a screen position.</summary>
@@ -130,7 +133,11 @@ public partial class SearchPanel : UserControl
             return;
         }
 
-        var query = new SearchQuery { Scope = scope, Text = text, MinSize = minSize, Extensions = exts, Files = files, Filter = filter };
+        var query = new SearchQuery
+        {
+            Scope = scope, Text = text, MinSize = minSize, Extensions = exts, Files = files, Filter = filter,
+            Provider = StorageProvider?.Invoke() ?? DiskProvider.Instance,
+        };
         ScopeText.Text = "In: " + scope.FullPath;
 
         MoreFilters.IsExpanded = false; // make room for the hits; the header says how many filters are active
