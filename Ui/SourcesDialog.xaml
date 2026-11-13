@@ -1,0 +1,66 @@
+<Window x:Class="DiskTree.Ui.SourcesDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Quellen" Width="600" Height="460" MinWidth="480" MinHeight="360"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource WindowBg}" Foreground="{DynamicResource Ink}" FontFamily="Segoe UI" FontSize="13">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource Muted}" Margin="0,0,0,10"
+                   Text="Gespeicherte Verbindungen zu entfernten Speichern (S3 und S3-kompatible Server). Eine Quelle wird gescannt, indem ihr Pfad (z. B. s3://bucket/ordner) im Pfadfeld steht – oder über „Scannen“ hier." />
+
+        <Border Grid.Row="1" Background="{DynamicResource PanelBg}" BorderBrush="{DynamicResource PanelBorder}"
+                BorderThickness="1" CornerRadius="6">
+            <Grid>
+                <ListBox x:Name="List" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource Ink}"
+                         Padding="2" MouseDoubleClick="List_DoubleClick" KeyDown="List_KeyDown"
+                         SelectionChanged="List_SelectionChanged">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="2,3">
+                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Detail}" FontSize="12" Foreground="{DynamicResource Muted}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <TextBlock x:Name="EmptyHint" Text="Noch keine Quellen. „Hinzufügen …“ legt eine an."
+                           Foreground="{DynamicResource Subtle}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           IsHitTestVisible="False" />
+            </Grid>
+        </Border>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,10,0,0">
+            <Button Content="Hinzufügen …" Height="30" Padding="14,0" Click="Add_Click" />
+            <Button x:Name="EditButton" Content="Bearbeiten …" Height="30" Padding="14,0" Margin="8,0,0,0" Click="Edit_Click" />
+            <Button x:Name="DeleteButton" Content="Löschen" Height="30" Padding="14,0" Margin="8,0,0,0" Click="Delete_Click" />
+            <Button x:Name="ScanButton" Content="Scannen" Height="30" Padding="14,0" Margin="8,0,0,0" Click="Scan_Click"
+                    ToolTip="Schließt den Dialog und scannt den Pfad der Quelle im aktuellen Tab" />
+        </StackPanel>
+
+        <DockPanel Grid.Row="3" Margin="0,14,0,0">
+            <TextBlock Text="Rückfrage nach" VerticalAlignment="Center" Foreground="{DynamicResource Muted}" />
+            <TextBox x:Name="ThresholdBox" Width="110" Height="28" Margin="8,0" VerticalContentAlignment="Center"
+                     ToolTip="Ein Scan einer kostenpflichtigen Quelle (S3) hält nach so vielen LIST-Anfragen an und fragt, ob er weiterlaufen soll. 0 = nie fragen." />
+            <TextBlock Text="LIST-Anfragen je Scan (0 = nie)" VerticalAlignment="Center" Foreground="{DynamicResource Muted}" />
+        </DockPanel>
+
+        <Grid Grid.Row="4" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="StoreHint" FontSize="11" Foreground="{DynamicResource Subtle}" TextWrapping="Wrap"
+                       VerticalAlignment="Center" Margin="0,0,12,0" />
+            <Button Grid.Column="1" Content="Schließen" Width="90" Height="30" IsCancel="True" IsDefault="True" Click="Close_Click" />
+        </Grid>
+    </Grid>
+</Window>

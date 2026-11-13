@@ -19,9 +19,11 @@ public sealed class ScanSession : INotifyPropertyChanged
 
     public Scanner? Scanner { get; set; }
 
+    /// <summary>The scanner whose cost limit (requests to a paid source) this tab already listens to.</summary>
+    public Scanner? CostHook { get; set; }
+
     /// <summary>
-    /// Where this tab's scan reads from (its scanner's provider). Without a scan: the local file system, the only
-    /// source the path box understands so far.
+    /// Where this tab's scan reads from (its scanner's provider). Without a scan: the local file system.
     /// </summary>
     public IStorageProvider Provider => Scanner?.Provider ?? DiskProvider.Instance;
     public NodeVM? Root { get; set; }
@@ -104,6 +106,7 @@ public sealed class ScanSession : INotifyPropertyChanged
     public void Release()
     {
         Scanner = null;
+        CostHook = null;
         Root = null;
         ScanTarget = null;
         SelectedVm = null;

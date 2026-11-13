@@ -31,6 +31,7 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
     private SideTabsController _sideTabs = null!;
     private SearchController _search = null!;
     private FileOpsController _fileOps = null!;
+    private SourcesController _sources = null!;
 
     // The order is the dependency order: every step only uses what the steps above it created.
     //   toolbar (path, threads) -> scanning (tabs, tree, snapshots, charts, scan) -> panels that use the shell menus
@@ -56,10 +57,8 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
         _winSettings = new WindowSettings(this, _settings, ThemeButton, ExcludeButton);
         _winSettings.ApplyBounds();
 
-        foreach (var d in DriveInfo.GetDrives())
-        {
-            try { if (d.IsReady) PathBox.Items.Add(d.Name); } catch { }
-        }
+        // Drives and saved sources in the path box list; "Quellen …" manages the sources.
+        _sources = new SourcesController(this, _settings, PathBox, SourcesButton, SaveSettings, path => _scan.ScanPathAsync(path));
 
         foreach (var t in new[] { 1, 2, 4, 8, 16, 32, 64 })
             ThreadsBox.Items.Add(t);
@@ -75,7 +74,7 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
 
         PathBox.Text = cli.Path
                        ?? _settings.LastPath
-                       ?? (PathBox.Items.Count > 0 ? (string)PathBox.Items[0]! : "");
+                       ?? _sources.FirstPath;
 
         _admin = new AdminStartup(this, AdminButton, () => PathBox.Text, SaveSettings);
     }
@@ -205,7 +204,13 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
     // Dropping folders (or files: their folders) on the window scans them; several at once are scanned together.
     private async void Window_Drop(object sender, DragEventArgs e)
     {
-        if (e.Data.GetData(DataFormats.FileDrop) is not string[] { Length: > 0 } files) return;
+        if (e.Data.GetData(DataFormats.FileDrop) is not string[] { Length: > 0 } files)
+        {
+            // A source URI dropped as text (e.g. "s3://bucket/ordner" from a browser or an editor).
+            if (e.Data.GetData(DataFormats.UnicodeText) is string text && ScanInput.HasRemotePart(text.Trim()))
+                await _scan.ScanPathAsync(text.Trim(), (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) != 0);
+            return;
+        }
         if (await _snapshots.TryHandleDropAsync(files[0])) return;
         var paths = files.Select(f => File.Exists(f) ? Path.GetDirectoryName(f)! : f)
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
