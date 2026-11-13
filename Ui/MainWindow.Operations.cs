@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using DiskTree.Core;
 using DiskTree.Features.FileOperations;
+using DiskTree.Ui.Controllers;
 
 namespace DiskTree.Ui;
 
@@ -56,7 +57,7 @@ public partial class MainWindow
     /// <summary>F2 in the tree (single selection).</summary>
     private bool OpsTreeKey(Key key, NodeVM vm)
     {
-        if (key != Key.F2 || !CanUseShell(vm)) return false;
+        if (key != Key.F2 || !ShellMenuCoordinator.CanUseShell(vm)) return false;
         if (_snapshots.IsSnapshotMode) { _snapshots.ShowHint(); return true; }
         var sel = new List<OpItem> { ItemOf(vm.Path, vm.Kind == Kind.Dir, vm.Size) };
         RunOp(() => RenameAsync(sel));

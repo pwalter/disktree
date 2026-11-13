@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using DiskTree.Core;
 using DiskTree.Features.Search;
 using DiskTree.Infrastructure;
+using DiskTree.Ui.Controllers;
 
 namespace DiskTree.Ui;
 
@@ -36,12 +37,12 @@ public partial class MainWindow
     {
         if (hit.IsDir)
         {
-            if (RevealNode(hit.Node) is { } vm) ShowTreeMenu(vm, screenPos);
+            if (RevealNode(hit.Node) is { } vm) _shell.ShowTreeMenu(vm, screenPos);
             SearchPane.PruneMissing();
         }
         else
         {
-            RunSearchShell(hit, () => ShellContextMenu.Show(this, hit.Path, screenPos, Extras(hit.Path, isDir: false)));
+            RunSearchShell(hit, () => ShellContextMenu.Show(this, hit.Path, screenPos, _shell.Extras(hit.Path, isDir: false)));
         }
     }
 
@@ -49,11 +50,11 @@ public partial class MainWindow
     {
         if (hit.IsDir)
         {
-            if (RevealNode(hit.Node) is { } vm) RunShell(hit.Path, false, hit.Size, vm, action);
+            if (RevealNode(hit.Node) is { } vm) _shell.RunShell(hit.Path, false, hit.Size, vm, action);
         }
         else
         {
-            RunShell(hit.Path, isFile: true, hit.Size, null, action);
+            _shell.RunShell(hit.Path, isFile: true, hit.Size, null, action);
         }
         SearchPane.PruneMissing();
     }

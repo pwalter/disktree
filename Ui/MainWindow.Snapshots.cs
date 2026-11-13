@@ -52,30 +52,6 @@ public partial class MainWindow : ISnapshotHost
         RefreshTop();
     }
 
-    // ---------------------------------------------------------------- actions that need the disk
-
-    private static bool Exists(string path) => Directory.Exists(path) || File.Exists(path);
-
-    private void Notice(string text) =>
-        Dialogs.Info(this, text);
-
-    /// <summary>In a snapshot the Windows menu (with "Löschen") is replaced by a small menu with our own entries.</summary>
-    private void ShowSnapshotMenu(string path, bool isDir)
-    {
-        var menu = new ContextMenu();
-        foreach (var (text, run) in Extras(path, isDir))
-        {
-            // Rescan and "open in Explorer" need the path to exist on this machine.
-            bool needsDisk = !text.StartsWith("Pfad");
-            var item = new MenuItem { Header = text, IsEnabled = !needsDisk || Exists(isDir ? path : Path.GetDirectoryName(path) ?? "") };
-            item.Click += (_, _) => run();
-            menu.Items.Add(item);
-        }
-        menu.Items.Add(new Separator());
-        menu.Items.Add(new MenuItem { Header = "Gespeicherter Scan: Löschen nicht möglich", IsEnabled = false });
-        menu.IsOpen = true;
-    }
-
     // ---------------------------------------------------------------- jump from the comparison
 
     private void JumpToPath(string path)

@@ -21,6 +21,7 @@ public partial class MainWindow : Window, IExportSource
     private readonly WindowSettings _winSettings;
     private readonly AdminStartup _admin;
     private UpdateController _updater = null!;
+    private ShellMenuCoordinator _shell = null!;
     // Scan state (_scanner, _root, _cts ...) belongs to the active scan tab: see MainWindow.Tabs.cs.
 
     public MainWindow()
@@ -55,15 +56,14 @@ public partial class MainWindow : Window, IExportSource
 
         InitTabs();
         InitSnapshots();
+        _shell = new ShellMenuCoordinator(this, this, _snapshots);
         InitSearch();
         InitOps();
         // Duplicate finder tab (DuplicatesPanel.xaml.cs): searches the selected folder, uses the shell menu from here.
         Dup.Settings = _settings;
         Dup.RootProvider = DuplicateRoot;
-        Dup.ShellMenuRequested += (path, size, pos) => RunShell(path, isFile: true, size, null,
-            () => ShellContextMenu.Show(this, path, pos, Extras(path, isDir: false)));
-        Dup.ShellDeleteRequested += (path, size) => RunShell(path, isFile: true, size, null,
-            () => ShellContextMenu.InvokeVerb(this, path, "delete"));
+        Dup.ShellMenuRequested += _shell.ShowFileShellMenu;
+        Dup.ShellDeleteRequested += _shell.DeleteFile;
 
         Theme.Changed += () => { _root?.RefreshTheme(); _ = UpdatePieAsync(); };
         InitTabChips();
@@ -576,7 +576,7 @@ public partial class MainWindow : Window, IExportSource
     private void TopList_DoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource)?.DataContext is TopRow row)
-            OpenInExplorer(row.Path);
+            ShellMenuCoordinator.OpenInExplorer(row.Path);
     }
 
     // Folder for the duplicate search: the selected folder (or the folder of the selected file), else what was scanned.
@@ -588,17 +588,7 @@ public partial class MainWindow : Window, IExportSource
         return string.IsNullOrEmpty(path) ? null : path;
     }
 
-    private void ShowFileMenu(TopRow row, Point screenPos)
-    {
-        if (_snapshots.IsSnapshotMode) { ShowSnapshotMenu(row.Path, isDir: false); return; }
-        ShowFileMenuShell(row, screenPos);
-    }
-
-    private void ShowFileMenuShell(TopRow row, Point screenPos) =>
-        RunShell(row.Path, isFile: true, row.Size, null,
-            () => ShellContextMenu.Show(this, row.Path, screenPos, Extras(row.Path, isDir: false)));
-
-    // ---------------------------------------------------------------- tree: context menu and keys
+    // ---------------------------------------------------------------- tree and list: context menu and keys
 
     // Context menu, Delete, F2 and the copy key for the tree and the largest files: one behaviour for all lists (ListInteraction).
     private void InitListInteraction()
@@ -607,85 +597,17 @@ public partial class MainWindow : Window, IExportSource
         {
             Selected = () => Tree.SelectedItem as NodeVM,
             ExtraKey = OpsTreeKey, // F2
-            CanDelete = CanUseShell,
-            Delete = vm => RunShell(vm.Path, vm.Kind == Kind.File, vm.Size, vm, () => ShellContextMenu.InvokeVerb(this, vm.Path, "delete")),
-            ShowMenu = ShowTreeMenu,
+            CanDelete = ShellMenuCoordinator.CanUseShell,
+            Delete = _shell.DeleteNode,
+            ShowMenu = _shell.ShowTreeMenu,
             CopyText = vm => vm.Path.Length > 0 ? vm.Path : null,
         });
         ListInteraction.Attach(TopList, new ListBehavior<TopRow>
         {
             Selected = () => TopList.SelectedItem as TopRow,
             ExtraKey = (key, _) => OpsKey(key), // F2, Delete on several rows
-            Delete = row => RunShell(row.Path, isFile: true, row.Size, null, () => ShellContextMenu.InvokeVerb(this, row.Path, "delete")),
-            ShowMenu = ShowFileMenu,
+            Delete = row => _shell.DeleteFile(row.Path, row.Size),
+            ShowMenu = (row, pos) => _shell.ShowFileMenu(row.Path, row.Size, pos),
         });
-    }
-
-    // The "Dateien" row stands for a whole folder's files, so it gets no menu: "Löschen" there would hit the folder.
-    // The artificial "Mehrere Pfade" root has no path either.
-    private static bool CanUseShell(NodeVM vm) => vm.Kind is Kind.Dir or Kind.File && vm.Path.Length > 0;
-
-    private void ShowTreeMenu(NodeVM vm, Point screenPos)
-    {
-        if (!CanUseShell(vm)) return;
-        if (_snapshots.IsSnapshotMode) { ShowSnapshotMenu(vm.Path, vm.Kind == Kind.Dir); return; }
-        RunShell(vm.Path, vm.Kind == Kind.File, vm.Size, vm,
-            () => ShellContextMenu.Show(this, vm.Path, screenPos, Extras(vm.Path, vm.Kind == Kind.Dir)));
-    }
-
-    // Our own entries on top of the Windows menu.
-    private IReadOnlyList<(string Text, Action Run)> Extras(string path, bool isDir)
-    {
-        var list = new List<(string, Action)>();
-
-        // Re-evaluate from here: for a folder the folder itself, for a file the folder it lies in.
-        // Afterwards the folder (and everything above it) has the numbers of what is really on disk.
-        if (isDir)
-            list.Add(("Ab hier neu scannen", () => _ = RescanAsync(_scanner?.FindNode(path))));
-        else
-            list.Add(("Ordner dieser Datei neu scannen", () => _ = RescanAsync(_scanner?.FindNode(Path.GetDirectoryName(path) ?? ""))));
-
-        list.Add(("Übergeordneten Ordner öffnen", () => OpenInExplorer(path)));
-        list.Add(("Pfad kopieren", () => Clipboard.SetText(path)));
-        list.AddRange(OpExtras(path, isDir)); // move / ZIP / rename / delete (MainWindow.Operations.cs)
-        return list;
-    }
-
-    /// <summary>Opens the folder that contains the item and selects the item there.</summary>
-    private static void OpenInExplorer(string path)
-    {
-        if (!File.Exists(path) && !Directory.Exists(path)) return; // e.g. a stored scan of another machine
-        ShellOpen.InExplorer(path);
-    }
-
-    private void RunShell(string path, bool isFile, long size, NodeVM? vm, Action action)
-    {
-        if (_snapshots.IsSnapshotMode) { _snapshots.ShowHint(); return; }
-        if (Busy is { } other && other != _cur) { NoticeBusy(other); return; } // only one scan at a time, nothing else meanwhile
-        int ageBucket = isFile ? _scanner?.Ages.OfFile(path) ?? -1 : -1; // read before the file is gone
-        try
-        {
-            action();
-        }
-        catch (Exception ex)
-        {
-            Dialogs.Warn(this, ex.Message);
-            return;
-        }
-
-        // The menu may have deleted the item (recycle bin or permanently): if it is gone, take it out of the tree.
-        if (File.Exists(path) || Directory.Exists(path)) return;
-
-        if (vm != null)
-            vm.RemoveFromTree(ageBucket);
-        else if (isFile && _scanner?.FindNode(Path.GetDirectoryName(path) ?? "") is { } dir)
-            TreeEditor.RemoveFile(dir, Path.GetFileName(path), size, ageBucket);
-
-        _scanner?.RemoveTop(path);
-        if (_scanner?.Root is { } drive) Scanner.ReadDrive(drive);
-
-        _root?.Refresh();
-        _ = UpdatePieAsync();
-        RefreshTop();
     }
 }
