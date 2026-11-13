@@ -13,7 +13,7 @@ using Microsoft.Win32;
 
 namespace DiskTree.Ui;
 
-public partial class MainWindow : Window, IExportSource, IScanViews
+public partial class MainWindow : Window, IExportSource
 {
     private readonly AppSettings _settings = AppSettings.Load();
     private WindowSettings _winSettings = null!;
@@ -25,6 +25,7 @@ public partial class MainWindow : Window, IExportSource, IScanViews
     private TreeController _tree = null!;
     private ScanController _scan = null!;
     private FileOpsController _fileOps = null!;
+    private ChartsController _charts = null!;
 
     // transitional: what the other partial files still use, all pointing at the active scan tab
     private ScanSession _cur => _tabs.Current;
@@ -49,22 +50,23 @@ public partial class MainWindow : Window, IExportSource, IScanViews
         _tabs.Shown += ShowSession;
         _status = new ScanStatusView(_tabs, ScanButton, StatusText, CurrentText, ScanProgress, TaskbarInfo);
         _tree = new TreeController(Tree, Treemap, _tabs);
-        _tree.SelectionChanged += () =>
-        {
-            _ = RefreshChartsAsync();
-            OwnerTab.SetFolder(_tree.CurrentChartTarget().Node?.FullPath);
-        };
+        _tree.SelectionChanged += () => _charts.OnSelectionChanged();
         InitSnapshots();
-        _scan = new ScanController(this, _settings, _winSettings, _tabs, _status, _tree, _snapshots, this, PathBox, ThreadsBox, ScanButton);
+        _charts = new ChartsController(_settings, _tabs, _tree, _snapshots, TypePane, AgePane, AgeTab, SideTabs, OldHeader,
+            Treemap, TopPane, OwnerTab);
+        _scan = new ScanController(this, _settings, _winSettings, _tabs, _status, _tree, _snapshots, _charts, PathBox, ThreadsBox, ScanButton);
+        AgePane.RescanRequested += () =>
+        {
+            if (!string.IsNullOrWhiteSpace(PathBox.Text)) _ = _scan.ScanPathAsync(PathBox.Text);
+        };
         _shell = new ShellMenuCoordinator(this, this, _snapshots);
         InitSearch();
         InitFileOps();
         InitDuplicates();
         InitListInteraction();
 
-        Theme.Changed += () => { _tree.RefreshTheme(); _ = RefreshChartsAsync(); };
+        Theme.Changed += () => { _tree.RefreshTheme(); _ = _charts.RefreshAsync(); };
         InitTabChips();
-        InitAge();
 
         _ = new ExportController(this, ExportButton, this);
         _updater = new UpdateController(this, _settings, UpdateButton, AutoUpdateItem, CheckUpdateItem, OpenReleasesItem,
@@ -108,7 +110,7 @@ public partial class MainWindow : Window, IExportSource, IScanViews
     // Move / ZIP / rename / delete work on the selection of the list the user is in: largest files, search hits, duplicates.
     private void InitFileOps()
     {
-        _fileOps = new FileOpsController(this, _tabs, _tree, _status, _snapshots, _scan, this,
+        _fileOps = new FileOpsController(this, _tabs, _tree, _status, _snapshots, _scan, _charts,
         [
             new ListSelection(TopPane.List,
                 () => TopPane.SelectedRows.Select(r => new SelectedEntry(r.Path, false, r.Size))),
@@ -165,22 +167,21 @@ public partial class MainWindow : Window, IExportSource, IScanViews
         SearchPane.Reset();
 
         PathBox.Text = s.PathText;
-        AgePane.ShowStamp(s.AgePreferred);
+        _charts.ShowAgeStamp();
 
         _tree.Clear();
-        TopPane.Clear();
+        _charts.ClearTopFiles();
         _tree.ShowExisting(s);
 
         _status.ShowScanButton(s.Cts != null);
         _status.Apply(s);
         _snapshots.UpdateTitle();
-        UpdateAgeNotices();
-        ShowAgeHeader();
+        _charts.AgeNoticesChanged();
+        _charts.ShowAgeHeader();
 
         // File types, age, treemap, owner for the folder that will be selected (the scan target until then).
-        _ = RefreshChartsAsync();
-        TopPane.Refresh(_scanner);
-        OwnerTab.SetFolder(_tree.CurrentChartTarget().Node?.FullPath);
+        _charts.RefreshViews();
+        _charts.ShowOwnerFolder();
         Dup.Reset();
 
         // Bring back the selection; the rows do not exist before the tree was laid out.
@@ -194,25 +195,6 @@ public partial class MainWindow : Window, IExportSource, IScanViews
     Scanner? IExportSource.Scanner => _scanner;
     Node? IExportSource.SelectedFolder => _tree.SelectedFolder;
     bool IExportSource.ScanRunning => _scan.IsRunning;
-
-    // ---- IScanViews: what a running scan asks of the views
-    void IScanViews.ClearTopFiles() => TopPane.Clear();
-    void IScanViews.AgeNoticesChanged() => UpdateAgeNotices();
-
-    void IScanViews.RefreshViews()
-    {
-        _ = RefreshChartsAsync();
-        TopPane.Refresh(_scanner);
-    }
-
-    void IScanViews.RefreshLive()
-    {
-        long now = Environment.TickCount64;
-        if (!TypePane.IsBusy && now - TypePane.LastUpdateTick > 1000)
-            _ = RefreshChartsAsync();
-        if (now - TopPane.LastRefreshTick > 1000)
-            TopPane.Refresh(_scanner);
-    }
 
     // ---------------------------------------------------------------- side panel tab chips
 
@@ -277,15 +259,6 @@ public partial class MainWindow : Window, IExportSource, IScanViews
             e.Handled = true;
             _scan.Cancel();
         }
-    }
-
-    /// <summary>Brings treemap, age chart and file type chart up to date for the selected folder.</summary>
-    private async Task RefreshChartsAsync()
-    {
-        _ = Treemap.RefreshAsync();
-        var target = _tree.CurrentChartTarget();
-        _ = UpdateAgeAsync(target);
-        await TypePane.UpdateAsync(target);
     }
 
     // ---------------------------------------------------------------- tree and list: context menu and keys

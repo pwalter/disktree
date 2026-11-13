@@ -155,7 +155,7 @@
                     </Style>
                 </ListBox.ItemContainerStyle>
             </ListBox>
-            <TabControl x:Name="SideTabs" Grid.Row="1" SelectionChanged="SideTabs_SelectionChanged" BorderThickness="0" Background="Transparent" Padding="0">
+            <TabControl x:Name="SideTabs" Grid.Row="1" BorderThickness="0" Background="Transparent" Padding="0">
                 <TabControl.Template>
                     <ControlTemplate TargetType="TabControl">
                         <ContentPresenter ContentSource="SelectedContent" />

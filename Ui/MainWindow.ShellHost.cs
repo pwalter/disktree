@@ -12,9 +12,8 @@ public partial class MainWindow : IShellMenuHost
 
     void IShellMenuHost.RefreshAfterDelete()
     {
-        _root?.Refresh();
-        _ = RefreshChartsAsync();
-        TopPane.Refresh(_scanner);
+        _tree.RefreshRows();
+        _charts.RefreshViews();
     }
 
     void IShellMenuHost.Rescan(Node? node) => _ = _scan.RescanAsync(node);

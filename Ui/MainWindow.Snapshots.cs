@@ -31,7 +31,7 @@ public partial class MainWindow : ISnapshotHost
 
     void ISnapshotHost.ShowSnapshot(ScanSession session, Scanner scanner, AgeStamp stamp)
     {
-        OnSnapshotAgeStamp(stamp); // the tab's choice follows the file (the scanner already carries it in Ages)
+        _charts.OnSnapshotAgeStamp(stamp); // the tab's choice follows the file (the scanner already carries it in Ages)
         session.SelectedVm = null;
         session.Scanner = scanner;
         _tree.ShowScan(session);
@@ -44,9 +44,5 @@ public partial class MainWindow : ISnapshotHost
         _status.SetSnapshotStatus(session, text);
     }
 
-    void ISnapshotHost.RefreshViews()
-    {
-        _ = RefreshChartsAsync();
-        TopPane.Refresh(_scanner);
-    }
+    void ISnapshotHost.RefreshViews() => _charts.RefreshViews();
 }
