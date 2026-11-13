@@ -68,6 +68,9 @@ public static class StorageFeatures
         string reason = f switch
         {
             StorageFeature.Owner => "Die Quelle kennt keine Besitzer (NTFS-Rechte).",
+            // SFTP could read contents, but would have to download every file of a size that occurs twice.
+            StorageFeature.Duplicates when (provider.Caps & StorageCaps.ContentHash) != 0 =>
+                "Die Duplikatsuche müsste dafür alle Dateien gleicher Größe vom Server herunterladen; das ist für entfernte Quellen vorerst abgeschaltet.",
             StorageFeature.Duplicates => "Die Duplikatsuche liest Dateiinhalte; das geht nur bei Laufwerken und Netzwerkfreigaben.",
             StorageFeature.Explorer => "Der Pfad liegt nicht auf diesem Rechner; der Explorer kann ihn nicht öffnen.",
             StorageFeature.ShellMenu => "Das Windows-Kontextmenü gibt es nur für Dateien auf Laufwerken und Freigaben.",
