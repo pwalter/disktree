@@ -9,6 +9,7 @@
         xmlns:top="clr-namespace:DiskTree.Features.TopFiles"
         xmlns:types="clr-namespace:DiskTree.Features.TypeChart"
         xmlns:age="clr-namespace:DiskTree.Features.Age"
+        xmlns:scan="clr-namespace:DiskTree.Features.Scan"
         Title="DiskTree" Width="1340" Height="780" MinWidth="1100" MinHeight="420"
         Icon="/app.ico" AllowDrop="True" Drop="Window_Drop" PreviewKeyDown="Window_PreviewKeyDown"
         Background="{DynamicResource WindowBg}" Foreground="{DynamicResource Ink}" FontFamily="Segoe UI" FontSize="13">
@@ -55,7 +56,7 @@
                     Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}"
                     ToolTip="Neu starten, damit auch geschützte Ordner gelesen werden können" />
             <Button x:Name="ScanButton" Grid.Column="4" Content="Scannen" Height="32" MinWidth="110" Margin="16,0,0,0"
-                    Style="{StaticResource ToolButton}" Click="Scan_Click" IsDefault="True"
+                    Style="{StaticResource ToolButton}" IsDefault="True"
                     ToolTip="Scannen / Abbrechen (Esc). F5 scannt den markierten Ordner neu." />
             <!-- second toolbar row: files, exclusions, appearance -->
             <StackPanel Grid.Row="1" Grid.ColumnSpan="5" Orientation="Horizontal" Margin="0,8,0,0">
@@ -77,8 +78,8 @@
             </StackPanel>
         </Grid>
 
-        <!-- Scan tabs (MainWindow.Tabs.cs): several scans open at once -->
-        <local:ScanTabs x:Name="ScanTabBar" Grid.Row="1" Margin="0,0,10,2" />
+        <!-- Scan tabs (ScanTabsController): several scans open at once -->
+        <scan:ScanTabs x:Name="ScanTabBar" Grid.Row="1" Margin="0,0,10,2" />
 
         <!-- Column header -->
         <Grid Grid.Row="2" Margin="21,0,28,4">
@@ -96,8 +97,7 @@
             <TreeView x:Name="Tree" BorderThickness="0" Background="Transparent" Padding="2,4"
                       ScrollViewer.HorizontalScrollBarVisibility="Auto"
                       VirtualizingPanel.IsVirtualizing="True"
-                      VirtualizingPanel.VirtualizationMode="Recycling"
-                      SelectedItemChanged="Tree_SelectedItemChanged">
+                      VirtualizingPanel.VirtualizationMode="Recycling">
                 <TreeView.ItemContainerStyle>
                     <Style TargetType="TreeViewItem">
                         <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
@@ -122,7 +122,7 @@
             </Grid.RowDefinitions>
             <!-- Tab headers as wrapping chips: eight tabs do not fit in one row, and a TabControl would reshuffle its rows. -->
             <ListBox x:Name="TabChips" Margin="0,0,0,6" BorderThickness="0" Background="Transparent"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="TabChips_SelectionChanged">
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
                 </ListBox.ItemsPanel>
@@ -155,7 +155,7 @@
                     </Style>
                 </ListBox.ItemContainerStyle>
             </ListBox>
-            <TabControl x:Name="SideTabs" Grid.Row="1" SelectionChanged="SideTabs_SelectionChanged" BorderThickness="0" Background="Transparent" Padding="0">
+            <TabControl x:Name="SideTabs" Grid.Row="1" BorderThickness="0" Background="Transparent" Padding="0">
                 <TabControl.Template>
                     <ControlTemplate TargetType="TabControl">
                         <ContentPresenter ContentSource="SelectedContent" />
@@ -171,7 +171,7 @@
                     <age:AgeChartPanel x:Name="AgePane" />
                 </TabItem>
                 <TabItem Header="Treemap">
-                    <treemap:TreemapPanel x:Name="Treemap" Margin="0,2,0,0" NodeClicked="Treemap_NodeClicked" />
+                    <treemap:TreemapPanel x:Name="Treemap" Margin="0,2,0,0" />
                 </TabItem>
                 <TabItem x:Name="SearchTab" Header="Suche">
                     <search:SearchPanel x:Name="SearchPane" />

@@ -90,7 +90,7 @@ public sealed class ShellMenuCoordinator
 
         list.Add(("Übergeordneten Ordner öffnen", () => OpenInExplorer(path)));
         list.Add(("Pfad kopieren", () => Clipboard.SetText(path)));
-        list.AddRange(_host.OperationExtras(path, isDir)); // move / ZIP / rename / delete (MainWindow.Operations.cs)
+        list.AddRange(_host.OperationExtras(path, isDir)); // move / ZIP / rename / delete (FileOpsController)
         return list;
     }
 

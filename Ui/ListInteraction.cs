@@ -34,6 +34,7 @@ public sealed class ListBehavior<TRow> where TRow : class
 public static class ListInteraction
 {
     /// <summary>Apps key or Shift+F10: the keyboard way to the context menu.</summary>
+    // PHASE-D: Shift+F10 arrives as Key.System with the real key in e.SystemKey, so the F10 case never matches
     public static bool IsMenuKey(KeyEventArgs e) =>
         e.Key == Key.Apps || (e.Key == Key.F10 && Keyboard.Modifiers == ModifierKeys.Shift);
 

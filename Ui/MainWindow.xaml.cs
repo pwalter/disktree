@@ -1,57 +1,54 @@
 using System.IO;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Threading;
 using DiskTree.Core;
-using DiskTree.Core.Snapshots;
+using DiskTree.Features.Scan;
 using DiskTree.Infrastructure;
 using DiskTree.Ui.Controllers;
 using Microsoft.Win32;
 
 namespace DiskTree.Ui;
 
-public partial class MainWindow : Window, IExportSource
+/// <summary>
+/// The main window: layout (MainWindow.xaml) and wiring. What happens is in the controllers of Ui/Controllers; the
+/// window creates them, hands them the controls and each other, and answers what they ask of the window (the
+/// <c>I...Host</c> / <c>I...Source</c> interfaces below).
+/// </summary>
+public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMenuHost
 {
-    // After a change notification the UI waits this long before redrawing, so bursts collapse into one update.
-    private static readonly TimeSpan RefreshDelay = TimeSpan.FromMilliseconds(120);
-
     private readonly AppSettings _settings = AppSettings.Load();
     private WindowSettings _winSettings = null!;
     private AdminStartup _admin = null!;
     private UpdateController _updater = null!;
+    private ScanTabsController _tabs = null!;
+    private ScanStatusView _status = null!;
+    private TreeController _tree = null!;
+    private SnapshotController _snapshots = null!;
+    private ChartsController _charts = null!;
+    private ScanController _scan = null!;
     private ShellMenuCoordinator _shell = null!;
-    // Scan state (_scanner, _root, _cts ...) belongs to the active scan tab: see MainWindow.Tabs.cs.
+    private SideTabsController _sideTabs = null!;
+    private SearchController _search = null!;
+    private FileOpsController _fileOps = null!;
 
     // The order is the dependency order: every step only uses what the steps above it created.
-    //   toolbar (path, threads) -> scan tabs -> snapshots -> shell menus (need snapshots) -> panels that use the
-    //   shell menus -> side panel (chips, charts; the age panel needs the settings and the active tab) -> app buttons.
+    //   toolbar (path, threads) -> scanning (tabs, tree, snapshots, charts, scan) -> panels that use the shell menus
+    //   (shell menus need the snapshots) -> app buttons.
     public MainWindow()
     {
         InitializeComponent();
 
         InitToolbar();
-        InitTabs();
-        InitSnapshots();
-        _shell = new ShellMenuCoordinator(this, this, _snapshots);
-        InitSearch();
-        InitOps();
-        InitDuplicates();
-        InitListInteraction();
-
-        Theme.Changed += () => { _root?.RefreshTheme(); _ = RefreshChartsAsync(); };
-        InitTabChips();
-        InitAge();
-
-        _ = new ExportController(this, ExportButton, this);
-        _updater = new UpdateController(this, _settings, UpdateButton, AutoUpdateItem, CheckUpdateItem, OpenReleasesItem,
-            () => PathBox.Text, () => Busy != null);
-        _ = new AppMenuController(this, _settings, VersionMenu, ExplorerItem, PortableItem);
+        InitScanning();
+        InitSidePanel();
+        InitAppButtons();
 
         Loaded += OnLoaded;
         Closing += OnClosing;
     }
+
+    // ---------------------------------------------------------------- construction
 
     /// <summary>Window settings and admin button, then the path box (drives, last path) and the thread count.</summary>
     private void InitToolbar()
@@ -83,68 +80,108 @@ public partial class MainWindow : Window, IExportSource
         _admin = new AdminStartup(this, AdminButton, () => PathBox.Text);
     }
 
-    // Duplicate finder tab (DuplicatesPanel.xaml.cs): searches the selected folder, uses the shell menu from here.
-    private void InitDuplicates()
+    /// <summary>Scan tabs, the tree, stored scans, the charts (the age panel needs the settings and the active tab) and the scan itself.</summary>
+    private void InitScanning()
     {
+        _tabs = new ScanTabsController(this, ScanTabBar, () => _fileOps.IsBusy || _updater.IsUpdating, () => PathBox.Focus());
+        _tabs.Leaving += OnLeavingSession;
+        _tabs.Shown += ShowSession;
+        _status = new ScanStatusView(_tabs, ScanButton, StatusText, CurrentText, ScanProgress, TaskbarInfo);
+
+        _tree = new TreeController(Tree, Treemap, _tabs);
+        _tree.SelectionChanged += () => _charts.OnSelectionChanged();
+
+        _snapshots = new SnapshotController(this, this, SnapshotSaveButton, OpenSnapshotButton);
+        Compare.CurrentScanner = () => Cur.Cts == null ? Cur.Scanner : null;
+        Compare.JumpRequested += path =>
+        {
+            if (!_tree.TryJumpToPath(path)) _status.ShowText($"Der Ordner ist im aktuellen Baum nicht vorhanden: {path}");
+        };
+
+        _charts = new ChartsController(_settings, _tabs, _tree, _snapshots, TypePane, AgePane, AgeTab, SideTabs, OldHeader,
+            Treemap, TopPane, OwnerTab);
+        _scan = new ScanController(this, _settings, _winSettings, _tabs, _status, _tree, _snapshots, _charts, PathBox, ThreadsBox, ScanButton);
+        AgePane.RescanRequested += () =>
+        {
+            if (!string.IsNullOrWhiteSpace(PathBox.Text)) _ = _scan.ScanPathAsync(PathBox.Text);
+        };
+
+        // PHASE-D: static event, the window never unsubscribes (a second window would be kept alive and refreshed)
+        Theme.Changed += () => { _tree.RefreshTheme(); _ = _charts.RefreshAsync(); };
+    }
+
+    /// <summary>The panels of the side panel that use the shell menus: search, largest files, duplicates; clean-up actions; list keys.</summary>
+    private void InitSidePanel()
+    {
+        _shell = new ShellMenuCoordinator(this, this, _snapshots);
+        _sideTabs = new SideTabsController(SideTabs, TabChips);
+        _search = new SearchController(this, SearchPane, _sideTabs, SearchTab, _tree, _shell);
+
+        // Move / ZIP / rename / delete work on the selection of the list the user is in: largest files, search hits, duplicates.
+        _fileOps = new FileOpsController(this, _tabs, _tree, _status, _snapshots, _scan, _charts,
+        [
+            new ListSelection(TopPane.List,
+                () => TopPane.SelectedRows.Select(r => new SelectedEntry(r.Path, false, r.Size))),
+            new ListSelection(SearchPane.Results,
+                () => SearchPane.SelectedHits.Select(h => new SelectedEntry(h.Path, h.IsDir, h.Size)),
+                prune: SearchPane.PruneMissing),
+            new ListSelection(Dup.List,
+                () => Dup.SelectedFiles().Select(f => new SelectedEntry(f.Path, false, f.Size)),
+                prune: Dup.PruneMissing, coversAllCopies: Dup.AllCopiesChecked),
+        ]);
+        SearchPane.ExtraKeyDown = _fileOps.HandleKey;
+
+        // Duplicate finder tab (DuplicatesPanel.xaml.cs): searches the selected folder, uses the shell menu from here.
         Dup.Settings = _settings;
-        Dup.RootProvider = DuplicateRoot;
+        Dup.RootProvider = _tree.DuplicateRoot;
         Dup.ShellMenuRequested += _shell.ShowFileShellMenu;
         Dup.ShellDeleteRequested += _shell.DeleteFile;
+        Dup.ExtraKeyDown = _fileOps.HandleKey;
+
+        // Context menu, Delete, F2 and the copy key for the tree and the largest files: one behaviour for all lists (ListInteraction).
+        ListInteraction.Attach(Tree, new ListBehavior<NodeVM>
+        {
+            Selected = () => _tree.SelectedRow,
+            ExtraKey = _fileOps.HandleTreeKey, // F2
+            CanDelete = ShellMenuCoordinator.CanUseShell,
+            Delete = _shell.DeleteNode,
+            ShowMenu = _shell.ShowTreeMenu,
+            CopyText = vm => vm.Path.Length > 0 ? vm.Path : null,
+        });
+        TopPane.ShowMenu = (row, pos) => _shell.ShowFileMenu(row.Path, row.Size, pos);
+        TopPane.DeleteRow = row => _shell.DeleteFile(row.Path, row.Size);
+        TopPane.ExtraKeyDown = _fileOps.HandleKey; // F2, Delete on several rows
     }
+
+    /// <summary>Export, update check and the version menu.</summary>
+    private void InitAppButtons()
+    {
+        _ = new ExportController(this, ExportButton, this);
+        _updater = new UpdateController(this, _settings, UpdateButton, AutoUpdateItem, CheckUpdateItem, OpenReleasesItem,
+            () => PathBox.Text, () => _tabs.Busy != null);
+        _ = new AppMenuController(this, _settings, VersionMenu, ExplorerItem, PortableItem);
+    }
+
+    // ---------------------------------------------------------------- window events
+
+    private ScanSession Cur => _tabs.Current;
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        // PHASE-D: the settings are only saved in OnClosing, so the elevated instance starts without this run's changes
         if (_admin.ElevateIfWanted()) return; // replaced by an elevated instance
 
         // A path on the command line is scanned right away.
-        if (App.Options.Path != null) await BeginScan();
+        if (App.Options.Path != null) await _scan.BeginScan();
     }
 
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        foreach (var tab in _tabs) tab.Cts?.Cancel(); // scans of all tabs stop with the window
+        foreach (var tab in _tabs.Tabs) tab.Cts?.Cancel(); // scans of all tabs stop with the window
         _winSettings.CaptureBounds();
         _settings.Threads = ThreadsBox.SelectedItem is int t ? t : 16;
         _settings.LastPath = PathBox.Text.Trim().Trim('"');
         _settings.Save();
-    }
-
-    // ---- IExportSource: what the export controller reads from the window
-    Scanner? IExportSource.Scanner => _scanner;
-    Node? IExportSource.SelectedFolder => Tree.SelectedItem is NodeVM { Kind: Kind.Dir, Node: { } sel } ? sel : null;
-    bool IExportSource.ScanRunning => _cts != null;
-
-    // ---------------------------------------------------------------- side panel tab chips
-
-    private bool _chipSync;
-
-    private void InitTabChips()
-    {
-        foreach (TabItem t in SideTabs.Items) TabChips.Items.Add(t.Header);
-        SideTabs.SelectedIndex = 0;
-        TabChips.SelectedIndex = 0;
-        // Programmatic selection (Ctrl+F, treemap ...) and clicks on the chips stay in step.
-        SideTabs.SelectionChanged += (s, e) =>
-        {
-            if (!ReferenceEquals(e.OriginalSource, SideTabs) || _chipSync) return;
-            _chipSync = true;
-            TabChips.SelectedIndex = SideTabs.SelectedIndex;
-            _chipSync = false;
-        };
-    }
-
-    private void TabChips_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_chipSync || TabChips.SelectedIndex < 0) return;
-        _chipSync = true;
-        SideTabs.SelectedIndex = TabChips.SelectedIndex;
-        _chipSync = false;
-    }
-
-    private async void Scan_Click(object sender, RoutedEventArgs e)
-    {
-        if (_cts != null) { _cts.Cancel(); return; }
-        await BeginScan();
     }
 
     private void Browse_Click(object sender, RoutedEventArgs e)
@@ -162,355 +199,108 @@ public partial class MainWindow : Window, IExportSource
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         // With Ctrl or Shift held the folder opens in a new tab instead of replacing the scan of the current one.
         bool newTab = (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) != 0;
-        await ScanPathAsync(paths.Count == 1 ? paths[0] : PathList.Join(paths), newTab);
+        await _scan.ScanPathAsync(paths.Count == 1 ? paths[0] : PathList.Join(paths), newTab);
     }
 
+    // Shortcuts of the window: Ctrl+T / W / Tab ... (tabs), F5 (scan again), Ctrl+F (search), Esc (cancel the scan).
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (TabKey(e)) { e.Handled = true; return; }
-        if (e.Key == Key.F5 && _cts == null)
+        if (_tabs.HandleKey(e)) { e.Handled = true; return; }
+        if (e.Key == Key.F5 && !_scan.IsRunning)
         {
             e.Handled = true;
-            // A selected folder is scanned again in place (like Explorer's F5 for the current view), otherwise everything.
-            if (Tree.SelectedItem is NodeVM { Kind: Kind.Dir, Node: { } node })
-                _ = RescanAsync(node);
-            else
-                _ = BeginScan();
+            _scan.RescanOrScan(_tree.SelectedFolder);
         }
         else if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control)
         {
             e.Handled = true;
-            ShowSearch();
+            _search.Show();
         }
-        else if (e.Key == Key.Escape && _cts != null)
+        else if (e.Key == Key.Escape && _scan.IsRunning)
         {
             e.Handled = true;
-            _cts.Cancel();
+            _scan.Cancel();
         }
     }
 
-    private Task BeginScan()
+    // ---------------------------------------------------------------- the active tab changes
+
+    /// <summary>The window is about to leave a tab: what it shows is part of the tab it belongs to.</summary>
+    private void OnLeavingSession(ScanSession old)
     {
-        var s = _cur;
-        return s.ScanTask = StartScan(s);
+        old.PathText = PathBox.Text;
+        if (_tree.SelectedRow is { } sel) old.SelectedVm = sel;
     }
 
-    /// <summary>Scans another folder (in a new tab if asked); a running scan of the tab is cancelled first.</summary>
-    private async Task ScanPathAsync(string path, bool newTab = false)
+    /// <summary>Puts a session's state into the window: path box, tree, status line, and the side panel for its scan.</summary>
+    private void ShowSession(ScanSession s)
     {
-        if (TabsLocked) return;
-        if (Busy is { } other && (newTab || other != _cur)) { NoticeBusy(other); return; }
-        if (newTab && !_cur.IsEmpty) NewTab();
+        // Results of the other tab (search hits, duplicate groups) would point into its tree.
+        SearchPane.Reset();
 
-        var s = _cur;
-        if (s.Cts != null)
-        {
-            s.Cts.Cancel();
-            await s.ScanTask;
-        }
-        if (_cur != s) ActivateTab(s); // the user switched tabs while the old scan stopped
-        PathBox.Text = path;
-        await BeginScan();
+        PathBox.Text = s.PathText;
+        _charts.ShowAgeStamp();
+
+        _tree.Clear();
+        _charts.ClearTopFiles();
+        _tree.ShowExisting(s);
+
+        _status.ShowScanButton(s.Cts != null);
+        _status.Apply(s);
+        _snapshots.UpdateTitle();
+        _charts.AgeNoticesChanged();
+        _charts.ShowAgeHeader();
+
+        // File types, age, treemap, owner for the folder that will be selected (the scan target until then).
+        _charts.RefreshViews();
+        _charts.ShowOwnerFolder();
+        Dup.Reset();
+
+        // Bring back the selection; the rows do not exist before the tree was laid out.
+        if (s.SelectedVm?.Node is { } n)
+            Dispatcher.InvokeAsync(() => { if (Cur == s) _tree.Reveal(n); }, DispatcherPriority.Loaded);
+
+        _tabs.EnsureVisible(s);
     }
 
-    private async Task StartScan(ScanSession s)
+    // ---------------------------------------------------------------- what the controllers ask of the window
+
+    // ---- IExportSource
+    Scanner? IExportSource.Scanner => Cur.Scanner;
+    Node? IExportSource.SelectedFolder => _tree.SelectedFolder;
+    bool IExportSource.ScanRunning => _scan.IsRunning;
+
+    // ---- ISnapshotHost
+    ScanSession ISnapshotHost.Current => Cur;
+    bool ISnapshotHost.TabsLocked => _tabs.TabsLocked;
+    ScanSession ISnapshotHost.NewTab() => _tabs.NewTab();
+    void ISnapshotHost.SetStatus(ScanSession session, string text) => _status.SetStatus(session, text);
+
+    void ISnapshotHost.ShowSnapshot(ScanSession session, Scanner scanner, AgeStamp stamp)
     {
-        if (s.Cts != null) return;
-        if (Busy is { } other) { NoticeBusy(other); return; }
-
-        var paths = PathList.Parse(PathBox.Text);
-        if (paths.Count == 0) paths.Add(""); // reports "Pfad nicht gefunden" like before
-        var missing = paths.Where(p => !Directory.Exists(p)).ToList();
-        if (missing.Count > 0)
-        {
-            Dialogs.Warn(this, $"Pfad nicht gefunden:\n{string.Join("\n", missing)}");
-            return;
-        }
-        paths = PathList.Reduce(paths);
-        var path = paths[0];
-        _settings.LastPath = PathList.Join(paths);
-
-        await RunAsync(s, ct =>
-        {
-            var scanner = s.Scanner = new Scanner { Excludes = _winSettings.CurrentExcludes(), AgeStamp = s.AgePreferred };
-            _snapshots.OnNewScanner(scanner);
-            // Event instead of polling: the scanner reports changes from its worker threads, the UI reacts.
-            scanner.Changed += () => Dispatcher.InvokeAsync(() => OnScannerChanged(s, scanner), DispatcherPriority.Background);
-            s.Root = null;
-            s.ScanTarget = null;
-            s.SelectedVm = null;
-            Tree.ItemsSource = null;
-            TopPane.Clear();
-
-            // ScanAsync creates the tree (drive -> ... -> scanned folder) and starts the workers synchronously,
-            // so the tree can be shown right away and fills up while the scan is running.
-            var scan = paths.Count > 1
-                ? scanner.ScanManyAsync(paths, (int)ThreadsBox.SelectedItem, ct)
-                : scanner.ScanAsync(path, (int)ThreadsBox.SelectedItem, ct);
-            Dispatcher.InvokeAsync(UpdateAgeNotices); // the scan has adopted the tab's choice by now
-            SetTabTitle(s, paths);
-            s.ScanTarget = scanner.ScanTarget;
-            s.Root = new NodeVM(scanner.Root!, Kind.Dir, null, 0) { IsExpanded = true };
-            Treemap.Reset(s.ScanTarget ?? scanner.Root);
-            Tree.ItemsSource = new[] { s.Root };
-            ExpandToScanTarget();
-            return scan;
-        });
+        _charts.OnSnapshotAgeStamp(stamp); // the tab's choice follows the file (the scanner already carries it in Ages)
+        session.SelectedVm = null;
+        session.Scanner = scanner;
+        _tree.ShowScan(session);
+        PathBox.Text = scanner.ScanTarget?.FullPath ?? "";
+        _status.ClearCurrentLine();
     }
 
-    private Task RescanAsync(Node? node)
+    void ISnapshotHost.ShowSnapshotStatus(ScanSession session, string text) => _status.SetSnapshotStatus(session, text);
+    void ISnapshotHost.RefreshViews() => _charts.RefreshViews();
+
+    // ---- IShellMenuHost
+    Scanner? IShellMenuHost.Scanner => Cur.Scanner;
+    bool IShellMenuHost.BlockedByOtherScan() => _tabs.BlockedByOtherScan();
+
+    void IShellMenuHost.RefreshAfterDelete()
     {
-        if (node == null || _scanner == null) return Task.CompletedTask;
-        if (_scanner.IsMulti && node == _scanner.Root) return BeginScan(); // the artificial root: scan all paths again
-        var s = _cur;
-        return s.ScanTask = StartRescan(s, node);
+        _tree.RefreshRows();
+        _charts.RefreshViews();
     }
 
-    /// <summary>
-    /// Scans one folder of the existing tree again, in place. Its row and everything above it get new numbers,
-    /// the rest of the tree is untouched.
-    /// </summary>
-    private async Task StartRescan(ScanSession s, Node node)
-    {
-        var scanner = s.Scanner!;
-        if (!_snapshots.CanRescan(node)) return;
-        if (Busy is { } other && other != s) { NoticeBusy(other); return; }
+    void IShellMenuHost.Rescan(Node? node) => _ = _scan.RescanAsync(node);
 
-        // A running scan has to stop first. (s.ScanTask still is the old scan here: this method runs
-        // synchronously up to the first await, before RescanAsync assigns its own task.)
-        if (s.Cts != null)
-        {
-            s.Cts.Cancel();
-            await s.ScanTask;
-        }
-
-        await RunAsync(s, ct =>
-        {
-            // The previous scan's last change event may never have been acknowledged (the UI had already
-            // finished); without this the scanner stays silent and the row would not update.
-            scanner.Acknowledge();
-            scanner.Excludes = _winSettings.CurrentExcludes(); // the same rules as the scan (incl. changes made since)
-            var scan = scanner.RescanAsync(node, (int)ThreadsBox.SelectedItem, ct);
-            s.Root?.FindDescendant(node)?.ResetForRescan();
-            s.ScanTarget = scanner.ScanTarget;
-            if (s == _cur) s.Root?.Refresh(); // spinner and "…" right away
-            return scan;
-        });
-    }
-
-    /// <summary>
-    /// Shared by scan and rescan: <paramref name="begin"/> starts the scan, sets the UI up and returns the scan task;
-    /// this method shows the progress and the result. It only touches window controls while <paramref name="s"/> is
-    /// the active tab: the user may switch tabs while the scan runs.
-    /// </summary>
-    private async Task RunAsync(ScanSession s, Func<CancellationToken, Task> begin)
-    {
-        var cts = s.Cts = new CancellationTokenSource();
-        if (s == _cur) ScanButton.Content = "Abbrechen";
-        s.Sw.Restart();
-
-        try
-        {
-            await begin(cts.Token);
-            s.Sw.Stop();
-            FinishScan(s, canceled: false);
-        }
-        catch (OperationCanceledException)
-        {
-            s.Sw.Stop();
-            FinishScan(s, canceled: true);
-        }
-        finally
-        {
-            cts.Dispose();
-            s.Cts = null;
-            s.CurrentLine = "";
-            s.ProgressVisible = false;
-            if (s == _cur)
-            {
-                ScanButton.Content = "Scannen";
-                CurrentText.Text = "";
-                ScanProgress.Visibility = Visibility.Collapsed;
-            }
-            UpdateTaskbar();
-        }
-    }
-
-    private void FinishScan(ScanSession s, bool canceled)
-    {
-        if (s.Scanner == null) return; // the tab was closed meanwhile
-        bool active = s == _cur;
-        if (active) s.Root?.Refresh(); // an inactive tab catches up when it is shown
-        UpdateStatus(s, running: false, done: !canceled);
-        if (canceled) SetStatus(s, "Abgebrochen – " + s.Status);
-        if (!active) return;
-        _ = RefreshChartsAsync();
-        TopPane.Refresh(_scanner);
-    }
-
-    // When a subfolder is scanned the tree starts at the drive: open the chain down to the scanned folder.
-    private void ExpandToScanTarget()
-    {
-        var vm = _root;
-        while (vm != null && vm.Node != _scanTarget)
-        {
-            vm.IsExpanded = true;
-            vm = vm.Children.FirstOrDefault(c => c.Kind == Kind.Dir);
-        }
-        if (vm != null) vm.IsExpanded = true;
-    }
-
-    private async Task OnScannerChanged(ScanSession s, Scanner scanner)
-    {
-        // Let more changes pile up, then acknowledge first so anything arriving during the redraw
-        // raises a new event instead of being lost.
-        await Task.Delay(RefreshDelay);
-        if (scanner != s.Scanner) return;
-        if (s.Root == null || s.Cts == null)
-        {
-            scanner.Acknowledge(); // nothing to show now, but do not swallow the next scan's events
-            return;
-        }
-
-        scanner.Acknowledge();
-        UpdateStatus(s, running: true);
-        if (s != _cur) return; // a background tab only keeps its numbers; the tree is brought up to date when shown
-
-        s.Root.Refresh();
-
-        // Chart and top list have to walk / copy a lot, so they are refreshed less often than the tree.
-        long now = Environment.TickCount64;
-        if (!TypePane.IsBusy && now - TypePane.LastUpdateTick > 1000)
-            _ = RefreshChartsAsync();
-        if (now - TopPane.LastRefreshTick > 1000)
-            TopPane.Refresh(_scanner);
-    }
-
-    private static string ExcludedTooltip(Scanner s)
-    {
-        var paths = s.ExcludedPaths();
-        var text = "Ausgeschlossene Ordner (nicht gescannt):\n" + string.Join("\n", paths.Take(15));
-        return s.Excluded > 15 ? text + $"\n… und {s.Excluded - 15:N0} weitere" : text;
-    }
-
-    /// <summary>Computes the status line of a session from its scanner and stores it there; the window shows it if the tab is active.</summary>
-    private void UpdateStatus(ScanSession session, bool running, bool done = false)
-    {
-        if (session.Scanner == null) return;
-        var s = session.Scanner;
-
-        bool known = s.ExpectedBytes > 0;
-        double fraction = known ? Math.Min(0.99, (double)s.Bytes / s.ExpectedBytes) : 0;
-        string percent = running && known ? $" · {fraction * 100:0} %" : "";
-
-        session.Status =
-            $"{(done ? "Fertig: " : "")}{s.Dirs:N0} Ordner · {s.Files:N0} Dateien · {SizeFormat.Format(s.Bytes)}" +
-            $" · {s.Errors:N0} nicht lesbar" + (s.Excluded > 0 ? $" · {s.Excluded:N0} ausgeschlossen" : "") +
-            $" · {session.Sw.Elapsed:mm\\:ss\\.f}{percent}";
-        session.StatusTip = s.Excluded > 0 ? ExcludedTooltip(s) : null;
-        session.CurrentLine = running ? s.Current : "";
-
-        // A drive scan knows roughly how much there is to find (used space); a folder scan does not.
-        session.ProgressVisible = running;
-        session.ProgressKnown = known;
-        session.ProgressFraction = fraction;
-
-        if (session == _cur) ApplyStatus(session);
-        else UpdateTaskbar();
-    }
-
-    // ---------------------------------------------------------------- file-type chart
-
-    private void Tree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
-    {
-        Treemap.SetTreeSelection(CurrentChartTarget().Node);
-        _ = RefreshChartsAsync();
-        OwnerTab.SetFolder(CurrentChartTarget().Node?.FullPath);
-    }
-
-    // Treemap click / dive: select that folder in the tree (opening the path down to it).
-    private void Treemap_NodeClicked(Node node)
-    {
-        if (_root == null) return;
-        var chain = new List<Node>();
-        for (var n = node; n != null; n = n.Parent) chain.Insert(0, n);
-        if (chain.Count == 0 || chain[0] != _root.Node) return;
-
-        var vm = _root;
-        foreach (var n in chain.Skip(1))
-        {
-            vm.IsExpanded = true;
-            vm = vm.FindDescendant(n);
-            if (vm == null) return;
-        }
-        vm.IsSelected = true;
-        Dispatcher.InvokeAsync(() => BringIntoView(vm), DispatcherPriority.Loaded);
-    }
-
-    private void BringIntoView(NodeVM vm)
-    {
-        var path = new List<NodeVM>();
-        for (var v = vm; v != null; v = v.Parent) path.Insert(0, v);
-        ItemsControl host = Tree;
-        for (int i = 0; i < path.Count; i++)
-        {
-            if (host.ItemContainerGenerator.ContainerFromItem(path[i]) is not TreeViewItem item) return;
-            if (i == path.Count - 1) { item.BringIntoView(); return; }
-            host = item;
-        }
-    }
-
-    // What the charts describe: the selected folder with everything below it, or just the files of one folder.
-    private ChartTarget CurrentChartTarget()
-    {
-        switch (Tree.SelectedItem as NodeVM)
-        {
-            case { Kind: Kind.Dir } d:
-                return new(d.Node, false, d.Node?.Name ?? "");
-            case { Kind: Kind.Files } f:
-                return new(f.Parent?.Node, true, "Dateien in " + f.Parent?.Node?.Name);
-            case { Kind: Kind.File } file:
-                var dir = file.Parent?.Parent;
-                return new(dir?.Node, true, "Dateien in " + dir?.Node?.Name);
-        }
-        var target = _scanTarget ?? _root?.Node;
-        return new(target, false, target?.Name ?? "");
-    }
-
-    /// <summary>Brings treemap, age chart and file type chart up to date for the selected folder.</summary>
-    private async Task RefreshChartsAsync()
-    {
-        _ = Treemap.RefreshAsync();
-        var target = CurrentChartTarget();
-        _ = UpdateAgeAsync(target);
-        await TypePane.UpdateAsync(target);
-    }
-
-    // Folder for the duplicate search: the selected folder (or the folder of the selected file), else what was scanned.
-    private string? DuplicateRoot()
-    {
-        var vm = Tree.SelectedItem as NodeVM;
-        if (vm is { Kind: Kind.File or Kind.Files }) vm = vm.Parent is { Kind: Kind.Dir } p ? p : vm.Parent?.Parent;
-        var path = vm is { Kind: Kind.Dir } ? vm.Path : (_scanTarget ?? _root?.Node)?.FullPath;
-        return string.IsNullOrEmpty(path) ? null : path;
-    }
-
-    // ---------------------------------------------------------------- tree and list: context menu and keys
-
-    // Context menu, Delete, F2 and the copy key for the tree and the largest files: one behaviour for all lists (ListInteraction).
-    private void InitListInteraction()
-    {
-        ListInteraction.Attach(Tree, new ListBehavior<NodeVM>
-        {
-            Selected = () => Tree.SelectedItem as NodeVM,
-            ExtraKey = OpsTreeKey, // F2
-            CanDelete = ShellMenuCoordinator.CanUseShell,
-            Delete = _shell.DeleteNode,
-            ShowMenu = _shell.ShowTreeMenu,
-            CopyText = vm => vm.Path.Length > 0 ? vm.Path : null,
-        });
-        TopPane.ShowMenu = (row, pos) => _shell.ShowFileMenu(row.Path, row.Size, pos);
-        TopPane.DeleteRow = row => _shell.DeleteFile(row.Path, row.Size);
-        TopPane.ExtraKeyDown = OpsKey; // F2, Delete on several rows
-    }
+    IReadOnlyList<(string Text, Action Run)> IShellMenuHost.OperationExtras(string path, bool isDir) =>
+        _fileOps.OperationExtras(path, isDir);
 }
