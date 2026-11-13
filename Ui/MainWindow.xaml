@@ -45,7 +45,14 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <ComboBox x:Name="PathBox" IsEditable="True" Height="32" VerticalContentAlignment="Center"
-                      FontSize="14" />
+                      FontSize="14" TextSearch.TextPath="Path"
+                      ToolTip="Laufwerk, Ordner, mehrere Pfade mit ; – oder eine Quelle wie s3://bucket/ordner (Liste: Laufwerke und gespeicherte Quellen)">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Display}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
             <Button Grid.Column="1" Content="…" Width="34" Height="32" Margin="6,0,0,0"
                     Style="{StaticResource ToolButton}" Padding="0" Click="Browse_Click" ToolTip="Ordner wählen" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
@@ -66,6 +73,9 @@
                 <Button x:Name="OpenSnapshotButton" Content="📂 Scan öffnen…" Height="30" Margin="6,0,0,0"
                         Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}"
                         ToolTip="Gespeicherten Scan öffnen (oder .disktree-Datei auf das Fenster ziehen)" />
+                <Button x:Name="SourcesButton" Content="☁ Quellen …" Height="30" Margin="6,0,0,0"
+                        Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}"
+                        ToolTip="Gespeicherte Verbindungen zu S3 und S3-kompatiblen Speichern verwalten und scannen" />
                 <Button x:Name="ExportButton" Content="Exportieren…" Height="30" Margin="6,0,0,0"
                         Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}"
                         ToolTip="Baum oder größte Dateien als CSV (Excel) oder den Scan als HTML- oder PDF-Bericht exportieren" />
@@ -176,10 +186,10 @@
                 <TabItem x:Name="SearchTab" Header="Suche">
                     <search:SearchPanel x:Name="SearchPane" />
                 </TabItem>
-                <TabItem Header="Duplikate">
+                <TabItem x:Name="DupTab" Header="Duplikate">
                     <dup:DuplicatesPanel x:Name="Dup" />
                 </TabItem>
-                <TabItem Header="Besitzer">
+                <TabItem x:Name="OwnerTabItem" Header="Besitzer">
                     <owner:OwnerPanel x:Name="OwnerTab" Margin="0,4,0,0" />
                 </TabItem>
                 <TabItem Header="Vergleich">

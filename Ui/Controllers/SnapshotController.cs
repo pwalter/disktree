@@ -222,7 +222,17 @@ public sealed class SnapshotController
     public bool CanRescan(Node node)
     {
         var provider = CurrentScanner?.Provider ?? DiskTree.Core.Storage.StorageProviders.Disk;
-        if (!IsSnapshotMode || provider.FolderExists(node.FullPath)) return true;
+        if (!IsSnapshotMode) return true;
+        try
+        {
+            if (provider.FolderExists(node.FullPath)) return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            // A remote source that cannot be reached right now (network, sign-in).
+            Dialogs.Info(_window, $"Die Quelle ist nicht erreichbar:\n{ex.Message}\n\nDer Ordner kann nicht neu gescannt werden.");
+            return false;
+        }
         Dialogs.Info(_window, $"Der Ordner existiert auf diesem Rechner nicht:\n{node.FullPath}\n\nEr kann nicht neu gescannt werden.");
         return false;
     }

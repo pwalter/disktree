@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using DiskTree.Core;
+using DiskTree.Core.Storage;
 using DiskTree.Features.FileOperations;
 using DiskTree.Infrastructure;
 
@@ -93,12 +94,15 @@ public sealed class FileOpsController
 
     private void Notice(string text) => Dialogs.Info(_window, text);
 
+    /// <summary>Why an action does not work for the source of the active tab's scan (null: it does).</summary>
+    private string? WhyNot(StorageFeature f) => Scanner?.Provider is { } p ? StorageFeatures.WhyNot(p, f) : null;
+
     // ---------------------------------------------------------------- entry points
 
     /// <summary>Our entries for the context menu of <paramref name="path"/>; empty in a stored scan.</summary>
     public IReadOnlyList<(string Text, Action Run)> OperationExtras(string path, bool isDir)
     {
-        if (_snapshots.IsSnapshotMode) return [];
+        if (_snapshots.IsSnapshotMode || WhyNot(StorageFeature.Move) != null) return [];
 
         var sel = SelectionFor(path, isDir);
         string suffix = sel.Count > 1 ? $" ({sel.Count:N0} Elemente)" : "";
@@ -122,6 +126,7 @@ public sealed class FileOpsController
         if (sel.Count == 0 || (key == Key.Delete && sel.Count < 2)) return false; // one item: the shell's own Delete
 
         if (_snapshots.IsSnapshotMode) { _snapshots.ShowHint(); return true; }
+        if (WhyNot(key == Key.F2 ? StorageFeature.Rename : StorageFeature.Delete) is { } why) { Notice(why); return true; }
         RunOp(() => key == Key.F2 ? RenameAsync(sel) : DeleteAsync(sel));
         return true;
     }
@@ -131,6 +136,7 @@ public sealed class FileOpsController
     {
         if (key != Key.F2 || !ShellMenuCoordinator.CanUseShell(vm)) return false;
         if (_snapshots.IsSnapshotMode) { _snapshots.ShowHint(); return true; }
+        if (WhyNot(StorageFeature.Rename) is { } why) { Notice(why); return true; }
         var sel = new List<OpItem> { ItemOf(vm.Path, vm.Kind == Kind.Dir, vm.Size) };
         RunOp(() => RenameAsync(sel));
         return true;

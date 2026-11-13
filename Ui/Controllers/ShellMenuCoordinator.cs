@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using DiskTree.Core;
+using DiskTree.Core.Storage;
 using DiskTree.Infrastructure;
 
 namespace DiskTree.Ui.Controllers;
@@ -50,30 +51,41 @@ public sealed class ShellMenuCoordinator
     public void ShowTreeMenu(NodeVM vm, Point screenPos)
     {
         if (!CanUseShell(vm)) return;
+        if (NotLocal is { } p) { ShowSourceMenu(p, vm.Path, vm.Kind == Kind.Dir); return; }
         if (_snapshots.IsSnapshotMode) { ShowSnapshotMenu(vm.Path, vm.Kind == Kind.Dir); return; }
         RunShell(vm.Path, vm.Kind == Kind.File, vm.Size, vm,
             () => ShellContextMenu.Show(_window, vm.Path, screenPos, Extras(vm.Path, vm.Kind == Kind.Dir)));
     }
 
-    public void DeleteNode(NodeVM vm) =>
+    public void DeleteNode(NodeVM vm)
+    {
+        if (NotLocal is { } p) { Dialogs.Info(_window, StorageFeatures.WhyNot(p, StorageFeature.Delete)!); return; }
         RunShell(vm.Path, vm.Kind == Kind.File, vm.Size, vm, () => ShellContextMenu.InvokeVerb(_window, vm.Path, "delete"));
+    }
 
     // ---------------------------------------------------------------- file rows (no tree row behind them)
 
     /// <summary>Menu of a file in a list; a stored scan gets its small menu instead of the Windows one.</summary>
     public void ShowFileMenu(string path, long size, Point screenPos)
     {
+        if (NotLocal is { } p) { ShowSourceMenu(p, path, isDir: false); return; }
         if (_snapshots.IsSnapshotMode) { ShowSnapshotMenu(path, isDir: false); return; }
         ShowFileShellMenu(path, size, screenPos);
     }
 
     /// <summary>The Windows menu of a file (a stored scan only shows a hint).</summary>
-    public void ShowFileShellMenu(string path, long size, Point screenPos) =>
+    public void ShowFileShellMenu(string path, long size, Point screenPos)
+    {
+        if (NotLocal is { } p) { ShowSourceMenu(p, path, isDir: false); return; }
         RunShell(path, isFile: true, size, null,
             () => ShellContextMenu.Show(_window, path, screenPos, Extras(path, isDir: false)));
+    }
 
-    public void DeleteFile(string path, long size) =>
+    public void DeleteFile(string path, long size)
+    {
+        if (NotLocal is { } p) { Dialogs.Info(_window, StorageFeatures.WhyNot(p, StorageFeature.Delete)!); return; }
         RunShell(path, isFile: true, size, null, () => ShellContextMenu.InvokeVerb(_window, path, "delete"));
+    }
 
     // ---------------------------------------------------------------- shared
 
@@ -108,6 +120,7 @@ public sealed class ShellMenuCoordinator
     /// </summary>
     public void RunShell(string path, bool isFile, long size, NodeVM? vm, Action action)
     {
+        if (NotLocal is { } p) { Dialogs.Info(_window, StorageFeatures.WhyNot(p, StorageFeature.ShellMenu)!); return; }
         if (_snapshots.IsSnapshotMode) { _snapshots.ShowHint(); return; }
         if (_host.BlockedByOtherScan()) return;
         int ageBucket = isFile ? _host.Scanner?.Ages.OfFile(path) ?? -1 : -1; // read before the file is gone
@@ -137,6 +150,41 @@ public sealed class ShellMenuCoordinator
     }
 
     private static bool Exists(string path) => Directory.Exists(path) || File.Exists(path);
+
+    /// <summary>The scan of the active tab comes from a source the Windows shell does not know (S3 …), else null.</summary>
+    public IStorageProvider? NotLocal =>
+        _host.Scanner?.Provider is { } p && !StorageFeatures.Has(p, StorageFeature.ShellMenu) ? p : null;
+
+    /// <summary>
+    /// Menu of an item of a remote source: rescan and copy path work; the Windows actions are listed greyed out with the
+    /// reason, so it is clear why they are missing.
+    /// </summary>
+    private void ShowSourceMenu(IStorageProvider provider, string path, bool isDir)
+    {
+        var menu = new ContextMenu();
+        void Add(string text, Action? run, string? whyNot = null)
+        {
+            var item = new MenuItem { Header = text, IsEnabled = run != null && whyNot == null, ToolTip = whyNot };
+            ToolTipService.SetShowOnDisabled(item, true);
+            if (run != null) item.Click += (_, _) => run();
+            menu.Items.Add(item);
+        }
+
+        var scanner = _host.Scanner;
+        if (isDir)
+            Add("Ab hier neu scannen", () => _host.Rescan(scanner?.FindNode(path)));
+        else
+            Add("Ordner dieser Datei neu scannen", () => _host.Rescan(scanner is { } s ? s.FindNode(s.Paths.ParentOf(path) ?? "") : null));
+        Add("Pfad kopieren", () => Clipboard.SetText(path));
+        menu.Items.Add(new Separator());
+        Add("Übergeordneten Ordner öffnen", null, StorageFeatures.WhyNot(provider, StorageFeature.Explorer));
+        Add("Verschieben nach …", null, StorageFeatures.WhyNot(provider, StorageFeature.Move));
+        Add("In ZIP archivieren …", null, StorageFeatures.WhyNot(provider, StorageFeature.Zip));
+        Add("Umbenennen (F2)", null, StorageFeatures.WhyNot(provider, StorageFeature.Rename));
+        Add("Löschen (Papierkorb)", null, StorageFeatures.WhyNot(provider, StorageFeature.Delete));
+        Add("Windows-Kontextmenü", null, StorageFeatures.WhyNot(provider, StorageFeature.ShellMenu));
+        menu.IsOpen = true;
+    }
 
     /// <summary>In a snapshot the Windows menu (with "Löschen") is replaced by a small menu with our own entries.</summary>
     private void ShowSnapshotMenu(string path, bool isDir)

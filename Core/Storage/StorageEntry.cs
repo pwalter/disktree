@@ -49,6 +49,15 @@ public sealed record ListOptions
 
     public StampSet Stamps { get; init; } = StampSet.All;
 
+    /// <summary>
+    /// The scan / search this listing belongs to: cancellation, request counting and a cost limit for remote sources
+    /// (null = none; the local disk ignores it).
+    /// </summary>
+    public ListRun? Run { get; init; }
+
+    /// <summary>Cancels the listing (for providers that send requests); <see cref="CancellationToken.None"/> without a run.</summary>
+    public CancellationToken Cancellation => Run?.Cancellation ?? CancellationToken.None;
+
     /// <summary>Errors are thrown, all timestamps.</summary>
     public static readonly ListOptions Strict = new();
 

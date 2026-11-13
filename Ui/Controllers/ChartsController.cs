@@ -1,5 +1,6 @@
 using System.Windows.Controls;
 using DiskTree.Core;
+using DiskTree.Core.Storage;
 using DiskTree.Features.Age;
 using DiskTree.Features.Owner;
 using DiskTree.Features.TopFiles;
@@ -124,7 +125,17 @@ public sealed class ChartsController : IScanViews
         _oldHeader.Text = "Älter " + AgeBuckets.ThresholdText(AgeThreshold.Months);
 
     /// <summary>The age tab shows the active tab's choice of timestamp.</summary>
-    public void ShowAgeStamp() => _age.ShowStamp(_tabs.Current.AgePreferred);
+    public void ShowAgeStamp()
+    {
+        var cur = _tabs.Current;
+        _age.SetSupported(stamp => stamp switch
+        {
+            AgeStamp.Created => StorageFeatures.WhyNot(cur.Provider, StorageFeature.CreatedTime),
+            AgeStamp.Accessed => StorageFeatures.WhyNot(cur.Provider, StorageFeature.AccessedTime),
+            _ => null,
+        });
+        _age.ShowStamp(StorageFeatures.EffectiveStamp(cur.AgePreferred, cur.Provider));
+    }
 
     private async Task UpdateAgeAsync(ChartTarget target)
     {
@@ -146,6 +157,8 @@ public sealed class ChartsController : IScanViews
         var cur = _tabs.Current;
         var shown = cur.AgeStamp;
         _oldHeader.ToolTip = $"Älter als der Schwellwert, nach dem Datum „{AgeStamps.Names[(int)shown]}“";
-        _age.UpdateNotices(shown, cur.AgePreferred, hasTree: cur.Root != null, snapshot: _snapshots.IsSnapshotMode);
+        // A source without the preferred timestamp (S3: only "modified") scans with what it has: no notice for that.
+        var wanted = StorageFeatures.EffectiveStamp(cur.AgePreferred, cur.Provider);
+        _age.UpdateNotices(shown, wanted, hasTree: cur.Root != null, snapshot: _snapshots.IsSnapshotMode);
     }
 }
