@@ -27,6 +27,16 @@ public partial class SearchPanel : UserControl
     {
         InitializeComponent();
         Mode_Changed(null, null!);
+
+        // Context menu, Delete, Enter and the keys of the host: the same behaviour as in every other list (ListInteraction).
+        ListInteraction.Attach(Results, new ListBehavior<SearchHitRow>
+        {
+            Selected = () => Results.SelectedItem as SearchHitRow,
+            ExtraKey = (key, _) => ExtraKeyDown?.Invoke(key) == true,
+            Enter = row => Navigate?.Invoke(row.Hit),
+            Delete = row => DeleteHit?.Invoke(row.Hit),
+            ShowMenu = (row, pos) => ShowMenu?.Invoke(row.Hit, pos),
+        });
     }
 
     /// <summary>The host switched to another scan: running search and hits belonged to the old tree.</summary>
@@ -157,46 +167,8 @@ public partial class SearchPanel : UserControl
         }
     }
 
-    private void Results_RightDown(object sender, MouseButtonEventArgs e)
-    {
-        // Inside a multi-selection the right click keeps it; elsewhere it selects just that row.
-        if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource) is { IsSelected: false } item)
-        {
-            Results.UnselectAll();
-            item.IsSelected = true;
-        }
-    }
-
-    private void Results_RightUp(object sender, MouseButtonEventArgs e)
-    {
-        if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource)?.DataContext is not SearchHitRow { Hit: var hit }) return;
-        e.Handled = true;
-        ShowMenu?.Invoke(hit, Results.PointToScreen(e.GetPosition(Results)));
-    }
-
     private void Results_DoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource)?.DataContext is SearchHitRow row) Navigate?.Invoke(row.Hit);
-    }
-
-    private void Results_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (Results.SelectedItem is not SearchHitRow { Hit: var hit }) return;
-        if (ExtraKeyDown?.Invoke(e.Key) == true) { e.Handled = true; return; }
-        if (e.Key == Key.Enter)
-        {
-            e.Handled = true;
-            Navigate?.Invoke(hit);
-        }
-        else if (e.Key == Key.Delete)
-        {
-            e.Handled = true;
-            DeleteHit?.Invoke(hit);
-        }
-        else if (e.Key == Key.Apps || (e.Key == Key.F10 && Keyboard.Modifiers == ModifierKeys.Shift))
-        {
-            e.Handled = true;
-            ShowMenu?.Invoke(hit, Results.PointToScreen(Mouse.GetPosition(Results)));
-        }
     }
 }

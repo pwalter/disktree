@@ -94,9 +94,6 @@
                       ScrollViewer.HorizontalScrollBarVisibility="Auto"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling"
-                      PreviewMouseRightButtonDown="Tree_RightDown"
-                      MouseRightButtonUp="Tree_RightUp"
-                      PreviewKeyDown="Tree_KeyDown"
                       SelectedItemChanged="Tree_SelectedItemChanged">
                 <TreeView.ItemContainerStyle>
                     <Style TargetType="TreeViewItem">
@@ -181,10 +178,7 @@
                              ItemTemplate="{StaticResource TopFileRow}"
                              HorizontalContentAlignment="Stretch"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                             PreviewMouseRightButtonDown="TopList_RightDown"
-                             MouseRightButtonUp="TopList_RightUp"
-                             MouseDoubleClick="TopList_DoubleClick"
-                             PreviewKeyDown="TopList_KeyDown" />
+                             MouseDoubleClick="TopList_DoubleClick" />
                 </TabItem>
                 <TabItem x:Name="AgeTab" Header="Alter">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">

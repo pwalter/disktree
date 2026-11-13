@@ -67,6 +67,7 @@ public partial class MainWindow : Window, IExportSource
 
         Theme.Changed += () => { _root?.RefreshTheme(); _ = UpdatePieAsync(); };
         InitTabChips();
+        InitListInteraction();
         _ = new ExportController(this, ExportButton, this);
         _updater = new UpdateController(this, _settings, UpdateButton, AutoUpdateItem, CheckUpdateItem, OpenReleasesItem,
             () => PathBox.Text, () => Busy != null);
@@ -572,44 +573,10 @@ public partial class MainWindow : Window, IExportSource
             if (selected.Contains(r.Path)) TopList.SelectedItems.Add(r);
     }
 
-    private void TopList_RightDown(object sender, MouseButtonEventArgs e)
-    {
-        // Right click inside a multi-selection keeps it (the menu acts on all of it); elsewhere it selects just that row.
-        if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource) is { IsSelected: false } item)
-        {
-            TopList.UnselectAll();
-            item.IsSelected = true;
-        }
-    }
-
-    private void TopList_RightUp(object sender, MouseButtonEventArgs e)
-    {
-        if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource)?.DataContext is not TopRow row) return;
-        e.Handled = true;
-        ShowFileMenu(row, TopList.PointToScreen(e.GetPosition(TopList)));
-    }
-
     private void TopList_DoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (VisualTreeHelpers.FindAncestor<ListBoxItem>(e.OriginalSource)?.DataContext is TopRow row)
             OpenInExplorer(row.Path);
-    }
-
-    private void TopList_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (TopList.SelectedItem is not TopRow row) return;
-        if (OpsKey(e.Key)) { e.Handled = true; return; } // F2, Delete on several rows
-
-        if (e.Key == Key.Delete)
-        {
-            e.Handled = true;
-            RunShell(row.Path, isFile: true, row.Size, null, () => ShellContextMenu.InvokeVerb(this, row.Path, "delete"));
-        }
-        else if (e.Key == Key.Apps || (e.Key == Key.F10 && Keyboard.Modifiers == ModifierKeys.Shift))
-        {
-            e.Handled = true;
-            ShowFileMenu(row, TopList.PointToScreen(Mouse.GetPosition(TopList)));
-        }
     }
 
     // Folder for the duplicate search: the selected folder (or the folder of the selected file), else what was scanned.
@@ -633,39 +600,25 @@ public partial class MainWindow : Window, IExportSource
 
     // ---------------------------------------------------------------- tree: context menu and keys
 
-    // Right click selects the row under the cursor first, like in Explorer.
-    private void Tree_RightDown(object sender, MouseButtonEventArgs e)
+    // Context menu, Delete, F2 and the copy key for the tree and the largest files: one behaviour for all lists (ListInteraction).
+    private void InitListInteraction()
     {
-        if (VisualTreeHelpers.FindAncestor<TreeViewItem>(e.OriginalSource) is { } item) item.IsSelected = true;
-    }
-
-    private void Tree_RightUp(object sender, MouseButtonEventArgs e)
-    {
-        if (VisualTreeHelpers.FindAncestor<TreeViewItem>(e.OriginalSource) is not { DataContext: NodeVM vm }) return;
-        e.Handled = true;
-        ShowTreeMenu(vm, Tree.PointToScreen(e.GetPosition(Tree)));
-    }
-
-    private void Tree_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (Tree.SelectedItem is not NodeVM vm) return;
-        if (OpsTreeKey(e.Key, vm)) { e.Handled = true; return; }
-
-        if (e.Key == Key.Delete && CanUseShell(vm))
+        ListInteraction.Attach(Tree, new ListBehavior<NodeVM>
         {
-            e.Handled = true;
-            RunShell(vm.Path, vm.Kind == Kind.File, vm.Size, vm, () => ShellContextMenu.InvokeVerb(this, vm.Path, "delete"));
-        }
-        else if (e.Key == Key.Apps || (e.Key == Key.F10 && Keyboard.Modifiers == ModifierKeys.Shift))
+            Selected = () => Tree.SelectedItem as NodeVM,
+            ExtraKey = OpsTreeKey, // F2
+            CanDelete = CanUseShell,
+            Delete = vm => RunShell(vm.Path, vm.Kind == Kind.File, vm.Size, vm, () => ShellContextMenu.InvokeVerb(this, vm.Path, "delete")),
+            ShowMenu = ShowTreeMenu,
+            CopyText = vm => vm.Path.Length > 0 ? vm.Path : null,
+        });
+        ListInteraction.Attach(TopList, new ListBehavior<TopRow>
         {
-            e.Handled = true;
-            ShowTreeMenu(vm, Tree.PointToScreen(Mouse.GetPosition(Tree)));
-        }
-        else if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control && vm.Path.Length > 0)
-        {
-            e.Handled = true;
-            Clipboard.SetText(vm.Path);
-        }
+            Selected = () => TopList.SelectedItem as TopRow,
+            ExtraKey = (key, _) => OpsKey(key), // F2, Delete on several rows
+            Delete = row => RunShell(row.Path, isFile: true, row.Size, null, () => ShellContextMenu.InvokeVerb(this, row.Path, "delete")),
+            ShowMenu = ShowFileMenu,
+        });
     }
 
     // The "Dateien" row stands for a whole folder's files, so it gets no menu: "Löschen" there would hit the folder.
