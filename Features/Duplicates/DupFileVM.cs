@@ -1,3 +1,5 @@
+using DiskTree.Core.Storage;
+
 namespace DiskTree.Features.Duplicates;
 
 public sealed class DupFileVM
@@ -13,7 +15,8 @@ public sealed class DupFileVM
     {
         Group = group;
         Path = path;
-        Name = System.IO.Path.GetFileName(path);
-        Folder = System.IO.Path.GetDirectoryName(path) ?? "";
+        // The duplicate search reads file contents from the local file system only (DuplicateFinder).
+        Name = DiskPathOps.Instance.NameOf(path);
+        Folder = DiskPathOps.Instance.ParentOf(path) ?? "";
     }
 }

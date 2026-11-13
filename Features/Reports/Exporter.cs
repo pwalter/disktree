@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using DiskTree.Core;
+using DiskTree.Core.Storage;
 
 namespace DiskTree.Features.Reports;
 
@@ -60,8 +61,10 @@ public static class Exporter
         return rows;
     }
 
-    public static int WriteTopFiles(string file, IReadOnlyList<Scanner.BigFile> files)
+    /// <summary>The largest files; name and folder are taken apart with the scan's path rules (null = Windows paths).</summary>
+    public static int WriteTopFiles(string file, IReadOnlyList<Scanner.BigFile> files, PathOps? paths = null)
     {
+        paths ??= DiskPathOps.Instance;
         using var w = Open(file);
         Line(w, "Rang", "Name", "Ordner", "Pfad", "Größe (Bytes)", "Größe");
         int rank = 0;
@@ -70,8 +73,8 @@ public static class Exporter
             rank++;
             Line(w,
                 rank.ToString(CultureInfo.InvariantCulture),
-                Path.GetFileName(f.Path),
-                Path.GetDirectoryName(f.Path) ?? "",
+                paths.NameOf(f.Path),
+                paths.ParentOf(f.Path) ?? "",
                 f.Path,
                 f.Size.ToString(CultureInfo.InvariantCulture),
                 SizeFormat.Format(f.Size));

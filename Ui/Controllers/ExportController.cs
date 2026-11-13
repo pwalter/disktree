@@ -85,7 +85,7 @@ public sealed class ExportController
                 return;
             }
 
-            int rows = await Task.Run(() => top != null ? Exporter.WriteTopFiles(file, top) : Exporter.WriteTree(file, node!));
+            int rows = await Task.Run(() => top != null ? Exporter.WriteTopFiles(file, top, scanner.Paths) : Exporter.WriteTree(file, node!));
             Mouse.OverrideCursor = null;
             Dialogs.Info(_owner,
                 $"{rows:N0} Zeilen exportiert nach:\n{file}" + (scanning ? "\n\nHinweis: Der Scan lief noch, die Zahlen sind ein Zwischenstand." : ""), "Exportieren");

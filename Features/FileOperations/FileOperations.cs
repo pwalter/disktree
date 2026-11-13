@@ -38,6 +38,10 @@ public sealed record RenamePlan(OpItem Item, string NewName, string? Problem)
     public string NewPath => System.IO.Path.Combine(Item.Parent ?? "", NewName);
 }
 
+/// <summary>
+/// Move, ZIP, rename and delete to the recycle bin. Local file system only (System.IO and the Windows shell); other
+/// storage sources will get their own write interface (StorageCaps.Move / ZipCreate / Rename / Delete / Trash).
+/// </summary>
 public static class FileOperations
 {
     // ---------------------------------------------------------------- selection helpers

@@ -124,8 +124,8 @@ public static class ReportHtml
             foreach (var f in d.TopFiles)
             {
                 rank++;
-                sb.Append("<tr><td class=\"r\">").Append(rank).Append("</td><td>").Append(E(Path.GetFileName(f.Path)))
-                  .Append("</td><td class=\"p\">").Append(E(Path.GetDirectoryName(f.Path) ?? ""))
+                sb.Append("<tr><td class=\"r\">").Append(rank).Append("</td><td>").Append(E(d.Paths.NameOf(f.Path)))
+                  .Append("</td><td class=\"p\">").Append(E(d.Paths.ParentOf(f.Path) ?? ""))
                   .Append("</td><td class=\"r\">").Append(SizeFormat.Format(f.Size)).Append("</td></tr>");
             }
             sb.Append("</tbody></table>");
