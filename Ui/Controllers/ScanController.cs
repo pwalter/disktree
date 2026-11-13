@@ -63,7 +63,7 @@ public sealed class ScanController
     private ScanSession Cur => _tabs.Current;
 
     /// <summary>A scan or rescan of the active tab runs.</summary>
-    public bool IsRunning => Cur.Cts != null;
+    public bool IsRunning => Cur.IsRunningOrPending;
 
     /// <summary>Stops the scan of the active tab (it finishes as "Abgebrochen").</summary>
     public void Cancel() => Cur.Cts?.Cancel();
@@ -99,10 +99,16 @@ public sealed class ScanController
         if (newTab && !Cur.IsEmpty) _tabs.NewTab();
 
         var s = Cur;
+        if (s.Pending) return;
         if (s.Cts != null)
         {
-            s.Cts.Cancel();
-            await s.ScanTask;
+            s.Pending = true; // nothing may start in this tab while the old scan stops
+            try
+            {
+                s.Cts.Cancel();
+                await s.ScanTask;
+            }
+            finally { s.Pending = false; }
         }
         if (Cur != s) _tabs.Activate(s); // the user switched tabs while the old scan stopped
         _pathBox.Text = path;
@@ -111,7 +117,7 @@ public sealed class ScanController
 
     private async Task StartScan(ScanSession s)
     {
-        if (s.Cts != null) return;
+        if (s.IsRunningOrPending) return;
         if (_snapshots.BlockedByLoad()) return;
         if (_tabs.Busy is { } other) { _tabs.NoticeBusy(other); return; }
 
@@ -174,11 +180,16 @@ public sealed class ScanController
 
         // A running scan has to stop first. (s.ScanTask still is the old scan here: this method runs
         // synchronously up to the first await, before RescanAsync assigns its own task.)
-        // PHASE-D: between this wait and RunAsync another scan can still start in the same tab (no Cts is set meanwhile)
+        if (s.Pending) return; // another scan/rescan already waits for the old one to stop
         if (s.Cts != null)
         {
-            s.Cts.Cancel();
-            await s.ScanTask;
+            s.Pending = true; // F5, the scan button and drops see the tab as busy while the old scan stops
+            try
+            {
+                s.Cts.Cancel();
+                await s.ScanTask;
+            }
+            finally { s.Pending = false; }
         }
 
         await RunAsync(s, ct =>

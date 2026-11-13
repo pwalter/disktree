@@ -47,7 +47,7 @@ public sealed class ScanTabsController
     public ScanSession Current { get; private set; } = new();
 
     /// <summary>The tab whose scan is running (there is at most one).</summary>
-    public ScanSession? Busy => Tabs.FirstOrDefault(t => t.Cts != null);
+    public ScanSession? Busy => Tabs.FirstOrDefault(t => t.IsRunningOrPending);
 
     // A file operation or the updater works on "the current tab" for a while: no tab changes meanwhile.
     public bool TabsLocked => _locked();
