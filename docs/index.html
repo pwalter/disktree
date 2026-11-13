@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DiskTree – Speicherplatz-Analyse für Windows</title>
+<meta name="description" content="DiskTree zeigt, was auf Laufwerk und Ordnern Platz belegt: schneller Scan, Live-Baum, Treemap, Duplikate, Alter, Berichte. Eine einzelne exe für Windows, ohne Installation.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#2f6fed">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="DiskTree – Speicherplatz-Analyse für Windows">
+<meta property="og:description" content="Schnell, live, ohne Installation: Ordnerbaum, Treemap, Dateitypen, Duplikate, Berichte.">
+<meta property="og:url" content="https://pwalter.github.io/disktree/">
+<meta property="og:image" content="https://pwalter.github.io/disktree/img/og-vorschau.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Hauptfenster von DiskTree mit Ordnerbaum und Dateityp-Diagramm">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="DiskTree – Speicherplatz-Analyse für Windows">
+<meta name="twitter:description" content="Schnell, live, ohne Installation: Ordnerbaum, Treemap, Dateitypen, Duplikate, Berichte.">
+<meta name="twitter:image" content="https://pwalter.github.io/disktree/img/og-vorschau.png">
+<meta name="twitter:image:alt" content="Hauptfenster von DiskTree mit Ordnerbaum und Dateityp-Diagramm">
+</head>
+<body>
+<a class="skip" href="#inhalt">Zum Inhalt springen</a>
+
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="favicon-32.png" width="28" height="28" alt="">DiskTree</a>
+    <nav aria-label="Hauptnavigation">
+      <ul>
+        <li><a href="#funktionen">Funktionen</a></li>
+        <li><a href="#download">Download</a></li>
+        <li><a href="#anleitung">Kurzanleitung</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="inhalt">
+  <div class="hero" id="top">
+    <div class="wrap">
+      <h1>DiskTree</h1>
+      <p class="lead">Speicherplatz-Analyse für Windows – schnell, live, ohne Installation.</p>
+      <p>
+        <a class="btn" href="https://github.com/pwalter/disktree/releases/latest">DiskTree herunterladen</a>
+        <a class="btn secondary" href="#funktionen">Funktionen ansehen</a>
+      </p>
+      <p class="meta" id="hero-version">Download über die GitHub-Releases · Windows x64</p>
+      <div class="shot">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="img/ueberblick-dark.png">
+          <img src="img/ueberblick-light.png" width="2010" height="1170" alt="Hauptfenster von DiskTree: links der Ordnerbaum mit Größenbalken, rechts das Dateityp-Diagramm. Die Demo-Daten sind frei erfunden.">
+        </picture>
+      </div>
+    </div>
+  </div>
+
+  <section id="funktionen" aria-labelledby="h-funktionen">
+    <div class="wrap">
+      <h2 id="h-funktionen">Was DiskTree kann</h2>
+      <p class="intro">Pfad oder Laufwerk angeben, DiskTree scannt mit mehreren Threads und baut den Ordnerbaum dabei live auf. Die Screenshots zeigen erfundene Demo-Daten; ein Klick auf ein Bild öffnet es in voller Größe.</p>
+
+      <ul class="cards">
+        <li class="card wide">
+          <figure><picture>
+            <source media="(prefers-color-scheme: dark)" srcset="img/baum-dark.png">
+            <img src="img/baum-light.png" width="1392" height="584" loading="lazy" alt="Ordnerbaum mit Größenbalken: Backups, Archiv und Videos sind aufgeklappt, die größten Ordner stehen oben.">
+          </picture></figure>
+          <div class="body"><h3>Live-Baum mit Balken</h3><p>Ordner erscheinen sofort, die Größe wächst mit. Pro Ebene stehen die größten Ordner oben, Balken zeigen den Anteil. Bei einem Laufwerk beziehen sich die Anteile auf dessen Kapazität, dazu kommen „Freier Speicher“ und „Nicht erfasst“. Ein einzelner Ordner lässt sich an Ort und Stelle neu scannen.</p></div>
+        </li>
+
+        <li class="card">
+          <figure><a href="img/dateitypen-voll-dark.webp"><picture>
+            <source media="(prefers-color-scheme: dark)" srcset="img/dateitypen-dark.png">
+            <img src="img/dateitypen-light.png" width="560" height="916" loading="lazy" alt="Ringdiagramm der Dateitypen: Datenträger-Abbilder, Videos, MSSQL-Backups und Archive belegen den meisten Platz.">
+          </picture></a></figure>
+          <div class="body"><h3>Dateityp-Diagramm</h3><p>Word, Excel, MSSQL-Datenbank und -Backup, Bilder, Videos, Archive und mehr – für den jeweils markierten Ordner.</p></div>
+        </li>
+
+        <li class="card">
+          <figure><a href="img/treemap-voll-dark.webp"><picture>
+            <source media="(prefers-color-scheme: dark)" srcset="img/treemap-dark.png">
+            <img src="img/treemap-light.png" width="560" height="916" loading="lazy" alt="Treemap: Unterordner als Rechtecke, die Fläche entspricht der Größe. Backups ist das größte Rechteck.">
+          </picture></a></figure>
+          <div class="body"><h3>Treemap</h3><p>Unterordner als Rechtecke nach Größe. Ein Klick markiert den Ordner im Baum, ein Doppelklick taucht ein.</p></div>
+        </li>
+
+        <li class="card">
+          <figure><a href="img/alter-voll-dark.webp"><picture>
+            <source media="(prefers-color-scheme: dark)" srcset="img/alter-dark.png">
+            <img src="img/alter-light.png" width="560" height="916" loading="lazy" alt="Altersauswertung als Ringdiagramm mit fünf Altersstufen von unter einem Monat bis über fünf Jahre.">
+          </picture></a></figure>
+          <div class="body"><h3>Alter der Dateien</h3><p>Auswertung nach „zuletzt geändert“, „erstellt“ oder „zuletzt geöffnet“. Der Schwellwert für „alt“ ist einstellbar, im Baum gibt es dazu eine Spalte „Älter als …“.</p></div>
+        </li>
+
+        <li class="card">
+          <figure><a href="img/groesste-dateien-voll-dark.webp"><picture>
+            <source media="(prefers-color-scheme: dark)" srcset="img/groesste-dateien-dark.png">
+            <img src="img/groesste-dateien-light.png" width="560" height="916" loading="lazy" alt="Liste der größten Dateien des Scans mit Name, Ordner und Größe, beginnend mit einem 42-GB-Festplattenabbild.">
+          </picture></a></figure>
+          <div class="body"><h3>Größte Dateien</h3><p>Die 200 größten Dateien des Scans auf einen Blick – mit Ordner und Größe.</p></div>
+        </li>
+
+        <li class="card">
+          <figure><a href="img/suche-voll-dark.webp"><picture>
+            <source media="(prefers-color-scheme: dark)" srcset="img/suche-dark.png">
+            <img src="img/suche-light.png" width="560" height="916" loading="lazy" alt="Suche nach Dateien mit Endung bak und Mindestgröße 1 GB; fünf Treffer in der Ergebnisliste.">
+          </picture></a></figure>
+          <div class="body"><h3>Suche und Filter</h3><p>Strg+F: Ordner und Dateien nach Name, Mindestgröße und Endung. Weitere Filter für Zugriffs-, Erstell- und Änderungsdatum sowie Dateiattribute (versteckt, System, komprimiert, Cloud-Platzhalter …).</p></div>
+        </li>
+
+        <li class="card">
+          <figure><a href="img/duplikate-voll-dark.webp"><picture>
+            <source media="(prefers-color-scheme: dark)" srcset="img/duplikate-dark.png">
+            <img src="img/duplikate-light.png" width="560" height="916" loading="lazy" alt="Duplikate-Ergebnis: zwei Gruppen gleicher Dateien, 6,3 GB verschwendeter Platz.">
+          </picture></a></figure>
+          <div class="body"><h3>Duplikate finden</h3><p>Gleiche Dateien werden über Größe, Teil-Hash und SHA-256 erkannt. Angezeigt wird der „verschwendete“ Platz.</p></div>
+        </li>
+
+        <li class="card">
+          <figure><a href="img/besitzer-voll-dark.webp"><picture>
+            <source media="(prefers-color-scheme: dark)" srcset="img/besitzer-dark.png">
+            <img src="img/besitzer-light.png" width="560" height="916" loading="lazy" alt="Speicher pro Besitzer als Ringdiagramm mit vier Demo-Konten.">
+          </picture></a></figure>
+          <div class="body"><h3>Besitzer und Rechte</h3><p>Besitzer und Zugriffsrechte (ACL) des markierten Ordners, dazu der Speicherverbrauch pro Besitzer – auf Knopfdruck. (Die Konten im Bild sind für den Screenshot erfunden.)</p></div>
+        </li>
+
+        <li class="card">
+          <figure><a href="img/vergleich-voll-dark.webp"><picture>
+            <source media="(prefers-color-scheme: dark)" srcset="img/vergleich-dark.png">
+            <img src="img/vergleich-light.png" width="560" height="916" loading="lazy" alt="Vergleich zweier Scans: 15 Ordner gewachsen, 2 geschrumpft, 1 neu, 1 entfernt; Liste mit Änderungen in GB.">
+          </picture></a></figure>
+          <div class="body"><h3>Scans speichern und vergleichen</h3><p>Scans lassen sich als <code>.disktree</code> speichern und später öffnen. Der Vergleich zeigt, welche Ordner gewachsen, geschrumpft, neu oder entfernt sind.</p></div>
+        </li>
+
+        <li class="card wide">
+          <figure><a href="img/scan-tabs-voll-dark.webp"><picture>
+            <source media="(prefers-color-scheme: dark)" srcset="img/scan-tabs-dark.png">
+            <img src="img/scan-tabs-light.png" width="1392" height="464" loading="lazy" alt="Zwei Scans in Tabs nebeneinander; der zweite Tab ist ein gespeicherter Scan und trägt ein Disketten-Symbol.">
+          </picture></a></figure>
+          <div class="body"><h3>Mehrere Scans in Tabs</h3><p>Aktuelle und gespeicherte Scans liegen in eigenen Tabs (Strg+T öffnet einen neuen). Mehrere Pfade, auch UNC-Pfade, lassen sich gemeinsam scannen.</p></div>
+        </li>
+
+        <li class="card narrow">
+          <figure><picture>
+            <source media="(prefers-color-scheme: dark)" srcset="img/export-dark.png">
+            <img src="img/export-light.png" width="658" height="520" loading="lazy" alt="Dialog „Exportieren“ mit den Optionen Baum, gesamter Scan, größte Dateien, Bericht als HTML und Bericht als PDF.">
+          </picture></figure>
+          <div class="body"><h3>Berichte und Export</h3><p>Export als CSV (Excel-tauglich) sowie Bericht als HTML oder PDF mit größten Ordnern, Dateitypen, Alter und größten Dateien.</p></div>
+        </li>
+
+        <li class="card">
+          <figure><div class="theme-pair">
+            <img src="img/baum-light.png" width="1392" height="584" loading="lazy" alt="Ausschnitt der hellen Oberfläche von DiskTree.">
+            <img src="img/baum-dark.png" width="1392" height="584" loading="lazy" alt="Ausschnitt der dunklen Oberfläche von DiskTree.">
+          </div></figure>
+          <div class="body"><h3>Hell und Dunkel</h3><p>Die Oberfläche folgt der Windows-Einstellung; per Schalter in der Symbolleiste lässt sie sich auch fest auf Hell oder Dunkel stellen.</p></div>
+        </li>
+      </ul>
+
+      <h3 style="margin-top:36px">Weitere Funktionen</h3>
+      <ul class="facts">
+        <li><strong>Aufräumen</strong><span>Dateien markieren (Größte Dateien, Suche, Duplikate) und verschieben, in ZIP archivieren, umbenennen (F2, auch per Muster) oder in den Papierkorb legen – immer mit Bestätigung.</span></li>
+        <li><strong>Self-Update</strong><span>Beim Start sucht DiskTree nach einer neuen Version, lädt sie von den GitHub-Releases, prüft die SHA-256-Prüfsumme und startet neu. Abschaltbar.</span></li>
+        <li><strong>Explorer-Kontextmenü</strong><span>Optional „Mit DiskTree analysieren“ per Rechtsklick auf Ordner.</span></li>
+        <li><strong>Portable-Modus</strong><span><code>DiskTree.portable</code> neben die exe legen oder <code>--portable</code> – Einstellungen bleiben neben der exe.</span></li>
+        <li><strong>Kommandozeile</strong><span>Pfad(e), Threads, Ausschlüsse und mehr per Argument, siehe <a href="#anleitung">Kurzanleitung</a>.</span></li>
+        <li><strong>UNC-Pfade</strong><span>Netzfreigaben wie <code>\\server\share</code> lassen sich scannen.</span></li>
+        <li><strong>Ausschlüsse</strong><span>Ordner nach Name, Muster (<code>*.tmp</code>) oder Pfad vom Scan ausnehmen.</span></li>
+        <li><strong>Windows-Kontextmenü</strong><span>Öffnen, Öffnen mit, Löschen, Eigenschaften … direkt im Baum, dazu „Ab hier neu scannen“.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="download" aria-labelledby="h-download">
+    <div class="wrap">
+      <h2 id="h-download">Download</h2>
+      <p class="intro">Aktuelle Version: <strong id="rel-version">siehe GitHub-Releases</strong> <span id="rel-date"></span><br>
+        <a class="btn" href="https://github.com/pwalter/disktree/releases/latest">Zu den neuesten Releases auf GitHub</a></p>
+      <div class="dl-grid">
+        <div class="box">
+          <h3><code>DiskTree.exe</code> <small id="size-full"></small></h3>
+          <p>Eine einzelne Datei, alles dabei. Läuft unter Windows x64 ohne Installation und ohne zusätzliche Laufzeit.</p>
+        </div>
+        <div class="box">
+          <h3><code>DiskTree-slim.exe</code> <small id="size-slim"></small></h3>
+          <p>Sehr klein, braucht aber die <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET-10-Desktop-Laufzeit</a>.</p>
+        </div>
+        <div class="box">
+          <h3><code>SHA256SUMS.txt</code></h3>
+          <p>Prüfsummen der Dateien. Vergleiche sie nach dem Download, zum Beispiel mit <code>Get-FileHash .\DiskTree.exe</code> in PowerShell.</p>
+        </div>
+      </div>
+      <p class="note"><strong>Hinweis zu Windows SmartScreen:</strong> Die Dateien sind nicht code-signiert. Windows SmartScreen kann deshalb beim ersten Start warnen („Der Computer wurde durch Windows geschützt“). Prüfe vor dem Start die SHA-256-Prüfsumme gegen <code>SHA256SUMS.txt</code> aus demselben Release; der Quellcode steht im <a href="https://github.com/pwalter/disktree">Repository</a>.</p>
+    </div>
+  </section>
+
+  <section id="anleitung" aria-labelledby="h-anleitung">
+    <div class="wrap">
+      <h2 id="h-anleitung">Kurzanleitung</h2>
+      <ol class="steps">
+        <li>DiskTree starten, einen Pfad oder ein Laufwerk eingeben oder einen Ordner auf das Fenster ziehen.</li>
+        <li>Auf <strong>Scannen</strong> klicken. Der Baum füllt sich live, die größten Ordner stehen oben.</li>
+        <li>Einen Ordner markieren – das Seitenpanel zeigt Dateitypen, Alter, Treemap, größte Dateien und mehr dazu.</li>
+      </ol>
+      <p><kbd>F5</kbd> scannt den markierten Ordner neu · <kbd>Esc</kbd> bricht einen laufenden Scan ab · <kbd>Strg</kbd>+<kbd>F</kbd> öffnet die Suche · <kbd>Strg</kbd>+<kbd>T</kbd> öffnet einen neuen Scan-Tab · <kbd>F2</kbd> benennt um.</p>
+      <h3>Kommandozeile</h3>
+      <pre><code>DiskTree.exe [Pfad] [Optionen]
+
+  Pfad                  Laufwerk oder Ordner, der sofort gescannt wird (mehrere Pfade möglich)
+  -t, --threads N       Anzahl der Scan-Threads (1-256)
+  -x, --exclude MUSTER  Ordner beim Scan überspringen (mehrfach möglich)
+      --portable        Einstellungen neben der exe speichern
+      --no-update-check Beim Start nicht nach einer neuen Version suchen
+      --admin           Direkt als Administrator neu starten
+      --no-admin-prompt Die Frage nach Administratorrechten überspringen
+  -h, --help, /?        Hilfe</code></pre>
+      <pre><code>DiskTree.exe D:\ --threads 32
+DiskTree.exe C:\Daten \\server\share --exclude node_modules --exclude *.tmp</code></pre>
+    </div>
+  </section>
+
+  <section id="faq" aria-labelledby="h-faq">
+    <div class="wrap">
+      <h2 id="h-faq">Häufige Fragen</h2>
+      <details><summary>Bleiben meine Daten lokal?</summary><p>Ja. DiskTree liest nur das Dateisystem auf deinem Rechner (oder Netzlaufwerk) und sendet keine Scan-Ergebnisse irgendwohin. Es gibt keine Telemetrie.</p></details>
+      <details><summary>Wann nimmt DiskTree Kontakt zum Internet auf?</summary><p>Beim Start fragt die App bei GitHub nach einer neuen Version. Das lässt sich abschalten: Rechtsklick auf die Versionsanzeige unten rechts oder Start mit <code>--no-update-check</code>. Diese Webseite lädt nur beim Öffnen die Versionsangabe von GitHub nach; sie verwendet keine Cookies, Tracker oder externen Schriften.</p></details>
+      <details><summary>Brauche ich Administratorrechte?</summary><p>Nein. Mit Administratorrechten kann DiskTree aber auch geschützte Ordner lesen. Die App bietet den Neustart als Administrator optional an (abschaltbar mit <code>--no-admin-prompt</code>).</p></details>
+      <details><summary>Welche Systemvoraussetzungen gibt es?</summary><p>Windows (x64). Die Variante <code>DiskTree.exe</code> bringt alles mit; <code>DiskTree-slim.exe</code> benötigt zusätzlich die .NET-10-Desktop-Laufzeit.</p></details>
+      <details><summary>Warum warnt Windows SmartScreen?</summary><p>Die Dateien sind nicht code-signiert, daher kann SmartScreen warnen. Prüfe die Prüfsumme (<code>SHA256SUMS.txt</code>) oder baue DiskTree selbst aus dem Quellcode (.NET-10-SDK).</p></details>
+      <details><summary>Wo melde ich Fehler oder Wünsche?</summary><p>Als <a href="https://github.com/pwalter/disktree/issues">Issue auf GitHub</a>.</p></details>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <ul>
+      <li><a href="https://github.com/pwalter/disktree">Repository auf GitHub</a></li>
+      <li><a href="https://github.com/pwalter/disktree/issues">Issues</a></li>
+      <li><a href="https://github.com/pwalter/disktree/releases">Releases</a></li>
+      <li><a href="https://github.com/pwalter/disktree/blob/main/LICENSE">Lizenz: MIT</a></li>
+    </ul>
+    <p>Die Screenshots zeigen frei erfundene Demo-Daten.</p>
+  </div>
+</footer>
+<script src="app.js" defer></script>
+</body>
+</html>
