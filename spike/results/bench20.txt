@@ -1,0 +1,97 @@
+﻿netem: +20 ms on container egress (= +20 ms RTT)
+=== S3 RustFS ===
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [assembly load] AWSSDK.S3 at 42 ms
+  [assembly load] AWSSDK.Core at 48 ms
+checksum=default(WHEN_SUPPORTED), ForcePathStyle=True: PUT+GET+LIST ok (14 bytes)
+checksum=default(WHEN_SUPPORTED), ForcePathStyle=False: PUT+GET+LIST ok (14 bytes)
+checksum=WHEN_REQUIRED, ForcePathStyle=True: PUT+GET+LIST ok (14 bytes)
+checksum=WHEN_REQUIRED, ForcePathStyle=False: PUT+GET+LIST ok (14 bytes)
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [assembly load] AWSSDK.S3 at 41 ms
+  [assembly load] AWSSDK.Core at 47 ms
+round 0 flat     :    6 requests, 5614 objects, 8581200 bytes, 5897 ms
+  keys roundtrip ok: False (missing: double//slash.txt | a//b/c.txt | /leading-slash.txt; listed instead: )
+  sample keys: mit Leerzeichen/Größe äöü ß.txt
+round 0 delim seq:  117 requests, 5614 objects, 8581200 bytes, 114 prefixes, 5413 ms, sum equal: True
+round 0 delim p8:  117 requests, 5614 objects, 8581200 bytes, 114 prefixes, 1026 ms, sum equal: True
+round 1 flat     :    6 requests, 5614 objects, 8581200 bytes, 3347 ms
+round 1 delim seq:  117 requests, 5614 objects, 8581200 bytes, 114 prefixes, 4855 ms, sum equal: True
+round 1 delim p8:  117 requests, 5614 objects, 8581200 bytes, 114 prefixes, 791 ms, sum equal: True
+round 2 flat     :    6 requests, 5614 objects, 8581200 bytes, 2621 ms
+round 2 delim seq:  117 requests, 5614 objects, 8581200 bytes, 114 prefixes, 5015 ms, sum equal: True
+round 2 delim p8:  117 requests, 5614 objects, 8581200 bytes, 114 prefixes, 941 ms, sum equal: True
+--- cold start (RustFS) ---
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [before first S3 use] 22 ms
+  [assembly load] AWSSDK.S3 at 26 ms
+  [assembly load] AWSSDK.Core at 29 ms
+  client create 179 ms, first request 396 ms, second request 30,0 ms
+=== S3 SeaweedFS ===
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [assembly load] AWSSDK.S3 at 29 ms
+  [assembly load] AWSSDK.Core at 34 ms
+checksum=default(WHEN_SUPPORTED), ForcePathStyle=True: PUT+GET+LIST ok (14 bytes)
+checksum=default(WHEN_SUPPORTED), ForcePathStyle=False: PUT+GET+LIST ok (14 bytes)
+checksum=WHEN_REQUIRED, ForcePathStyle=True: PUT+GET+LIST ok (14 bytes)
+checksum=WHEN_REQUIRED, ForcePathStyle=False: PUT+GET+LIST ok (14 bytes)
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [assembly load] AWSSDK.S3 at 34 ms
+  [assembly load] AWSSDK.Core at 38 ms
+round 0 flat     :    6 requests, 5617 objects, 8581241 bytes, 609 ms
+  keys roundtrip ok: False (missing: double//slash.txt | a//b/c.txt | /leading-slash.txt; listed instead: a/b/c.txt | double/slash.txt | leading-slash.txt)
+  sample keys: mit Leerzeichen/Größe äöü ß.txt
+round 0 delim seq:  120 requests, 5617 objects, 8581241 bytes, 117 prefixes, 3011 ms, sum equal: True
+round 0 delim p8:  120 requests, 5617 objects, 8581241 bytes, 117 prefixes, 434 ms, sum equal: True
+round 1 flat     :    6 requests, 5617 objects, 8581241 bytes, 339 ms
+round 1 delim seq:  120 requests, 5617 objects, 8581241 bytes, 117 prefixes, 2954 ms, sum equal: True
+round 1 delim p8:  120 requests, 5617 objects, 8581241 bytes, 117 prefixes, 405 ms, sum equal: True
+round 2 flat     :    6 requests, 5617 objects, 8581241 bytes, 251 ms
+round 2 delim seq:  120 requests, 5617 objects, 8581241 bytes, 117 prefixes, 2906 ms, sum equal: True
+round 2 delim p8:  120 requests, 5617 objects, 8581241 bytes, 117 prefixes, 403 ms, sum equal: True
+--- cold start (SeaweedFS) ---
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [before first S3 use] 31 ms
+  [assembly load] AWSSDK.S3 at 40 ms
+  [assembly load] AWSSDK.Core at 48 ms
+  client create 253 ms, first request 410 ms, second request 26,9 ms
+=== SFTP ===
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [assembly load] Renci.SshNet at 61 ms
+  host key: ssh-ed25519, 256 bit, SHA256:Kx6A9ypVO0q+WbqjuBYftlvWYYiqZSTjggFDI2WOk6c
+connect+auth (password): 777 ms, server: SSH-2.0-OpenSSH_10.3
+  kex mlkem768x25519-sha256, cipher aes128-ctr, hostkey ssh-ed25519
+  meta broken-link    dir=False link=True  reg=False len=14     mtime=2026-11-13T11:21:19.0000000Z atime=2026-11-13T11:21:19.0000000Z uid=1001 gid=1001 perm=rwxrwxrwx
+  meta link-to-file   dir=False link=True  reg=False len=8      mtime=2026-11-13T11:21:19.0000000Z atime=2026-11-13T11:22:29.0000000Z uid=1001 gid=1001 perm=rwxrwxrwx
+  meta file.txt       dir=False link=False reg=True  len=6      mtime=2020-01-02T03:04:05.0000000Z atime=2020-01-02T03:04:05.0000000Z uid=1001 gid=1001 perm=rw-r-----
+  meta dir            dir=True  link=False reg=False len=4096   mtime=2026-11-13T11:21:19.0000000Z atime=2026-11-13T11:21:19.0000000Z uid=1001 gid=1001 perm=rwxr-xr-x
+  meta link-to-dir    dir=False link=True  reg=False len=3      mtime=2026-11-13T11:21:19.0000000Z atime=2026-11-13T11:21:19.0000000Z uid=1001 gid=1001 perm=rwxrwxrwx
+  Get(link) (stat follows link): link=False len=6; lstat via ListDirectory shows link=True
+  statvfs@openssh.com: block=4096 total=263940717 free=261118815 avail=247692947 => total 1081,1 GB, avail 1014,6 GB
+round 0 1 client seq   : 113 dirs, 5501 files, 5781230 bytes, ~477 SFTP requests, 12998 ms
+round 0 1 client p4    : 113 dirs, 5501 files, 5781230 bytes, 3377 ms
+round 0 1 client p8    : 113 dirs, 5501 files, 5781230 bytes, 1787 ms
+round 0 4 clients p8  : 113 dirs, 5501 files, 5781230 bytes, 1727 ms (connect not included)
+round 1 1 client seq   : 113 dirs, 5501 files, 5781230 bytes, ~477 SFTP requests, 13199 ms
+round 1 1 client p4    : 113 dirs, 5501 files, 5781230 bytes, 3640 ms
+round 1 1 client p8    : 113 dirs, 5501 files, 5781230 bytes, 1813 ms
+round 1 4 clients p8  : 113 dirs, 5501 files, 5781230 bytes, 1805 ms (connect not included)
+round 2 1 client seq   : 113 dirs, 5501 files, 5781230 bytes, ~477 SFTP requests, 17628 ms
+round 2 1 client p4    : 113 dirs, 5501 files, 5781230 bytes, 4792 ms
+round 2 1 client p8    : 113 dirs, 5501 files, 5781230 bytes, 2303 ms
+round 2 4 clients p8  : 113 dirs, 5501 files, 5781230 bytes, 2213 ms (connect not included)
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [assembly load] Renci.SshNet at 57 ms
+  host key: ssh-ed25519, 256 bit, SHA256:Kx6A9ypVO0q+WbqjuBYftlvWYYiqZSTjggFDI2WOk6c
+connect+auth (id_ed25519): 1594 ms, server: SSH-2.0-OpenSSH_10.3
+  kex mlkem768x25519-sha256, cipher aes128-ctr, hostkey ssh-ed25519
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [assembly load] Renci.SshNet at 58 ms
+  host key: ssh-ed25519, 256 bit, SHA256:Kx6A9ypVO0q+WbqjuBYftlvWYYiqZSTjggFDI2WOk6c
+connect+auth (id_rsa): 1694 ms, server: SSH-2.0-OpenSSH_10.3
+  kex mlkem768x25519-sha256, cipher aes128-ctr, hostkey ssh-ed25519
+--- cold start (SFTP) ---
+  [main entered] at 0 ms, SDK assemblies loaded so far: none
+  [before first SFTP use] 52 ms
+  [assembly load] Renci.SshNet at 63 ms
+  connect+auth 1323 ms, first ListDirectory 138 ms, second 129,9 ms
