@@ -44,6 +44,7 @@
     <PackageReference Include="AWSSDK.SSO" Version="4.1.0" />
     <PackageReference Include="AWSSDK.SSOOIDC" Version="4.1.0" />
     <PackageReference Include="PDFsharp" Version="6.2.4" />
+    <PackageReference Include="SSH.NET" Version="2026.0.0" />
   </ItemGroup>
 
 </Project>
