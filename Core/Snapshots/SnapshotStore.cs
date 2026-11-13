@@ -287,8 +287,8 @@ public static class SnapshotStore
     public static Node? FindByPath(Node root, string path)
     {
         var rootPath = root.FullPath;
-        if (!path.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase)) return null;
+        if (!PathUtil.IsSameOrUnder(rootPath, path)) return null;
 
-        return root.FindRelative(path[rootPath.Length..]);
+        return root.FindRelative(path[Math.Min(path.Length, rootPath.TrimEnd('\\').Length)..]);
     }
 }

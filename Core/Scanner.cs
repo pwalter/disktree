@@ -127,11 +127,9 @@ public sealed partial class Scanner
             return top.FindRelative(path[Math.Min(path.Length, top.FullPath.TrimEnd('\\').Length)..]);
         }
 
-        // Known flaw, left as it is on purpose (fixed separately): the prefix is compared WITHOUT a separator
-        // boundary, so below a root like "\\srv\share\a" the path "\\srv\share\ab" is taken for a path inside it.
-        // (Drive roots end in a backslash and are not affected.) See ScannerTests.FindNode_SiblingWithSamePrefix.
-        if (!path.StartsWith(cur.FullPath, StringComparison.OrdinalIgnoreCase)) return null;
-        return cur.FindRelative(path[cur.FullPath.Length..]);
+        // The prefix must end at a separator: below the root "\\srv\share\a" the sibling "\\srv\share\ab" is not inside.
+        if (!PathUtil.IsSameOrUnder(cur.FullPath, path)) return null;
+        return cur.FindRelative(path[Math.Min(path.Length, cur.FullPath.TrimEnd('\\').Length)..]);
     }
 
     /// <summary>(Re-)reads capacity and free space of the drive node.</summary>
