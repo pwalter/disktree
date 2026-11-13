@@ -15,6 +15,7 @@ namespace DiskTree.Ui;
 public partial class SourceDialog : Window
 {
     private readonly SourceProfile _profile;
+    private readonly SourceProfile? _original;
     private readonly bool _isNew;
     private readonly Dictionary<SourceField, (FrameworkElement Row, TextBlock? Label)> _rows;
     private CancellationTokenSource? _testCts;
@@ -23,11 +24,14 @@ public partial class SourceDialog : Window
     /// <summary>The saved profile after "Speichern" (secrets are already in the Credential Manager).</summary>
     public SourceProfile? Result { get; private set; }
 
-    public SourceDialog(SourceProfile? existing)
+    /// <param name="existing">The source to edit; null for a new one.</param>
+    /// <param name="template">A new source filled in already (from a path the user typed); only with <paramref name="existing"/> = null.</param>
+    public SourceDialog(SourceProfile? existing, SourceProfile? template = null)
     {
         InitializeComponent();
         _isNew = existing == null;
-        _profile = existing?.Clone() ?? (SourceKinds.All.FirstOrDefault()?.NewProfile() ?? new SourceProfile());
+        _original = existing;
+        _profile = existing?.Clone() ?? template?.Clone() ?? (SourceKinds.All.FirstOrDefault()?.NewProfile() ?? new SourceProfile());
 
         _rows = new()
         {
@@ -42,6 +46,7 @@ public partial class SourceDialog : Window
             [SourceField.Passphrase] = (RowPassphrase, LabelPassphrase),
             [SourceField.Path] = (RowPath, LabelPath),
             [SourceField.Listing] = (RowListing, LabelListing),
+            [SourceField.HostKey] = (RowHostKey, LabelHostKey),
         };
 
         Title = _isNew ? "Quelle hinzufügen" : "Quelle bearbeiten";
@@ -66,6 +71,7 @@ public partial class SourceDialog : Window
 
         FillAuth();
         UpdateHint();
+        ShowHostKey();
         Closed += (_, _) => _testCts?.Cancel();
         Loaded += (_, _) => NameBox.Focus();
     }
@@ -148,6 +154,28 @@ public partial class SourceDialog : Window
         SecretHint.Text = text;
     }
 
+    /// <summary>The trusted host key (SFTP) and whether it can be reset.</summary>
+    private void ShowHostKey()
+    {
+        var key = _profile.HostKeySha256;
+        HostKeyBox.Text = key ?? "noch keiner – wird beim ersten Verbinden angezeigt und bestätigt";
+        HostKeyBox.FontFamily = key != null ? new FontFamily("Consolas") : FontFamily;
+        ResetHostKeyButton.IsEnabled = key != null;
+    }
+
+    private void ResetHostKey_Click(object sender, RoutedEventArgs e)
+    {
+        if (_profile.HostKeySha256 == null) return;
+        if (!Dialogs.Confirm(this,
+                $"Gespeicherten Fingerprint zurücksetzen?\n\n{_profile.HostKeySha256}\n\n" +
+                "Beim nächsten Verbinden fragt DiskTree dann erneut, ob dem Server vertraut wird. Das ist nur richtig, wenn " +
+                "der Server-Schlüssel sicher absichtlich geändert wurde (z. B. Neuinstallation) – sonst kann ein geänderter " +
+                "Schlüssel auf einen Angriff hindeuten.\n\nWirksam nach „Speichern“.", MessageBoxImage.Warning))
+            return;
+        _profile.HostKeySha256 = null;
+        ShowHostKey();
+    }
+
     private void BrowseKey_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new OpenFileDialog { Title = "Privater Schlüssel", Filter = "Alle Dateien (*.*)|*.*" };
@@ -196,6 +224,12 @@ public partial class SourceDialog : Window
             var secret = Typed(SecretBox, kind.Label(SourceField.Secret, auth) != null);
             var passphrase = Typed(PassphraseBox, kind.Label(SourceField.Passphrase, auth) != null);
             var text = await kind.TestAsync(p, secret, passphrase, cts.Token);
+            if (p.HostKeySha256 != _profile.HostKeySha256)
+            {
+                // The test confirmed a host key (SFTP): it is kept with the source on "Speichern".
+                _profile.HostKeySha256 = p.HostKeySha256;
+                ShowHostKey();
+            }
             ShowResult(text, ok: true);
         }
         catch (OperationCanceledException)
@@ -240,6 +274,10 @@ public partial class SourceDialog : Window
             Dialogs.Info(this, invalid);
             return;
         }
+        // Another server: the host key trusted for the old one does not belong to it (asked again on connecting).
+        if (_original != null && p.HostKeySha256 != null && p.HostKeySha256 == _original.HostKeySha256
+            && (!string.Equals(p.Endpoint, _original.Endpoint, StringComparison.OrdinalIgnoreCase) || p.Port != _original.Port))
+            p.HostKeySha256 = null;
 
         try
         {

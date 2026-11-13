@@ -57,7 +57,7 @@
                     Style="{StaticResource ToolButton}" Padding="0" Click="Browse_Click" ToolTip="Ordner wählen" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
                 <TextBlock Text="Threads" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                <ComboBox x:Name="ThreadsBox" Width="76" Height="28" />
+                <ComboBox x:Name="ThreadsBox" Width="76" Height="28" ToolTipService.ShowOnDisabled="True" />
             </StackPanel>
             <Button x:Name="AdminButton" Grid.Column="3" Content="🛡 Als Administrator neu starten" Height="32" Margin="16,0,0,0"
                     Style="{StaticResource ToolButton}" Background="{DynamicResource ToolGray}"

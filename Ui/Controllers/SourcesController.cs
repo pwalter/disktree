@@ -66,6 +66,38 @@ public sealed class SourcesController
     /// <summary>The first entry (a drive), for the box of a fresh start.</summary>
     public string FirstPath => _pathBox.Items.Count > 0 && _pathBox.Items[0] is PathChoice c ? c.Path : "";
 
+    /// <summary>
+    /// "Quelle hinzufügen", filled in from a path the user typed ("sftp://user@host/ordner"). True once the source
+    /// was saved; the path box then holds a path of the new source.
+    /// </summary>
+    public bool CreateFor(ISourceKind kind, string path)
+    {
+        var dlg = new SourceDialog(null, kind.ProfileFor(path)) { Owner = _window };
+        if (dlg.ShowDialog() != true || dlg.Result is not { } p) return false;
+        _settings.Sources.Add(p);
+        SourceProfiles.Set(_settings.Sources);
+        _save();
+        FillPathBox();
+        SourceProfiles.PreferredId = p.Id;
+        // The user may have changed server or user in the dialog: then scan the new source's own path.
+        if (!StorageProviders.TryResolve(_pathBox.Text, out var loc) || loc.Provider.Profile?.Id != p.Id)
+            _pathBox.Text = kind.PathOf(p);
+        return true;
+    }
+
+    /// <summary>
+    /// The user trusted the host key of a saved source while connecting: it is stored with the source (not secret), so
+    /// the next connection does not ask again and a different key is refused.
+    /// </summary>
+    public void RememberHostKey(string profileId, string fingerprint)
+    {
+        var p = _settings.Sources.FirstOrDefault(x => x.Id == profileId);
+        if (p == null || p.HostKeySha256 == fingerprint) return;
+        p.HostKeySha256 = fingerprint;
+        SourceProfiles.Set(_settings.Sources);
+        _save();
+    }
+
     private void OpenDialog()
     {
         var dlg = new SourcesDialog(_settings, _save) { Owner = _window };

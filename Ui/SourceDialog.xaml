@@ -72,6 +72,17 @@
             <TextBlock x:Name="LabelPath" Style="{StaticResource FieldLabel}" />
             <TextBox x:Name="PathBox" Height="30" VerticalContentAlignment="Center" />
         </DockPanel>
+        <DockPanel x:Name="RowHostKey" Style="{StaticResource FieldRow}">
+            <TextBlock x:Name="LabelHostKey" Style="{StaticResource FieldLabel}" VerticalAlignment="Top" Margin="0,6,0,0" />
+            <StackPanel>
+                <TextBox x:Name="HostKeyBox" IsReadOnly="True" MinHeight="30" TextWrapping="Wrap" VerticalContentAlignment="Center"
+                         Foreground="{DynamicResource Muted}" AutomationProperties.Name="Host-Schlüssel (SHA256-Fingerprint)" />
+                <Button x:Name="ResetHostKeyButton" Content="Gespeicherten Fingerprint zurücksetzen" HorizontalAlignment="Left"
+                        Height="28" Padding="10,0" Margin="0,6,0,0" Click="ResetHostKey_Click"
+                        ToolTipService.ShowOnDisabled="True"
+                        ToolTip="Nur nach einem absichtlich geänderten Server-Schlüssel: beim nächsten Verbinden wird erneut gefragt." />
+            </StackPanel>
+        </DockPanel>
         <DockPanel x:Name="RowListing" Style="{StaticResource FieldRow}">
             <TextBlock x:Name="LabelListing" Style="{StaticResource FieldLabel}" />
             <ComboBox x:Name="ListingBox" Height="30">

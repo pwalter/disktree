@@ -5,6 +5,7 @@ using System.Windows.Threading;
 using DiskTree.Core;
 using DiskTree.Core.Storage;
 using DiskTree.Features.Scan;
+using DiskTree.Features.Storage.Sftp;
 using DiskTree.Infrastructure;
 using DiskTree.Ui.Controllers;
 using Microsoft.Win32;
@@ -102,7 +103,9 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
             Treemap, TopPane, OwnerTab);
         _scan = new ScanController(this, _settings, _winSettings, _tabs, _status, _tree, _snapshots, _charts, PathBox, ThreadsBox, ScanButton);
         _scan.ScanStarted += s => { if (s == Cur) ApplyCaps(); };
+        _scan.CreateSource = _sources.CreateFor;
         NodeVM.ConfirmListing = ConfirmListing;
+        InitRemoteSources();
         AgePane.RescanRequested += () =>
         {
             if (!string.IsNullOrWhiteSpace(PathBox.Text)) _scan.ScanPathAsync(PathBox.Text).Forget("ScanPathAsync");
@@ -112,6 +115,41 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
         Loaded += (_, _) => { Theme.Changed -= OnThemeChanged; Theme.Changed += OnThemeChanged; };
         Closed += (_, _) => Theme.Changed -= OnThemeChanged;
     }
+
+    /// <summary>
+    /// What remote sources ask of the UI: "Diesem Server vertrauen?" for an SFTP server seen the first time (asked on
+    /// the connecting thread, shown here on the UI thread) and storing the trusted key with the source. Connections are
+    /// closed with the window.
+    /// </summary>
+    private void InitRemoteSources()
+    {
+        SftpStorage.AskHostKey = (profile, fingerprint) => Dispatcher.Invoke(() =>
+            Dialogs.Confirm(DialogOwner(),
+                "Diesem Server vertrauen?\n\n" +
+                $"Quelle: {profile.Name}\nServer: {SftpSource.AuthorityOf(profile)?[SftpUri.Prefix.Length..] ?? profile.Endpoint}\n\n" +
+                "DiskTree kennt diesen Server noch nicht. Der SHA256-Fingerprint seines Host-Schlüssels ist:\n\n" +
+                $"{fingerprint}\n\n" +
+                "Bitte mit dem Fingerprint vergleichen, den der Betreiber nennt (auf dem Server z. B. " +
+                "„ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub“).\n\n" +
+                "Ja = vertrauen und bei der Quelle speichern · Nein = nicht verbinden",
+                MessageBoxImage.Warning, "DiskTree – Unbekannter Server"));
+        SftpStorage.HostKeyTrusted = (profile, fingerprint) =>
+            Dispatcher.InvokeAsync(() => _sources.RememberHostKey(profile.Id, fingerprint));
+
+        Closed += (_, _) =>
+        {
+            SftpStorage.AskHostKey = null;
+            SftpStorage.HostKeyTrusted = null;
+            foreach (var p in StorageProviders.All.OfType<IConnectedStorage>())
+            {
+                try { p.Disconnect(); } catch (Exception) { /* closing anyway */ }
+            }
+        };
+    }
+
+    /// <summary>The window a message box belongs to: an open dialog (e.g. "Quelle bearbeiten") or this window.</summary>
+    private Window DialogOwner() =>
+        Application.Current.Windows.OfType<Window>().LastOrDefault(w => w != this && w.IsVisible && w.Owner != null) ?? this;
 
     private void OnThemeChanged()
     {
@@ -298,6 +336,26 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
         _charts.ShowAgeStamp();
         _charts.AgeNoticesChanged();
         SearchPane.SetSource(p);
+        ShowThreads(p);
+    }
+
+    /// <summary>
+    /// Remote sources scan with their own number of parallel folders (S3: 32, SFTP: 4), not with the threads box:
+    /// while such a scan is shown the box is disabled and its tooltip says the number really used.
+    /// </summary>
+    private void ShowThreads(IStorageProvider p)
+    {
+        if (p.ScanThreads is { } used)
+        {
+            ThreadsBox.IsEnabled = false;
+            ThreadsBox.ToolTip = $"{p.DisplayName} wird mit {used} parallelen Ordnern gescannt (fest für diese Quelle, " +
+                                 "unabhängig von dieser Auswahl). Die Auswahl gilt für Laufwerke und Freigaben.";
+        }
+        else
+        {
+            ThreadsBox.IsEnabled = true;
+            ThreadsBox.ClearValue(ToolTipProperty);
+        }
     }
 
     // Sources that answer the "Dateien" row with a paid request: ask once per source and app run.
