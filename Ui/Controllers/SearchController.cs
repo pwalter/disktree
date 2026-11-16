@@ -27,6 +27,7 @@ public sealed class SearchController
         _shell = shell;
 
         _search.ScopeProvider = _tree.SearchScope;
+        _search.StorageProvider = () => _tree.Provider;
         _search.Navigate = hit => _tree.Reveal(hit.Node);
         _search.ShowMenu = ShowMenu;
         _search.DeleteHit = hit => RunShell(hit, () => ShellContextMenu.InvokeVerb(_window, hit.Path, "delete"));
@@ -45,6 +46,10 @@ public sealed class SearchController
         {
             if (_tree.Reveal(hit.Node) is { } vm) _shell.ShowTreeMenu(vm, screenPos);
             _search.PruneMissing();
+        }
+        else if (_shell.NotLocal != null)
+        {
+            _shell.ShowFileMenu(hit.Path, hit.Size, screenPos); // remote source: our own small menu
         }
         else
         {

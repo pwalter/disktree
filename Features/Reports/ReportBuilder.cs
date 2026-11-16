@@ -74,6 +74,7 @@ public static class ReportBuilder
             Ages = ageRows,
             AgeStamp = scanner.Ages.Stamp,
             TopFiles = top,
+            Paths = scanner.Paths,
         };
     }
 

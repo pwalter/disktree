@@ -6,12 +6,16 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using DiskTree.Core;
+using DiskTree.Core.Storage;
 using DiskTree.Infrastructure;
 using DiskTree.Ui;
 
 namespace DiskTree.Features.Duplicates;
 
-/// <summary>Tab "Duplikate": starts a <see cref="DuplicateFinder"/> run for a folder and lists the groups of identical files.</summary>
+/// <summary>
+/// Tab "Duplikate": starts a <see cref="DuplicateFinder"/> run for a folder and lists the groups of identical files.
+/// Local file system only (it reads and hashes file contents, see StorageCaps.ContentHash).
+/// </summary>
 public partial class DuplicatesPanel : UserControl
 {
     private sealed record MinOption(string Text, long Bytes);
@@ -110,7 +114,7 @@ public partial class DuplicatesPanel : UserControl
     private void ShowTarget()
     {
         var root = RootProvider?.Invoke();
-        TargetText.Text = string.IsNullOrEmpty(root) ? "Duplikate" : "Duplikate – " + (Path.GetFileName(root.TrimEnd('\\')) is { Length: > 0 } n ? n : root);
+        TargetText.Text = string.IsNullOrEmpty(root) ? "Duplikate" : "Duplikate – " + (DiskPathOps.Instance.NameOf(root) is { Length: > 0 } n ? n : root);
         TargetText.ToolTip = root;
     }
 

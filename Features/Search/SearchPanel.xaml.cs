@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using DiskTree.Core;
+using DiskTree.Core.Storage;
 using DiskTree.Ui;
 using DiskTree.Infrastructure;
 
@@ -14,6 +15,8 @@ public partial class SearchPanel : UserControl
 
     /// <summary>Folder to search below (selected folder, else the scan root); null if nothing was scanned.</summary>
     public Func<Node?>? ScopeProvider { get; set; }
+    /// <summary>The storage source of the scan that is searched (null = the local file system).</summary>
+    public Func<IStorageProvider>? StorageProvider { get; set; }
     /// <summary>Jump to the hit in the tree.</summary>
     public Action<SearchHit>? Navigate { get; set; }
     /// <summary>Show the Windows shell menu for the hit at a screen position.</summary>
@@ -59,6 +62,8 @@ public partial class SearchPanel : UserControl
     public void PruneMissing()
     {
         if (Results.ItemsSource is not List<SearchHitRow> list) return;
+        // Only local paths can be checked (and only they can be deleted behind the list's back).
+        if (StorageProvider?.Invoke() is { } p && p.Id != DiskProvider.ProviderId) return;
         var rest = list.Where(r => r.Hit.IsDir ? System.IO.Directory.Exists(r.Hit.Path) : System.IO.File.Exists(r.Hit.Path)).ToList();
         if (rest.Count != list.Count) Results.ItemsSource = rest;
     }
@@ -130,7 +135,24 @@ public partial class SearchPanel : UserControl
             return;
         }
 
-        var query = new SearchQuery { Scope = scope, Text = text, MinSize = minSize, Extensions = exts, Files = files, Filter = filter };
+        var query = new SearchQuery
+        {
+            Scope = scope, Text = text, MinSize = minSize, Extensions = exts, Files = files, Filter = filter,
+            Provider = StorageProvider?.Invoke() ?? DiskProvider.Instance,
+        };
+
+        // The file search lists every folder again: for a source that charges per request, ask first.
+        if (files && StorageFeatures.WhyNot(query.Provider, StorageFeature.LiveFileList) is { } costly)
+        {
+            long folders = scope.Walk().LongCount();
+            if (!Dialogs.Confirm(Window.GetWindow(this),
+                    $"{costly}\n\nDie Dateisuche listet {folders:N0} Ordner erneut auf (mindestens {folders:N0} Anfragen).\n\nTrotzdem suchen?",
+                    MessageBoxImage.Warning))
+            {
+                StatusText.Text = "Dateisuche nicht gestartet (Anfragen an die Quelle).";
+                return;
+            }
+        }
         ScopeText.Text = "In: " + scope.FullPath;
 
         MoreFilters.IsExpanded = false; // make room for the hits; the header says how many filters are active

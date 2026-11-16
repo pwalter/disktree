@@ -1,4 +1,5 @@
 using DiskTree.Core;
+using DiskTree.Core.Storage;
 
 namespace DiskTree.Features.Search;
 
@@ -13,4 +14,11 @@ public sealed class SearchQuery
     public bool Files { get; init; }
     /// <summary>Date / attribute conditions (files only); null = none.</summary>
     public FileFilter? Filter { get; init; }
-}
+    /// <summary>Where the tree was scanned from: file search lists its folders there, hit paths follow its rules.</summary>
+    public IStorageProvider Provider { get; init; } = DiskProvider.Instance;
+
+    private ListOptions? _listOptions;
+
+    /// <summary>How the file search lists: unreadable folders skipped, cancellation reaching into remote requests.</summary>
+    public ListOptions ListOptions(CancellationToken ct) =>
+        _listOptions ??= DiskTree.Core.Storage.ListOptions.Lenient with { Run = new ListRun(ct) };}

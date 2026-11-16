@@ -1,4 +1,3 @@
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -50,12 +49,13 @@ public partial class TopFilesPanel : UserControl
             return;
         }
 
-        var selected = TopList.SelectedItems.Cast<TopRow>().Select(r => r.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var paths = scanner.Paths;
+        var selected = TopList.SelectedItems.Cast<TopRow>().Select(r => r.Path).ToHashSet(paths.Comparer);
         var rows = scanner.TopFiles().Select(f => new TopRow
         {
             Path = f.Path,
-            Name = Path.GetFileName(f.Path),
-            Folder = Path.GetDirectoryName(f.Path) ?? "",
+            Name = paths.NameOf(f.Path),
+            Folder = paths.ParentOf(f.Path) ?? "",
             Size = f.Size,
             SizeText = SizeFormat.Format(f.Size),
         }).ToList();

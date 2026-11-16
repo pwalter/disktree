@@ -1,3 +1,5 @@
+using DiskTree.Core.Storage;
+
 namespace DiskTree.Core;
 
 public sealed class Node
@@ -65,14 +67,17 @@ public sealed class Node
 
     /// <summary>
     /// The folder below this one that a relative path ("a\b", case-insensitive) leads to; this node for an empty path;
-    /// null if a part is missing.
+    /// null if a part is missing. Windows paths; see the overload for other storage sources.
     /// </summary>
-    public Node? FindRelative(string relative)
+    public Node? FindRelative(string relative) => FindRelative(relative, DiskPathOps.Instance);
+
+    /// <summary>Like <see cref="FindRelative(string)"/> with the separator and case rule of <paramref name="paths"/>.</summary>
+    public Node? FindRelative(string relative, PathOps paths)
     {
         var cur = this;
-        foreach (var part in relative.Split('\\', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var part in paths.Split(relative))
         {
-            cur = cur.Snapshot().FirstOrDefault(c => string.Equals(c.Name, part, StringComparison.OrdinalIgnoreCase))!;
+            cur = cur.Snapshot().FirstOrDefault(c => paths.NameEquals(c.Name, part))!;
             if (cur == null) return null;
         }
         return cur;

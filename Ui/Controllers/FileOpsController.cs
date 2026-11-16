@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using DiskTree.Core;
+using DiskTree.Core.Storage;
 using DiskTree.Features.FileOperations;
 using DiskTree.Infrastructure;
 
@@ -53,6 +54,10 @@ public sealed class ListSelection : ISelectionSource
 /// Clean-up actions on the selection (move, ZIP, rename, delete to the recycle bin): menu entries, keys, confirmation,
 /// and keeping tree / file types / age data / largest files in step afterwards (the tree numbers through
 /// <see cref="TreeEditor"/>). The file work itself is in FileOperations.
+/// <para>
+/// Local file system only (DiskProvider): the actions use System.IO and the Windows shell directly. Other storage
+/// sources will need their own write interface (see StorageCaps.Delete / Move / Rename / ZipCreate).
+/// </para>
 /// </summary>
 public sealed class FileOpsController
 {
@@ -89,12 +94,15 @@ public sealed class FileOpsController
 
     private void Notice(string text) => Dialogs.Info(_window, text);
 
+    /// <summary>Why an action does not work for the source of the active tab's scan (null: it does).</summary>
+    private string? WhyNot(StorageFeature f) => Scanner?.Provider is { } p ? StorageFeatures.WhyNot(p, f) : null;
+
     // ---------------------------------------------------------------- entry points
 
     /// <summary>Our entries for the context menu of <paramref name="path"/>; empty in a stored scan.</summary>
     public IReadOnlyList<(string Text, Action Run)> OperationExtras(string path, bool isDir)
     {
-        if (_snapshots.IsSnapshotMode) return [];
+        if (_snapshots.IsSnapshotMode || WhyNot(StorageFeature.Move) != null) return [];
 
         var sel = SelectionFor(path, isDir);
         string suffix = sel.Count > 1 ? $" ({sel.Count:N0} Elemente)" : "";
@@ -118,6 +126,7 @@ public sealed class FileOpsController
         if (sel.Count == 0 || (key == Key.Delete && sel.Count < 2)) return false; // one item: the shell's own Delete
 
         if (_snapshots.IsSnapshotMode) { _snapshots.ShowHint(); return true; }
+        if (WhyNot(key == Key.F2 ? StorageFeature.Rename : StorageFeature.Delete) is { } why) { Notice(why); return true; }
         RunOp(() => key == Key.F2 ? RenameAsync(sel) : DeleteAsync(sel));
         return true;
     }
@@ -127,6 +136,7 @@ public sealed class FileOpsController
     {
         if (key != Key.F2 || !ShellMenuCoordinator.CanUseShell(vm)) return false;
         if (_snapshots.IsSnapshotMode) { _snapshots.ShowHint(); return true; }
+        if (WhyNot(StorageFeature.Rename) is { } why) { Notice(why); return true; }
         var sel = new List<OpItem> { ItemOf(vm.Path, vm.Kind == Kind.Dir, vm.Size) };
         RunOp(() => RenameAsync(sel));
         return true;
@@ -298,7 +308,7 @@ public sealed class FileOpsController
             var newName = Path.GetFileName(newPath);
             if (item.IsDir)
             {
-                if (scanner?.FindNode(item.Path) is { } node) TreeEditor.RenameFolder(node, newName);
+                if (scanner?.FindNode(item.Path) is { } node) TreeEditor.RenameFolder(node, newName, scanner.Paths);
             }
             else if (scanner?.FindNode(item.Parent ?? "") is { } dir)
             {
@@ -377,7 +387,7 @@ public sealed class FileOpsController
 
     private void RefreshAfterChange()
     {
-        if (Scanner?.Root is { } drive) Scanner.ReadDrive(drive);
+        if (Scanner is { Root: { } drive } scanner) scanner.ReadCapacity(drive);
         _tree.RefreshRows();
         _views.RefreshViews();
         foreach (var s in _sources) s.PruneMissing();

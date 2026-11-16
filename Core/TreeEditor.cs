@@ -1,3 +1,5 @@
+using DiskTree.Core.Storage;
+
 namespace DiskTree.Core;
 
 /// <summary>
@@ -105,20 +107,24 @@ public static class TreeEditor
         parent.RemoveChild(node);
     }
 
-    /// <summary>A folder was renamed on disk: the node and everything below get the new path.</summary>
-    public static void RenameFolder(Node node, string newName)
+    /// <summary>
+    /// A folder was renamed: the node and everything below get the new path, built by the scan's path rules
+    /// (<paramref name="paths"/>; null = Windows paths).
+    /// </summary>
+    public static void RenameFolder(Node node, string newName, PathOps? paths = null)
     {
+        paths ??= DiskPathOps.Instance;
         node.Name = newName;
-        node.FullPath = System.IO.Path.Combine(node.Parent?.FullPath ?? System.IO.Path.GetDirectoryName(node.FullPath.TrimEnd('\\')) ?? "", newName);
-        Repath(node);
+        node.FullPath = paths.Join(node.Parent?.FullPath ?? paths.ParentOf(node.FullPath) ?? "", newName);
+        Repath(node, paths);
     }
 
-    private static void Repath(Node node)
+    private static void Repath(Node node, PathOps paths)
     {
         foreach (var c in node.Snapshot())
         {
-            c.FullPath = System.IO.Path.Combine(node.FullPath, c.Name);
-            Repath(c);
+            c.FullPath = paths.Join(node.FullPath, c.Name);
+            Repath(c, paths);
         }
     }
 

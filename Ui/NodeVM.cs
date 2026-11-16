@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Windows.Media;
 using DiskTree.Core;
+using DiskTree.Core.Storage;
 using DiskTree.Infrastructure;
 
 namespace DiskTree.Ui;
@@ -58,12 +59,16 @@ public sealed class NodeVM : INotifyPropertyChanged
     /// <summary>A placeholder row that shows a message instead of "Lade…" (e.g. the files of a folder could not be read).</summary>
     public static NodeVM Message(string text) => new() { _message = text };
 
-    public NodeVM(Node node, Kind kind, NodeVM? parent, int level)
+    /// <summary>Where the files of the "Dateien" row are read from: given to the root row, inherited by all others.</summary>
+    private readonly IStorageProvider _provider = DiskProvider.Instance;
+
+    public NodeVM(Node node, Kind kind, NodeVM? parent, int level, IStorageProvider? provider = null)
     {
         _node = node;
         Kind = kind;
         Parent = parent;
         Level = level;
+        _provider = provider ?? parent?._provider ?? DiskProvider.Instance;
 
         if ((kind == Kind.Dir && (node.HasChildren || node.DriveTotal > 0)) || kind == Kind.Files)
             Children.Add(new NodeVM());
@@ -111,7 +116,7 @@ public sealed class NodeVM : INotifyPropertyChanged
 
     public string Icon => Kind switch
     {
-        Kind.Dir when Level == 0 => "💽",
+        Kind.Dir when Level == 0 => _provider.Id == DiskProvider.ProviderId ? "💽" : "☁",
         Kind.Dir => "📁",
         Kind.Files => "🗂",
         Kind.File => "📄",
@@ -174,7 +179,10 @@ public sealed class NodeVM : INotifyPropertyChanged
             if (value && !_loaded)
             {
                 _loaded = true;
-                if (Kind == Kind.Files) LoadFilesAsync().Forget("LoadFilesAsync");
+                if (Kind == Kind.Files)
+                {
+                    if (MayList()) LoadFilesAsync().Forget("LoadFilesAsync");
+                }
                 else SyncChildren();
             }
             Notify(nameof(IsExpanded));
@@ -203,7 +211,8 @@ public sealed class NodeVM : INotifyPropertyChanged
         if (Kind == Kind.Files)
         {
             // Files were deleted (or the scan of the folder finished): re-read the list once.
-            if (_loaded && _expanded && !_loadingFiles && Parent!._node!.Scanned && _node!.FileCount != _filesLoadedCount)
+            if (_loaded && _expanded && !_loadingFiles && Parent!._node!.Scanned && _node!.FileCount != _filesLoadedCount
+                && StorageFeatures.Has(_provider, StorageFeature.LiveFileList))
                 LoadFilesAsync().Forget("LoadFilesAsync");
             return;
         }
@@ -337,6 +346,23 @@ public sealed class NodeVM : INotifyPropertyChanged
 
     private void Notify(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
+    /// <summary>
+    /// Asked before the "Dateien" row lists a folder of a source where every listing is a (paid) request (S3): true =
+    /// go ahead. Set by the window; null = always list.
+    /// </summary>
+    public static Func<IStorageProvider, string, bool>? ConfirmListing { get; set; }
+
+    /// <summary>The "Dateien" row may read its folder now; if not, it says so and asks again on the next opening.</summary>
+    private bool MayList()
+    {
+        if (StorageFeatures.Has(_provider, StorageFeature.LiveFileList) || ConfirmListing == null) return true;
+        if (ConfirmListing(_provider, _node!.FullPath)) return true;
+        _loaded = false;
+        Children.Clear();
+        Children.Add(Message("Dateiliste nicht geladen (Anfrage an die Quelle) – zum Laden erneut aufklappen"));
+        return false;
+    }
+
     // Individual files are not kept in memory by the scanner; they are read when the "Dateien" row is opened.
     private async Task LoadFilesAsync()
     {
@@ -345,10 +371,11 @@ public sealed class NodeVM : INotifyPropertyChanged
         try
         {
             var folder = _node.FullPath;
+            var provider = _provider;
             List<Node> files;
             try
             {
-                files = await Task.Run(() => ListFiles(folder));
+                files = await Task.Run(() => ListFiles(provider, folder));
             }
             catch (Exception)
             {
@@ -369,17 +396,19 @@ public sealed class NodeVM : INotifyPropertyChanged
         }
     }
 
-    private static List<Node> ListFiles(string folder)
+    private static readonly ListOptions FileListOptions = ListOptions.Lenient with { Stamps = StampSet.None };
+
+    private static List<Node> ListFiles(IStorageProvider provider, string folder)
     {
-        var options = new System.IO.EnumerationOptions { AttributesToSkip = 0, IgnoreInaccessible = true };
+        var paths = provider.Paths;
         var list = new List<Node>();
-        var entries = new System.IO.Enumeration.FileSystemEnumerable<(string Name, long Length)>(folder,
-            (ref System.IO.Enumeration.FileSystemEntry e) => (e.FileName.ToString(), e.IsDirectory ? -1L : e.Length), options);
+        var entries = provider.Enumerate(folder,
+            (in StorageEntry e) => (e.Name.ToString(), e.IsDirectory ? -1L : e.Length), FileListOptions);
 
         foreach (var (name, len) in entries)
         {
             if (len < 0) continue;
-            list.Add(new Node { Name = name, FullPath = System.IO.Path.Join(folder, name), Size = len, FileCount = 1 });
+            list.Add(new Node { Name = name, FullPath = paths.Join(folder, name), Size = len, FileCount = 1 });
         }
         list.Sort((a, b) => b.Size.CompareTo(a.Size));
         return list;

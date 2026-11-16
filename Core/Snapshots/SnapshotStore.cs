@@ -3,6 +3,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
+using DiskTree.Core.Storage;
 
 namespace DiskTree.Core.Snapshots;
 
@@ -21,6 +22,8 @@ public sealed class LoadedSnapshot
     public AgeStamp AgeStamp { get; init; }
     /// <summary>The root is the artificial "several paths" node (header field "multi"; absent in older files = false).</summary>
     public bool IsMulti { get; init; }
+    /// <summary>Where the scan was read from (header field "provider"; absent = the local file system).</summary>
+    public IStorageProvider Provider { get; init; } = DiskProvider.Instance;
 }
 
 /// <summary>
@@ -29,6 +32,9 @@ public sealed class LoadedSnapshot
 /// order (parent index "p" instead of nesting, so deep trees need no recursion), then the largest files.
 /// Unknown lines ("k") and unknown fields are ignored and missing fields default to zero, so files stay readable
 /// when later versions add aggregates; a higher "version" is still opened as far as it is understood.
+/// A scan of another storage source than the disk carries its <see cref="IStorageProvider.Id"/> in the header field
+/// "provider" (written only then, so disk scans give the same files as before); the folder paths are joined with that
+/// provider's path rules.
 /// </summary>
 public static class SnapshotStore
 {
@@ -48,7 +54,7 @@ public static class SnapshotStore
         {
             using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
             using (var gz = new GZipStream(fs, CompressionLevel.Optimal))
-                Write(gz, root, target, scanner.ExpectedBytes, scanner.TopFiles(), scannedAt, scanner.Ages.Stamp, scanner.IsMulti);
+                Write(gz, root, target, scanner.ExpectedBytes, scanner.TopFiles(), scannedAt, scanner.Ages.Stamp, scanner.IsMulti, scanner.Provider.Id);
             File.Move(tmp, file, overwrite: true);
         }
         finally
@@ -58,7 +64,8 @@ public static class SnapshotStore
     }
 
     internal static void Write(Stream stream, Node root, Node target, long expected,
-        IEnumerable<Scanner.BigFile> top, DateTime scannedAt, AgeStamp ageStamp, bool multi = false)
+        IEnumerable<Scanner.BigFile> top, DateTime scannedAt, AgeStamp ageStamp, bool multi = false,
+        string providerId = DiskProvider.ProviderId)
     {
         var buffer = new ArrayBufferWriter<byte>(4096);
         using var json = new Utf8JsonWriter(buffer);
@@ -81,6 +88,7 @@ public static class SnapshotStore
         json.WriteNumber("expected", expected);
         json.WriteString("ageStamp", AgeStamps.ToKey(ageStamp));
         if (multi) json.WriteBoolean("multi", true); // additive: older readers ignore it, older files simply lack it
+        if (providerId != DiskProvider.ProviderId) json.WriteString("provider", providerId); // additive, like "multi"
         json.WriteEndObject();
         EndLine();
 
@@ -172,6 +180,11 @@ public static class SnapshotStore
             if (h.ValueKind != JsonValueKind.Object || Str(h, "format") != Format)
                 throw new InvalidDataException("Das ist keine DiskTree-Scandatei.");
 
+            var providerId = Str(h, "provider");
+            var provider = StorageProviders.Get(providerId)
+                ?? throw new InvalidDataException($"Die Scandatei stammt aus einer unbekannten Speicherquelle („{providerId}“).");
+            var paths = provider.Paths;
+
             var nodes = new List<Node>();
             var top = new List<Scanner.BigFile>();
             var categories = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -188,7 +201,7 @@ public static class SnapshotStore
                 switch (Str(e, "k") ?? "n")
                 {
                     case "n":
-                        nodes.Add(ReadNode(e, nodes, categories));
+                        nodes.Add(ReadNode(e, nodes, categories, paths));
                         break;
                     case "top":
                         if (Str(e, "p") is { Length: > 0 } path) top.Add(new Scanner.BigFile(path, Num(e, "s")));
@@ -201,7 +214,7 @@ public static class SnapshotStore
             var root = nodes[0];
 
             var targetPath = Str(h, "target") ?? root.FullPath;
-            var target = FindByPath(root, targetPath) ?? root;
+            var target = FindByPath(root, targetPath, paths) ?? root;
             DateTime.TryParse(Str(h, "scannedAt"), null, System.Globalization.DateTimeStyles.RoundtripKind, out var at);
 
             return new LoadedSnapshot
@@ -213,6 +226,7 @@ public static class SnapshotStore
                 Info = new SnapshotInfo(at),
                 AgeStamp = AgeStamps.FromKey(Str(h, "ageStamp")),
                 IsMulti = h.TryGetProperty("multi", out var multi) && multi.ValueKind == JsonValueKind.True,
+                Provider = provider,
             };
         }
         catch (JsonException ex)
@@ -221,7 +235,7 @@ public static class SnapshotStore
         }
     }
 
-    private static Node ReadNode(JsonElement e, List<Node> nodes, Dictionary<string, int> categories)
+    private static Node ReadNode(JsonElement e, List<Node> nodes, Dictionary<string, int> categories, PathOps paths)
     {
         int parentIndex = (int)Num(e, "p", -1);
         Node? parent = null;
@@ -235,7 +249,7 @@ public static class SnapshotStore
         var node = new Node
         {
             Name = name,
-            FullPath = parent == null ? Str(e, "fp") ?? name : Path.Join(parent.FullPath, name),
+            FullPath = parent == null ? Str(e, "fp") ?? name : paths.Join(parent.FullPath, name),
             Parent = parent,
             Size = Num(e, "s"),
             FileCount = Num(e, "f"),
@@ -287,12 +301,15 @@ public static class SnapshotStore
 
     // ------------------------------------------------------------------ helpers
 
-    /// <summary>Finds a folder by its full path below <paramref name="root"/> (case-insensitive), or null.</summary>
-    public static Node? FindByPath(Node root, string path)
+    /// <summary>Finds a folder by its full (Windows) path below <paramref name="root"/> (case-insensitive), or null.</summary>
+    public static Node? FindByPath(Node root, string path) => FindByPath(root, path, DiskPathOps.Instance);
+
+    /// <summary>Finds a folder by its full path below <paramref name="root"/> with the given path rules, or null.</summary>
+    public static Node? FindByPath(Node root, string path, PathOps paths)
     {
         var rootPath = root.FullPath;
-        if (!PathUtil.IsSameOrUnder(rootPath, path)) return null;
+        if (!paths.IsSameOrUnder(rootPath, path)) return null;
 
-        return root.FindRelative(path[Math.Min(path.Length, rootPath.TrimEnd('\\').Length)..]);
+        return root.FindRelative(paths.RelativeTo(rootPath, path), paths);
     }
 }

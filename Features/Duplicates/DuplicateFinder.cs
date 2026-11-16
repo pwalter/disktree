@@ -18,6 +18,8 @@ public readonly record struct DupProgress(DupPhase Phase, long FilesDone, long F
 /// Finds duplicate files below a folder: group by size, then compare a partial hash (first + last block),
 /// then the full SHA-256. Every step only looks at files that are still candidates, so most files are read little or never.
 /// Reparse points (junctions, symlinks) are skipped like in the <see cref="Scanner"/>.
+/// Local file system only for now (enumerates and reads with System.IO); another storage source would go through
+/// IStorageProvider.Enumerate / OpenRead and needs StorageCaps.ContentHash.
 /// </summary>
 public sealed class DuplicateFinder
 {

@@ -22,6 +22,7 @@ public sealed partial class Scanner
             AgeStamp = s.AgeStamp,
             IsSnapshot = true,
             IsMulti = s.IsMulti,
+            Provider = s.Provider,
             ScannedAt = s.Info.ScannedAt == default ? null : s.Info.ScannedAt,
         };
         lock (scanner._topLock)

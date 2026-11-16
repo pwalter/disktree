@@ -1,4 +1,4 @@
-using System.IO;
+using DiskTree.Core.Storage;
 
 namespace DiskTree.Core;
 
@@ -82,8 +82,14 @@ public sealed class ExcludeRules
         return p == pattern.Length;
     }
 
-    /// <summary>Is the subfolder <paramref name="name"/> of <paramref name="parentPath"/> excluded?</summary>
-    public bool IsExcluded(string name, string parentPath)
+    /// <summary>Is the subfolder <paramref name="name"/> of <paramref name="parentPath"/> (a Windows path) excluded?</summary>
+    public bool IsExcluded(string name, string parentPath) => IsExcluded(name, parentPath, DiskPathOps.Instance);
+
+    /// <summary>
+    /// Like <see cref="IsExcluded(string, string)"/>, the full path joined by <paramref name="paths"/>. The patterns
+    /// themselves stay Windows-style and case-insensitive (see the class comment).
+    /// </summary>
+    public bool IsExcluded(string name, string parentPath, PathOps paths)
     {
         if (IsEmpty) return false;
 
@@ -93,7 +99,7 @@ public sealed class ExcludeRules
 
         if (_paths.Count > 0 || _pathWildcards.Length > 0)
         {
-            var full = Path.Join(parentPath, name);
+            var full = paths.Join(parentPath, name);
             if (_paths.Contains(full)) return true;
             foreach (var w in _pathWildcards)
                 if (WildcardMatch(w, full)) return true;

@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using DiskTree.Core;
+using DiskTree.Core.Storage;
 using DiskTree.Ui;
 using DiskTree.Infrastructure;
 
@@ -61,7 +62,8 @@ public partial class OwnerPanel : UserControl
     {
         int v = ++_version;
         string? path = _path;
-        FolderText.Text = path == null ? "Besitzer" : System.IO.Path.GetFileName(path.TrimEnd('\\')) is { Length: > 0 } n ? n : path;
+        // Owners and ACLs exist on the local file system only (StorageCaps.Owner).
+        FolderText.Text = path == null ? "Besitzer" : DiskPathOps.Instance.NameOf(path) is { Length: > 0 } n ? n : path;
         RunButton.IsEnabled = _cts == null && path != null;
         AclExpander.Visibility = path == null ? Visibility.Collapsed : Visibility.Visible;
         if (path == null) { OwnerText.Text = "Ordner im Baum markieren."; return; }

@@ -1,5 +1,6 @@
 using System.Globalization;
 using DiskTree.Core;
+using DiskTree.Core.Storage;
 
 namespace DiskTree.Features.Reports;
 
@@ -27,6 +28,8 @@ public sealed class ReportData
     /// <summary>The timestamp the age buckets were built from (the scan's own choice).</summary>
     public AgeStamp AgeStamp { get; init; } = AgeStamp.Modified;
     public IReadOnlyList<Scanner.BigFile> TopFiles { get; init; } = Array.Empty<Scanner.BigFile>();
+    /// <summary>Path rules of the scan (for showing name and folder of a file).</summary>
+    public PathOps Paths { get; init; } = DiskPathOps.Instance;
 
     /// <summary>Heading of the age section: says which timestamp the buckets are based on.</summary>
     public string AgeHeading => "Alter der Dateien (" + AgeStamp switch

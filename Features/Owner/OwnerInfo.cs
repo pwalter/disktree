@@ -5,7 +5,10 @@ using System.Security.Principal;
 
 namespace DiskTree.Features.Owner;
 
-/// <summary>Owner lookup (SID to account name, cached, with timeout) and per-owner size aggregation. Never used by the scanner.</summary>
+/// <summary>
+/// Owner lookup (SID to account name, cached, with timeout) and per-owner size aggregation. Never used by the scanner.
+/// Local file system only (Windows ACLs, StorageCaps.Owner / Acl).
+/// </summary>
 public static class OwnerInfo
 {
     private static readonly ConcurrentDictionary<string, string> NameCache = new();

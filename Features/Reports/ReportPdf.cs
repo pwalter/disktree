@@ -337,8 +337,8 @@ public static class ReportPdf
             rank++;
             if (c.Y + 15 > Bottom) { c.NewPage(); Head(); }
             Text(c, rank.ToString(CultureInfo.CurrentCulture), c.Body, Grey, xRank, c.Y, true);
-            Text(c, Fit(c.G, Path.GetFileName(f.Path), c.Body, nameW), c.Body, Ink, xName, c.Y);
-            Text(c, Fit(c.G, Path.GetDirectoryName(f.Path) ?? "", c.Small, folderW, keepEnd: true), c.Small, Grey, folderX, c.Y + 1);
+            Text(c, Fit(c.G, d.Paths.NameOf(f.Path), c.Body, nameW), c.Body, Ink, xName, c.Y);
+            Text(c, Fit(c.G, d.Paths.ParentOf(f.Path) ?? "", c.Small, folderW, keepEnd: true), c.Small, Grey, folderX, c.Y + 1);
             Text(c, SizeFormat.Format(f.Size), c.Body, Ink, xSize, c.Y, true);
             c.Y += 15;
         }

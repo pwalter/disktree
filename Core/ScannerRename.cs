@@ -6,16 +6,17 @@ public sealed partial class Scanner
     /// <summary>A file or folder was renamed: paths in the largest-files list follow.</summary>
     public void RenameTop(string oldPath, string newPath)
     {
-        var oldPrefix = PathUtil.EnsureTrailingBackslash(oldPath);
+        var paths = Paths;
+        var oldPrefix = paths.EnsureTrailingSeparator(oldPath);
         lock (_topLock)
         {
             for (int i = 0; i < _top.Count; i++)
             {
                 var p = _top[i].Path;
-                if (string.Equals(p, oldPath, StringComparison.OrdinalIgnoreCase))
+                if (paths.NameEquals(p, oldPath))
                     _top[i] = _top[i] with { Path = newPath };
-                else if (p.StartsWith(oldPrefix, StringComparison.OrdinalIgnoreCase))
-                    _top[i] = _top[i] with { Path = PathUtil.EnsureTrailingBackslash(newPath) + p[oldPrefix.Length..] };
+                else if (p.StartsWith(oldPrefix, paths.Comparison))
+                    _top[i] = _top[i] with { Path = paths.EnsureTrailingSeparator(newPath) + p[oldPrefix.Length..] };
             }
         }
     }
