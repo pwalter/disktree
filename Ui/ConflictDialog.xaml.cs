@@ -9,11 +9,14 @@ public partial class ConflictDialog : Window
     public ConflictPolicy Choice { get; private set; } = ConflictPolicy.Skip;
     public bool ForAll => AllBox.IsChecked == true;
 
-    public ConflictDialog(OpItem item, string target)
+    /// <param name="permanent">The source has no recycle bin (SFTP): "Ersetzen" deletes the existing entry for good.</param>
+    public ConflictDialog(OpItem item, string target, bool permanent = false)
     {
         InitializeComponent();
         Message.Text = $"„{item.Name}“ gibt es im Ziel schon.";
-        Detail.Text = $"Ziel: {target}\n„Ersetzen“ legt die vorhandene Datei in den Papierkorb.";
+        Detail.Text = permanent
+            ? $"Ziel: {target}\n„Ersetzen“ löscht das vorhandene Element endgültig (die Quelle hat keinen Papierkorb)."
+            : $"Ziel: {target}\n„Ersetzen“ legt die vorhandene Datei in den Papierkorb.";
     }
 
     private void Finish(ConflictPolicy c) { Choice = c; DialogResult = true; }

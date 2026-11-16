@@ -353,6 +353,33 @@ public class RemoteFileOpsTests
     }
 
     [Fact]
+    public void Typed_destinations_must_be_on_the_same_server()
+    {
+        var sftp = DiskTree.Features.Storage.Sftp.SftpSource.Generic;
+        const string top = "sftp://tester@nas:2222/";
+        Assert.Equal(top, RemoteFileOperations.TopOf(sftp.Paths, "sftp://tester@nas:2222/data/a/b"));
+        Assert.Equal("sftp://tester@nas:2222/data/x", RemoteFileOperations.ResolveTarget(" /data/x/ ", sftp, top, out _));
+        Assert.Equal("sftp://tester@nas:2222/data/x", RemoteFileOperations.ResolveTarget("sftp://tester@nas:2222/data/x", sftp, top, out _));
+        Assert.Null(RemoteFileOperations.ResolveTarget("sftp://tester@anderer/data", sftp, top, out var error));
+        Assert.Contains("demselben Server", error);
+        Assert.Null(RemoteFileOperations.ResolveTarget("data/x", sftp, top, out error));
+        Assert.Contains("vollständigen Pfad", error);
+        Assert.Null(RemoteFileOperations.ResolveTarget("  ", sftp, top, out error));
+        Assert.Null(RemoteFileOperations.ResolveTarget(@"C:\temp", sftp, top, out _));
+    }
+
+    [Fact]
+    public void Duplicates_of_a_writable_source_get_check_marks()
+    {
+        var g = new DiskTree.Features.Duplicates.DuplicateGroup(10, ["/d/a", "/d/b"]);
+        var sftp = new DiskTree.Features.Duplicates.DupGroupVM(g, new FakeStore().Paths, remote: true, canCheck: true);
+        Assert.All(sftp.Files, f => Assert.Equal(System.Windows.Visibility.Visible, f.CheckVisibility));
+        Assert.Equal(System.Windows.Visibility.Visible, sftp.BadgeVisibility);
+        var s3 = new DiskTree.Features.Duplicates.DupGroupVM(g, new FakeStore().Paths, remote: true);
+        Assert.All(s3.Files, f => Assert.Equal(System.Windows.Visibility.Collapsed, f.CheckVisibility));
+    }
+
+    [Fact]
     public void Refresh_skips_what_is_gone_and_reads_the_age_bucket()
     {
         var p = Sample();

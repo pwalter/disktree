@@ -430,6 +430,44 @@ public static class RemoteFileOperations
         return res;
     }
 
+    /// <summary>The top of the source a path belongs to ("sftp://user@host/" for "sftp://user@host/a/b").</summary>
+    public static string TopOf(PathOps paths, string path)
+    {
+        var top = path;
+        for (var p = paths.ParentOf(path); p != null; p = paths.ParentOf(p)) top = p;
+        return top;
+    }
+
+    /// <summary>
+    /// A typed destination as a full path of the same source: a full path ("sftp://user@host/x", must be on the same
+    /// server as <paramref name="top"/>) or an absolute one below the top ("/x/y"). Null with a reason otherwise.
+    /// </summary>
+    public static string? ResolveTarget(string text, IStorageProvider provider, string top, out string? error)
+    {
+        error = null;
+        var t = text.Trim().Trim('"').Trim();
+        var paths = provider.Paths;
+        if (t.Length == 0) { error = "Bitte einen Zielordner wählen oder eingeben."; return null; }
+        string full;
+        try
+        {
+            if (t.StartsWith('/') && !t.StartsWith("//", StringComparison.Ordinal)) full = provider.Normalize(paths.Join(top, t.TrimStart('/')));
+            else if (provider.TryParse(t, out var loc)) full = loc.Path;
+            else { error = "Bitte einen vollständigen Pfad dieses Servers angeben (sftp://… oder /ordner)."; return null; }
+        }
+        catch (ArgumentException ex)
+        {
+            error = ex.Message;
+            return null;
+        }
+        if (!paths.IsSameOrUnder(top, full))
+        {
+            error = $"Verschieben geht nur auf demselben Server: {top}";
+            return null;
+        }
+        return full;
+    }
+
     /// <summary>Creates a folder and the missing folders above it (like mkdir -p). Throws on errors.</summary>
     public static void CreateFolders(IStorageWriter writer, PathOps paths, string folder, CancellationToken ct)
     {

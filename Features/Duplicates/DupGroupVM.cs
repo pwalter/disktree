@@ -24,12 +24,13 @@ public sealed class DupGroupVM : INotifyPropertyChanged
 
     /// <param name="paths">Path rules of the source (null: the disk).</param>
     /// <param name="remote">From a remote source: certainty badge, no check boxes (no file actions).</param>
-    public DupGroupVM(DuplicateGroup g, PathOps? paths = null, bool remote = false)
+    /// <param name="canCheck">Check boxes anyway (a remote source whose files can be deleted / moved, SFTP); null: not for remote.</param>
+    public DupGroupVM(DuplicateGroup g, PathOps? paths = null, bool remote = false, bool? canCheck = null)
     {
         Size = g.Size;
         Basis = g.Basis;
         ShowCertainty = remote;
-        foreach (var p in g.Paths) Files.Add(new DupFileVM(this, p, paths, canCheck: !remote));
+        foreach (var p in g.Paths) Files.Add(new DupFileVM(this, p, paths, canCheck: canCheck ?? !remote));
     }
 
     public bool IsCertain => Basis != DupBasis.PartialHash;

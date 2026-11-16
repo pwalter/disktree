@@ -68,6 +68,14 @@ public partial class SearchPanel : UserControl
         if (rest.Count != list.Count) Results.ItemsSource = rest;
     }
 
+    /// <summary>Removes hits of a remote source that an action deleted, moved or renamed (the list cannot check them itself).</summary>
+    public void ForgetPaths(Func<string, bool> gone)
+    {
+        if (Results.ItemsSource is not List<SearchHitRow> list) return;
+        var rest = list.Where(r => !gone(r.Hit.Path)).ToList();
+        if (rest.Count != list.Count) Results.ItemsSource = rest;
+    }
+
     private void Mode_Changed(object? sender, SelectionChangedEventArgs? e)
     {
         if (ExtBox == null) return;

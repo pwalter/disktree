@@ -26,6 +26,8 @@ public interface ISelectionSource
     void PruneMissing() { }
     /// <summary>Whether, for at least one group of identical files the list knows, all copies are among <paramref name="paths"/>.</summary>
     bool CoversAllCopies(IEnumerable<string> paths) => false;
+    /// <summary>Items of a remote source that are gone (deleted, moved, renamed) leave the list (it cannot check them itself).</summary>
+    void Forget(Func<string, bool> gone) { }
 }
 
 /// <summary>An <see cref="ISelectionSource"/> built from a few functions of the list it stands for.</summary>
@@ -34,20 +36,23 @@ public sealed class ListSelection : ISelectionSource
     private readonly Func<IEnumerable<SelectedEntry>> _selected;
     private readonly Action? _prune;
     private readonly Func<IEnumerable<string>, bool>? _coversAllCopies;
+    private readonly Action<Func<string, bool>>? _forget;
 
     public ListSelection(FrameworkElement element, Func<IEnumerable<SelectedEntry>> selected,
-        Action? prune = null, Func<IEnumerable<string>, bool>? coversAllCopies = null)
+        Action? prune = null, Func<IEnumerable<string>, bool>? coversAllCopies = null, Action<Func<string, bool>>? forget = null)
     {
         Element = element;
         _selected = selected;
         _prune = prune;
         _coversAllCopies = coversAllCopies;
+        _forget = forget;
     }
 
     public FrameworkElement Element { get; }
     public IReadOnlyList<SelectedEntry> Selected() => _selected().ToList();
     public void PruneMissing() => _prune?.Invoke();
     public bool CoversAllCopies(IEnumerable<string> paths) => _coversAllCopies?.Invoke(paths) ?? false;
+    public void Forget(Func<string, bool> gone) => _forget?.Invoke(gone);
 }
 
 /// <summary>
@@ -55,11 +60,11 @@ public sealed class ListSelection : ISelectionSource
 /// and keeping tree / file types / age data / largest files in step afterwards (the tree numbers through
 /// <see cref="TreeEditor"/>). The file work itself is in FileOperations.
 /// <para>
-/// Local file system only (DiskProvider): the actions use System.IO and the Windows shell directly. Other storage
-/// sources will need their own write interface (see StorageCaps.Delete / Move / Rename / ZipCreate).
+/// The disk actions use System.IO and the Windows shell directly (this file). Sources that change files themselves
+/// (IStorageWriter, SFTP) have their own flows without recycle bin, ZIP or shell (FileOpsController.Remote.cs).
 /// </para>
 /// </summary>
-public sealed class FileOpsController
+public sealed partial class FileOpsController
 {
     private readonly Window _window;
     private readonly ScanTabsController _tabs;
@@ -102,7 +107,7 @@ public sealed class FileOpsController
     /// <summary>Our entries for the context menu of <paramref name="path"/>; empty in a stored scan.</summary>
     public IReadOnlyList<(string Text, Action Run)> OperationExtras(string path, bool isDir)
     {
-        if (_snapshots.IsSnapshotMode || WhyNot(StorageFeature.Move) != null) return [];
+        if (_snapshots.IsSnapshotMode || RemoteWritable != null || WhyNot(StorageFeature.Move) != null) return [];
 
         var sel = SelectionFor(path, isDir);
         string suffix = sel.Count > 1 ? $" ({sel.Count:N0} Elemente)" : "";
@@ -121,6 +126,7 @@ public sealed class FileOpsController
     public bool HandleKey(Key key)
     {
         if (key != Key.F2 && key != Key.Delete) return false;
+        if (RemoteWritable != null) return HandleRemoteKey(key);
 
         var sel = ActiveSelection(null, preferFocus: true);
         if (sel.Count == 0 || (key == Key.Delete && sel.Count < 2)) return false; // one item: the shell's own Delete
@@ -136,6 +142,7 @@ public sealed class FileOpsController
     {
         if (key != Key.F2 || !ShellMenuCoordinator.CanUseShell(vm)) return false;
         if (_snapshots.IsSnapshotMode) { _snapshots.ShowHint(); return true; }
+        if (RemoteWritable != null) { RunOp(() => RemoteRenameAsync([RemoteItem(vm.Path, vm.Kind == Kind.Dir, vm.Size)])); return true; }
         if (WhyNot(StorageFeature.Rename) is { } why) { Notice(why); return true; }
         var sel = new List<OpItem> { ItemOf(vm.Path, vm.Kind == Kind.Dir, vm.Size) };
         RunOp(() => RenameAsync(sel));

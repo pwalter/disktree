@@ -30,7 +30,12 @@ public sealed class SearchController
         _search.StorageProvider = () => _tree.Provider;
         _search.Navigate = hit => _tree.Reveal(hit.Node);
         _search.ShowMenu = ShowMenu;
-        _search.DeleteHit = hit => RunShell(hit, () => ShellContextMenu.InvokeVerb(_window, hit.Path, "delete"));
+        _search.DeleteHit = hit =>
+        {
+            // A source that changes files itself (SFTP): deleted for good after a confirmation.
+            if (_shell.NotLocal is { } p && Core.Storage.StorageFeatures.IsRemoteWritable(p)) _shell.DeleteEntry(hit.Path, hit.IsDir, hit.Size);
+            else RunShell(hit, () => ShellContextMenu.InvokeVerb(_window, hit.Path, "delete"));
+        };
     }
 
     /// <summary>Ctrl+F: switch to the search tab and put the cursor into the name box.</summary>
