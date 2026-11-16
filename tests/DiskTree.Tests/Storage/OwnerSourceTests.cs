@@ -1,6 +1,7 @@
 using DiskTree.Core.Storage;
 using DiskTree.Features.Owner;
 using DiskTree.Features.Storage.S3;
+using DiskTree.Features.Storage.Sftp;
 using Xunit;
 
 namespace DiskTree.Tests.Storage;
@@ -75,6 +76,49 @@ public class OwnerSourceTests : TestBase
         Assert.Null(OwnerSources.For(s3));
         Assert.False(StorageFeatures.IsRemoteWritable(s3));
         Assert.Contains("nur lesender Zugriff", StorageFeatures.WhyNot(s3, StorageFeature.Delete));
+    }
+
+    [Fact]
+    public void Sftp_sources_get_owners_rights_and_file_actions_but_no_trash_zip_or_shell()
+    {
+        var sftp = SftpSource.Generic;
+        foreach (var f in new[] { StorageFeature.Owner, StorageFeature.Delete, StorageFeature.Move, StorageFeature.Rename })
+            Assert.True(StorageFeatures.Has(sftp, f), f.ToString());
+        Assert.True(sftp.Caps.HasFlag(StorageCaps.PosixPermissions));
+        foreach (var f in new[] { StorageFeature.Trash, StorageFeature.Zip, StorageFeature.ShellMenu, StorageFeature.Explorer })
+            Assert.False(StorageFeatures.Has(sftp, f), f.ToString());
+        Assert.Contains("keinen Papierkorb", StorageFeatures.WhyNot(sftp, StorageFeature.Trash));
+        Assert.Same(sftp, OwnerSources.For(sftp));
+        Assert.True(StorageFeatures.IsRemoteWritable(sftp));
+        Assert.Equal("Rechte (POSIX)", sftp.RightsTitle);
+        Assert.False(sftp.SamplingHelps);
+        // The read part did not change.
+        Assert.Equal(SftpSource.SftpCaps, sftp.Caps & ~SftpSource.WriteCaps);
+    }
+
+    [Fact]
+    public void Owner_names_of_passwd_group_and_getent_output()
+    {
+        var passwd = "root:x:0:0:root:/root:/bin/sh\n# Kommentar\n\ntester:x:1001:100::/home/tester:\nkaputt\nanna:x:1002:100:Anna A.:/home/anna:/bin/sh\r\nanna2:x:1002:100::/:/bin/sh\n";
+        Assert.Equal([(0, "root"), (1001, "tester"), (1002, "anna"), (1002, "anna2")], SftpOwnerNames.Parse(passwd));
+        Assert.False(SftpOwnerNames.LooksValid("This service allows sftp connections only.\n"));
+        Assert.False(SftpOwnerNames.LooksValid(null));
+
+        var names = new SftpOwnerNames();
+        names.Load(OwnerNameSource.Getent, passwd, "users:x:100:\nadm:x:4:root\n");
+        Assert.Equal("anna", names.User(1002)); // the first name of an id wins
+        Assert.Equal("uid 1004", names.User(1004));
+        Assert.Equal("users (gid 100)", names.GroupWithId(100));
+        Assert.Equal("gid 7", names.GroupWithId(7));
+        Assert.Equal("tester (uid 1001)", names.UserWithId(1001));
+
+        // Missing ids are asked for once.
+        var (u, g) = names.TakeMissing([1001, 1004, 1004, 1005], [100, 7]);
+        Assert.Equal([1004, 1005], u);
+        Assert.Equal([7], g);
+        Assert.Equal((Array.Empty<int>(), Array.Empty<int>()), names.TakeMissing([1004], [7]));
+        names.Add("ldapuser:*:1004:100::/:/bin/sh\n", null);
+        Assert.Equal("ldapuser", names.User(1004));
     }
 
     [Fact]
