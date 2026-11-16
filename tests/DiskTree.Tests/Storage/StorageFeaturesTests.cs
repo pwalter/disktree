@@ -68,6 +68,30 @@ public class StorageFeaturesTests
     }
 
     [Fact]
+    public void Duplicates_work_for_sources_that_can_read_contents_with_a_note_on_downloads()
+    {
+        // S3 and SFTP read contents through IContentHashSource: the tab is on, its tooltip warns about downloads/costs.
+        foreach (IStorageProvider p in new IStorageProvider[] { S3Provider.Generic, DiskTree.Features.Storage.Sftp.SftpSource.Generic })
+        {
+            Assert.True(StorageFeatures.Has(p, StorageFeature.Duplicates), p.Id);
+            Assert.Null(StorageFeatures.WhyNot(p, StorageFeature.Duplicates));
+            Assert.Contains("herunter", StorageFeatures.Note(p, StorageFeature.Duplicates));
+        }
+        Assert.Contains("kostenpflichtig", StorageFeatures.Note(S3Provider.Generic, StorageFeature.Duplicates));
+        Assert.DoesNotContain("kostenpflichtig", StorageFeatures.Note(DiskTree.Features.Storage.Sftp.SftpSource.Generic, StorageFeature.Duplicates));
+
+        // The disk: unchanged, and no note.
+        Assert.Null(StorageFeatures.Note(DiskProvider.Instance, StorageFeature.Duplicates));
+        Assert.Null(StorageFeatures.Note(S3Provider.Generic, StorageFeature.Owner));
+
+        // A source that can read contents still gets no shell menu, delete or the like.
+        var fake = new FakeContentProvider { Caps = DiskProvider.Instance.Caps };
+        Assert.True(StorageFeatures.Has(fake, StorageFeature.Duplicates));
+        Assert.False(StorageFeatures.Has(fake, StorageFeature.Delete));
+        Assert.False(StorageFeatures.Has(fake, StorageFeature.ShellMenu));
+    }
+
+    [Fact]
     public async Task A_scan_with_an_unsupported_stamp_falls_back_to_modified()
     {
         var p = new FakeProvider { Caps = StorageCaps.CaseSensitive };

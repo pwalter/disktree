@@ -20,7 +20,7 @@ namespace DiskTree.Features.Storage.Sftp;
 /// otherwise, or if the server does not offer statvfs, the tree starts at the scanned folder (like a network share).
 /// </para>
 /// </summary>
-public sealed class SftpProvider : IStorageProvider, IConnectedStorage
+public sealed class SftpProvider : IStorageProvider, IConnectedStorage, IContentHashSource
 {
     public const string ProviderId = "sftp";
 
@@ -257,6 +257,30 @@ public sealed class SftpProvider : IStorageProvider, IConnectedStorage
     }
 
     public Stream OpenRead(string path) => Connection.OpenRead(RemotePath(path), path);
+
+    // ------------------------------------------------------------------ contents (duplicate search)
+
+    /// <summary>SFTP has no content tags: the duplicate search compares contents.</summary>
+    public ContentTagKind ClassifyTag(string? listedTag) => ContentTagKind.None;
+
+    public int TagRequests => 0;
+
+    public bool TryGetContentTag(string path, string? listedTag, ListRun run, out string tag, out bool isStrong)
+    {
+        tag = "";
+        isStrong = false;
+        return false;
+    }
+
+    /// <summary>The file from <paramref name="offset"/> on (the caller reads <paramref name="length"/> bytes of it).</summary>
+    public Stream OpenRead(string path, long offset, long length, ListRun run)
+    {
+        run.Cancellation.ThrowIfCancellationRequested();
+        return Connection.OpenRead(RemotePath(path), path, offset);
+    }
+
+    /// <summary>One open per range; SFTP has no costs per request.</summary>
+    public long RequestsFor(long length) => 1;
 
 
     // ------------------------------------------------------------------ connection test

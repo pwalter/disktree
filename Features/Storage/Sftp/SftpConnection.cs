@@ -473,6 +473,26 @@ internal sealed class SftpConnection : IDisposable
     public Stream OpenRead(string remotePath, string display) =>
         new MappedStream(Run(display, live => (Stream)live.Client.OpenRead(remotePath)), display);
 
+    /// <summary>
+    /// Opens a file for reading at <paramref name="offset"/> (a seek on the SFTP handle, no extra request). The open is
+    /// one request with the operation timeout; an <see cref="Abort"/> ends it and later reads at once.
+    /// </summary>
+    public Stream OpenRead(string remotePath, string display, long offset) =>
+        new MappedStream(Run(display, live =>
+        {
+            var s = Await(live, ct => live.Client.OpenAsync(remotePath, FileMode.Open, FileAccess.Read, ct));
+            try
+            {
+                if (offset > 0) s.Seek(offset, SeekOrigin.Begin);
+                return (Stream)s;
+            }
+            catch
+            {
+                s.Dispose();
+                throw;
+            }
+        }), display);
+
     // ------------------------------------------------------------------ errors
 
     /// <summary>A lost connection, or the client was taken out of service under the request (<see cref="Live.Dropped"/>).</summary>

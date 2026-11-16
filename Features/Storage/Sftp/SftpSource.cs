@@ -41,7 +41,7 @@ public static class SftpStorage
 /// a connection is made.
 /// </para>
 /// </summary>
-public sealed class SftpSource : IStorageProvider, IConnectedStorage
+public sealed class SftpSource : IStorageProvider, IConnectedStorage, IContentHashSource
 {
     public const string ProviderId = SftpProvider.ProviderId;
 
@@ -219,6 +219,28 @@ public sealed class SftpSource : IStorageProvider, IConnectedStorage
     }
 
     public Stream OpenRead(string path) => Server(path).OpenRead(path);
+
+    // ------------------------------------------------------------------ IContentHashSource (duplicate search)
+
+    public ContentTagKind ClassifyTag(string? listedTag) => ContentTagKind.None;
+
+    public int TagRequests => 0;
+
+    public bool TryGetContentTag(string path, string? listedTag, ListRun run, out string tag, out bool isStrong)
+    {
+        tag = "";
+        isStrong = false;
+        return false;
+    }
+
+    /// <summary>A byte range of a file; the open counts as a request of the run (like a listing) and ends once it is cancelled.</summary>
+    public Stream OpenRead(string path, long offset, long length, ListRun run)
+    {
+        run.BeforeRequest();
+        return Server(path).OpenRead(path, offset, length, run);
+    }
+
+    public long RequestsFor(long length) => 1;
 
     // ------------------------------------------------------------------ IConnectedStorage
 
