@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
+using DiskTree.Core.Storage;
 using DiskTree.Features.Scan;
 using DiskTree.Infrastructure;
 
@@ -131,7 +132,12 @@ public sealed class ScanTabsController
             Shown?.Invoke(Current);
         }
 
+        var provider = s.Provider;
         s.Release();
+        // A remote source's connection (SFTP) stays open for rescans and the "Dateien" row while a tab shows its scan;
+        // the last tab of that source closes it. (A loaded snapshot has no connection of its own.)
+        if (provider is IConnectedStorage connected && provider.Profile != null && !Tabs.Any(t => ReferenceEquals(t.Provider, provider)))
+            _ = Task.Run(connected.Disconnect);
         // The scan tree of a big drive is hundreds of MB: do not leave it to the next random collection.
         _ = _window.Dispatcher.InvokeAsync(() => GC.Collect(), DispatcherPriority.ApplicationIdle);
     }

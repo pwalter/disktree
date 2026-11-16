@@ -51,7 +51,7 @@ public partial class AgeChartPanel : UserControl
     /// <summary>Fills the timestamp box with the tab's current choice.</summary>
     public void InitStamp(AgeStamp preferred)
     {
-        foreach (var n in AgeStamps.Names) AgeStampBox.Items.Add(n);
+        foreach (var n in AgeStamps.Names) AgeStampBox.Items.Add(new ComboBoxItem { Content = n });
         AgeStampBox.SelectedIndex = (int)preferred;
         AgeStampBox.SelectionChanged += (_, _) =>
         {
@@ -66,6 +66,22 @@ public partial class AgeChartPanel : UserControl
         _settingStampBox = true;
         AgeStampBox.SelectedIndex = (int)stamp;
         _settingStampBox = false;
+    }
+
+    /// <summary>
+    /// Greys out the timestamps the source of the active tab does not have (S3 only knows "Zuletzt geändert");
+    /// <paramref name="whyNot"/> gives the reason for the tooltip, null = available.
+    /// </summary>
+    public void SetSupported(Func<AgeStamp, string?> whyNot)
+    {
+        for (int i = 0; i < AgeStampBox.Items.Count; i++)
+        {
+            if (AgeStampBox.Items[i] is not ComboBoxItem item) continue;
+            var why = whyNot((AgeStamp)i);
+            item.IsEnabled = why == null;
+            item.ToolTip = why;
+            ToolTipService.SetShowOnDisabled(item, true);
+        }
     }
 
     private void AgeRescan_Click(object sender, RoutedEventArgs e) => RescanRequested?.Invoke();

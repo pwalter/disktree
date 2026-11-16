@@ -274,8 +274,31 @@ public sealed partial class Scanner
         await RunAsync(new[] { node }, threads, ct);
     }
 
+    /// <summary>
+    /// Pause the (re)scan after this many requests to the source (0 = never; only sources that send requests count
+    /// them, see <see cref="ListRun"/>). Set before ScanAsync / RescanAsync.
+    /// </summary>
+    public long RequestLimit { get; set; }
+
+    /// <summary>The limit was reached and the scan waits (raised on a worker thread): <see cref="ListRun.Resume"/> or cancel.</summary>
+    public event Action<ListRun>? RequestLimitReached;
+
+    private ListRun? _run;
+    private ListOptions? _listOptions;
+
+    /// <summary>The current (or last) run: requests sent to the source, pause state. Null before the first scan.</summary>
+    public ListRun? Run => _run;
+
+    /// <summary>Requests the current (or last) run sent to the source (0 for the local disk).</summary>
+    public long Requests => _run?.Requests ?? 0;
+
     private async Task RunAsync(IReadOnlyList<Node> starts, int threads, CancellationToken ct)
     {
+        var run = new ListRun(ct, RequestLimit);
+        run.LimitReached += r => RequestLimitReached?.Invoke(r);
+        _listOptions = Ages.ListOptions with { Run = run };
+        _run = run;
+
         using var queue = new BlockingCollection<Node>(new ConcurrentQueue<Node>());
 
         _pending = starts.Count;
@@ -373,7 +396,7 @@ public sealed partial class Scanner
                     return new Entry(name, isDir, len, e.IsReparsePoint,
                         isDir ? 0 : FileTypes.CategoryOf(e.Name),
                         isDir ? 0 : classifier.Of(classifier.TicksOf(in e)));
-                }, classifier.ListOptions);
+                }, _listOptions ?? classifier.ListOptions);
 
             foreach (var e in entries)
             {

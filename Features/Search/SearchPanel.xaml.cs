@@ -62,6 +62,8 @@ public partial class SearchPanel : UserControl
     public void PruneMissing()
     {
         if (Results.ItemsSource is not List<SearchHitRow> list) return;
+        // Only local paths can be checked (and only they can be deleted behind the list's back).
+        if (StorageProvider?.Invoke() is { } p && p.Id != DiskProvider.ProviderId) return;
         var rest = list.Where(r => r.Hit.IsDir ? System.IO.Directory.Exists(r.Hit.Path) : System.IO.File.Exists(r.Hit.Path)).ToList();
         if (rest.Count != list.Count) Results.ItemsSource = rest;
     }
@@ -138,6 +140,19 @@ public partial class SearchPanel : UserControl
             Scope = scope, Text = text, MinSize = minSize, Extensions = exts, Files = files, Filter = filter,
             Provider = StorageProvider?.Invoke() ?? DiskProvider.Instance,
         };
+
+        // The file search lists every folder again: for a source that charges per request, ask first.
+        if (files && StorageFeatures.WhyNot(query.Provider, StorageFeature.LiveFileList) is { } costly)
+        {
+            long folders = scope.Walk().LongCount();
+            if (!Dialogs.Confirm(Window.GetWindow(this),
+                    $"{costly}\n\nDie Dateisuche listet {folders:N0} Ordner erneut auf (mindestens {folders:N0} Anfragen).\n\nTrotzdem suchen?",
+                    MessageBoxImage.Warning))
+            {
+                StatusText.Text = "Dateisuche nicht gestartet (Anfragen an die Quelle).";
+                return;
+            }
+        }
         ScopeText.Text = "In: " + scope.FullPath;
 
         MoreFilters.IsExpanded = false; // make room for the hits; the header says how many filters are active

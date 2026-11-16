@@ -25,7 +25,7 @@ public sealed class SideTabsController
             _chipSync = false;
         };
 
-        foreach (TabItem t in _tabs.Items) _chips.Items.Add(t.Header);
+        foreach (TabItem t in _tabs.Items) _chips.Items.Add(new ListBoxItem { Content = t.Header });
         _tabs.SelectedIndex = 0;
         _chips.SelectedIndex = 0;
         // Programmatic selection (Ctrl+F, treemap ...) and clicks on the chips stay in step.
@@ -38,6 +38,26 @@ public sealed class SideTabsController
         };
     }
 
-    /// <summary>Brings a tab to the front.</summary>
-    public void Select(TabItem tab) => _tabs.SelectedItem = tab;
+    /// <summary>Brings a tab to the front (not a tab that is switched off for the current source).</summary>
+    public void Select(TabItem tab)
+    {
+        if (tab.IsEnabled) _tabs.SelectedItem = tab;
+    }
+
+    /// <summary>
+    /// Switches a tab off for the scan of the active tab (null = on): its chip stays visible, greyed out, with the reason
+    /// as tooltip. If it was the open tab, the first tab opens instead.
+    /// </summary>
+    public void SetAvailable(TabItem tab, string? whyNot)
+    {
+        int i = _tabs.Items.IndexOf(tab);
+        if (i < 0 || _chips.Items[i] is not ListBoxItem chip) return;
+        bool on = whyNot == null;
+        tab.IsEnabled = on;
+        chip.IsEnabled = on;
+        chip.Opacity = on ? 1 : 0.45;
+        chip.ToolTip = whyNot;
+        ToolTipService.SetShowOnDisabled(chip, true);
+        if (!on && _tabs.SelectedIndex == i) _tabs.SelectedIndex = 0;
+    }
 }

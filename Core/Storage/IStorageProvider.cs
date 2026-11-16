@@ -35,7 +35,11 @@ public interface IStorageProvider
     /// <summary>The normalized full path (for the disk: <see cref="Path.GetFullPath(string)"/>; throws like it for invalid paths).</summary>
     string Normalize(string path);
 
-    /// <summary>Is there a folder at this path?</summary>
+    /// <summary>
+    /// Is there a folder at this path? A remote source that cannot be reached (network, sign-in) throws
+    /// <see cref="IOException"/> / <see cref="UnauthorizedAccessException"/> with a message for the user instead of
+    /// answering false.
+    /// </summary>
     bool FolderExists(string path);
 
     /// <summary>
@@ -56,4 +60,13 @@ public interface IStorageProvider
 
     /// <summary>Reads a file's content (only with <see cref="StorageCaps.ContentHash"/>).</summary>
     Stream OpenRead(string path);
+
+    /// <summary>
+    /// How many folders a scan lists at the same time with this source, or null for the user's choice (the threads box).
+    /// Remote sources set it: S3 profits from many parallel requests, an SFTP server allows only a few connections.
+    /// </summary>
+    int? ScanThreads => null;
+
+    /// <summary>The saved connection this provider belongs to (null: the disk, or a remote source without a profile).</summary>
+    SourceProfile? Profile => null;
 }

@@ -53,7 +53,7 @@ public static class SearchEngine
         {
             var entries = q.Provider.Enumerate(node.FullPath,
                 (in StorageEntry e) => (e.Name.ToString(), e.IsDirectory ? -1L : e.Length, e.Attributes,
-                    e.ModifiedTicks, e.CreatedTicks, e.AccessedTicks), ListOptions.Lenient);
+                    e.ModifiedTicks, e.CreatedTicks, e.AccessedTicks), q.ListOptions(ct));
             var filter = q.Filter is { IsEmpty: false } f ? f : null;
             foreach (var (name, len, attr, modified, created, accessed) in entries)
             {

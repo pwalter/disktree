@@ -15,6 +15,7 @@ public sealed class CliOptions
         "\n" +
         "  Pfad                  Laufwerk oder Ordner, der sofort nach dem Start gescannt wird\n" +
         "                        (z. B. C:\\ oder \"D:\\Daten\"); mehrere Pfade werden gemeinsam gescannt\n" +
+        "                        oder ein Pfad einer Quelle (s3://bucket/ordner; Zugangsdaten unter \"Quellen\")\n" +
         "\n" +
         "Optionen:\n" +
         "  -t, --threads N       Anzahl der Scan-Threads (1-256, Standard: zuletzt benutzt, sonst 16)\n" +
@@ -31,6 +32,7 @@ public sealed class CliOptions
         "  DiskTree.exe C:\\\n" +
         "  DiskTree.exe \"D:\\Daten\" --threads 32 --admin\n" +
         "  DiskTree.exe \"D:\\Daten\" \"E:\\Backup\" \\\\server\\share\\Ordner\n" +
+        "  DiskTree.exe s3://mein-bucket/logs\n" +
         "  DiskTree.exe C:\\ --exclude node_modules --exclude \"*.tmp\" --exclude \"C:\\Windows\\Temp\"\n";
 
     public List<string> Paths { get; } = new();

@@ -33,6 +33,9 @@ public sealed class FakeProvider : IStorageProvider
 
     public PathOps Paths { get; } = new('/', StringComparison.Ordinal);
 
+    /// <summary>Thread count a scan of this source uses (null = the caller's choice).</summary>
+    public int? ScanThreads { get; set; }
+
     /// <summary>Capacity of "/" (0 = unknown: a scan's tree then starts at the scanned folder).</summary>
     public long Total { get; set; }
     public long Free { get; set; }
@@ -145,7 +148,8 @@ public sealed class FakeProvider : IStorageProvider
 
     public IEnumerable<T> Enumerate<T>(string folder, EntryTransform<T> transform, ListOptions options)
     {
-        // Lazy like the disk: nothing happens before the enumeration starts.
+        // Lazy like the disk: nothing happens before the enumeration starts. One listing = one request.
+        options.Run?.BeforeRequest();
         Interlocked.Increment(ref _listings);
         LastStamps = options.Stamps;
         var dir = Get(folder) ?? throw new DirectoryNotFoundException("Nicht gefunden: " + folder);

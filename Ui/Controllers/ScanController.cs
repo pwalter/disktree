@@ -5,6 +5,7 @@ using DiskTree.Core;
 using DiskTree.Core.Storage;
 using DiskTree.Features.Scan;
 using DiskTree.Infrastructure;
+using System.IO;
 
 namespace DiskTree.Ui.Controllers;
 
@@ -62,6 +63,9 @@ public sealed class ScanController
 
     private ScanSession Cur => _tabs.Current;
 
+    /// <summary>A new scan (maybe of another source) has its scanner: the window adapts to what the source can do.</summary>
+    public event Action<ScanSession>? ScanStarted;
+
     /// <summary>
     /// A file operation (or the updater) works on the tree: a scan would change the same nodes at the same time.
     /// Tells the user and returns true.
@@ -77,7 +81,35 @@ public sealed class ScanController
     public bool IsRunning => Cur.IsRunningOrPending;
 
     /// <summary>Stops the scan of the active tab (it finishes as "Abgebrochen").</summary>
-    public void Cancel() => Cur.Cts?.Cancel();
+    public void Cancel()
+    {
+        Cur.Cts?.Cancel();
+        if (_connecting is { } c && c.Session == Cur) c.Cts.Cancel(); // still connecting to a remote source
+    }
+
+    /// <summary>A remote source is being connected for this tab (before its scan starts): Esc / "Abbrechen" stops that too.</summary>
+    private (ScanSession Session, CancellationTokenSource Cts)? _connecting;
+
+    /// <summary>Runs the connecting step of a remote source; cancelling ends it (and requests in flight on the connection).</summary>
+    private async Task<T> ConnectingAsync<T>(ScanSession s, IConnectedStorage? connected, Func<CancellationToken, T> work)
+    {
+        using var cts = new CancellationTokenSource();
+        _connecting = (s, cts);
+        try
+        {
+            return await Task.Run(() =>
+            {
+                using var abort = connected?.CancelWith(cts.Token);
+                var result = work(cts.Token);
+                cts.Token.ThrowIfCancellationRequested();
+                return result;
+            });
+        }
+        finally
+        {
+            _connecting = null;
+        }
+    }
 
     // The scan button: "Scannen" starts, "Abbrechen" cancels.
     private async Task ScanOrCancelAsync()
@@ -132,23 +164,59 @@ public sealed class ScanController
         if (BlockedByOperation() || _snapshots.BlockedByLoad()) return;
         if (_tabs.Busy is { } other) { _tabs.NoticeBusy(other); return; }
 
-        // The path box (and PathList) only knows the local file system so far; other sources get their own way in.
-        var provider = StorageProviders.Disk;
-        var paths = PathList.Parse(_pathBox.Text);
-        if (paths.Count == 0) paths.Add(""); // reports "Pfad nicht gefunden" like before
-        var missing = paths.Where(p => !provider.FolderExists(p)).ToList();
-        if (missing.Count > 0)
+        // The path box: drives and folders as always, or the paths of one other source ("s3://bucket/prefix").
+        var input = ScanInput.Parse(_pathBox.Text);
+        if (input.Error != null)
         {
-            Dialogs.Warn(_window, $"Pfad nicht gefunden:\n{string.Join("\n", missing)}");
+            Dialogs.Warn(_window, input.Error);
             return;
         }
-        paths = PathList.Reduce(paths);
+        var provider = input.Provider;
+        var paths = input.Paths;
+        if (paths.Count == 0) paths.Add(""); // reports "Pfad nicht gefunden" like before
+        if (!input.IsDisk && provider.Profile == null && SourceKinds.Get(provider.Id) is { } kind)
+        {
+            // A source path without a saved source: SFTP needs one (server, user, sign-in); S3 would fall back to
+            // the AWS default credentials, i.e. real AWS - only after asking.
+            if (kind.RequiresProfile)
+            {
+                if (OfferSource(kind, paths[0])) await StartScan(s);
+                return;
+            }
+            if (!Dialogs.Confirm(_window,
+                    $"Für\n{paths[0]}\nist keine gespeicherte Quelle vom Typ „{kind.DisplayName}“ angelegt.\n\n" +
+                    "Ohne Quelle verbindet sich DiskTree mit Amazon S3 (AWS) und meldet sich mit der AWS-Standardkette an " +
+                    "(Umgebungsvariablen, ~/.aws, SSO). Das sind echte, ggf. kostenpflichtige Anfragen an AWS.\n\n" +
+                    "Für einen eigenen S3-kompatiblen Server bitte zuerst unter „☁ Quellen …“ eine Quelle anlegen.\n\n" +
+                    "Trotzdem mit AWS scannen?", MessageBoxImage.Warning))
+                return;
+        }
+        if (input.IsDisk)
+        {
+            var missing = paths.Where(p => !provider.FolderExists(p)).ToList();
+            if (missing.Count > 0)
+            {
+                Dialogs.Warn(_window, $"Pfad nicht gefunden:\n{string.Join("\n", missing)}");
+                return;
+            }
+            paths = PathList.Reduce(paths);
+        }
+        else if (!await CheckRemoteAsync(s, provider, paths))
+        {
+            return;
+        }
         var path = paths[0];
         _settings.LastPath = PathList.Join(paths);
+        if (s.IsRunningOrPending || _tabs.Busy != null) return; // something started while the source was asked
 
-        await RunAsync(s, ct =>
+        await RunAsync(s, provider as IConnectedStorage, ct =>
         {
-            var scanner = s.Scanner = new Scanner { Provider = provider, Excludes = _winSettings.CurrentExcludes(), AgeStamp = s.AgePreferred };
+            var scanner = s.Scanner = new Scanner
+            {
+                Provider = provider, Excludes = _winSettings.CurrentExcludes(),
+                AgeStamp = StorageFeatures.EffectiveStamp(s.AgePreferred, provider),
+            };
+            HookCosts(s, scanner);
             _snapshots.OnNewScanner(scanner);
             // Event instead of polling: the scanner reports changes from its worker threads, the UI reacts.
             scanner.Changed += () => _window.Dispatcher.InvokeAsync(() => OnScannerChanged(s, scanner), DispatcherPriority.Background);
@@ -160,17 +228,185 @@ public sealed class ScanController
 
             // ScanAsync creates the tree (drive -> ... -> scanned folder) and starts the workers synchronously,
             // so the tree can be shown right away and fills up while the scan is running.
-            int threads = (int)_threadsBox.SelectedItem;
+            int threads = ThreadsFor(provider);
             var scan = paths.Count > 1
                 ? scanner.ScanManyAsync(paths, threads, ct)
                 : scanner.ScanAsync(path, threads, ct);
             _window.Dispatcher.InvokeAsync(_views.AgeNoticesChanged); // the scan has adopted the tab's choice by now
-            SetTabTitle(s, paths);
+            SetTabTitle(s, paths, provider);
+            ScanStarted?.Invoke(s);
             _tree.ShowScan(s);
             return scan;
         });
     }
 
+    /// <summary>Threads of a scan: what the source asks for (S3: many, SFTP: few), else the threads box.</summary>
+    private int ThreadsFor(IStorageProvider provider) => provider.ScanThreads ?? (int)_threadsBox.SelectedItem;
+
+    /// <summary>
+    /// A remote source is asked whether the paths exist before the tab is cleared: a source that cannot be reached
+    /// (network, sign-in) gives its own message instead of "Pfad nicht gefunden". Runs off the UI thread.
+    /// </summary>
+    private async Task<bool> CheckRemoteAsync(ScanSession s, IStorageProvider provider, List<string> paths)
+    {
+        s.Pending = true; // the scan button / F5 / drops see the tab as busy meanwhile
+        _status.SetStatus(s, $"Verbinde mit {SourceName(provider)} …");
+        List<string> missing;
+        try
+        {
+            missing = await ConnectingAsync(s, provider as IConnectedStorage, ct =>
+            {
+                // A source with a connection (SFTP) connects first: sign-in and host key problems come as one clear
+                // error, and the host-key question is asked here (on this background thread, shown on the UI thread).
+                if (provider is IConnectedStorage connected)
+                {
+                    connected.Connect(ct);
+                    for (int i = 0; i < paths.Count; i++) paths[i] = connected.ResolvePath(paths[i]); // "~" = home folder
+                }
+                return paths.Where(p => !provider.FolderExists(p)).ToList();
+            });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException
+                                       or ArgumentException or NotSupportedException or TimeoutException)
+        {
+            _status.SetStatus(s, ScanSession.DefaultStatus);
+            ShowConnectError(provider, ex);
+            return false;
+        }
+        catch (OperationCanceledException)
+        {
+            _status.SetStatus(s, "Verbinden abgebrochen.");
+            return false;
+        }
+        finally
+        {
+            s.Pending = false;
+        }
+        _status.SetStatus(s, s.Scanner == null ? ScanSession.DefaultStatus : s.Status);
+        if (missing.Count == 0) return true;
+        Dialogs.Warn(_window, $"Pfad nicht gefunden ({SourceName(provider)}):\n{string.Join("\n", missing)}");
+        return false;
+    }
+
+    /// <summary>
+    /// Opens "Quelle hinzufügen" filled in from a path (server, user, folder); true once the source was saved. Set by
+    /// the window (the sources live in its settings).
+    /// </summary>
+    public Func<ISourceKind, string, bool>? CreateSource { get; set; }
+
+    /// <summary>A path of a kind that needs a saved source, but there is none: offer to create it (prefilled).</summary>
+    private bool OfferSource(ISourceKind kind, string path)
+    {
+        bool create = Dialogs.Confirm(_window,
+            $"Für\n{path}\nist noch keine Quelle vom Typ „{kind.DisplayName}“ angelegt.\n\n" +
+            "Bitte zuerst eine Quelle anlegen: Server, Benutzer und Anmeldung (Passwort oder Schlüsseldatei) werden dort " +
+            "gespeichert, Passwörter nur im Windows-Anmeldeinformationsspeicher.\n\n" +
+            "Jetzt anlegen? (Server, Benutzer und Ordner sind aus dem Pfad vorbelegt.)");
+        return create && CreateSource?.Invoke(kind, path) == true;
+    }
+
+    /// <summary>Connection problems of a remote source as the user needs them (host key changed: a clear warning).</summary>
+    private void ShowConnectError(IStorageProvider provider, Exception ex)
+    {
+        switch (ex)
+        {
+            case DiskTree.Features.Storage.Sftp.SftpHostKeyException { Problem: DiskTree.Features.Storage.Sftp.SftpHostKeyProblem.Changed } hk:
+                Dialogs.Warn(_window,
+                    $"ACHTUNG: Der Host-Schlüssel von {hk.Host} hat sich geändert!\n\n" +
+                    $"Gespeichert (vertraut): {hk.Expected}\nJetzt angeboten:          {hk.Fingerprint}\n\n" +
+                    "Das kann ein Angriff sein (jemand gibt sich als der Server aus) – oder der Server wurde neu installiert " +
+                    "bzw. hat einen neuen Schlüssel bekommen. DiskTree hat NICHT verbunden und nichts übernommen; der Scan wurde abgebrochen.\n\n" +
+                    "Nur wenn die Änderung sicher erwartet ist (beim Betreiber nachfragen): unter „☁ Quellen …“ die Quelle bearbeiten " +
+                    "und „Gespeicherten Fingerprint zurücksetzen“ wählen.",
+                    "DiskTree – Host-Schlüssel geändert");
+                return;
+            case DiskTree.Features.Storage.Sftp.SftpHostKeyException hk:
+                Dialogs.Info(_window, $"Dem Server {hk.Host} wurde nicht vertraut (Fingerprint {hk.Fingerprint}).\n\nEs wurde nicht verbunden.");
+                return;
+            case DiskTree.Features.Storage.Sftp.SftpLoginException:
+                Dialogs.Warn(_window, $"Anmeldung bei {SourceName(provider)} fehlgeschlagen:\n\n{ex.Message}\n\n" +
+                                      "Die Zugangsdaten lassen sich unter „☁ Quellen …“ → Bearbeiten ändern.");
+                return;
+            default:
+                Dialogs.Warn(_window, $"{SourceName(provider)} ist nicht erreichbar:\n\n{ex.Message}");
+                return;
+        }
+    }
+
+    /// <summary>
+    /// Before a rescan of a remote folder: the source that serves it (a loaded snapshot has none of its own) must be
+    /// saved and is connected in the background. Null = do not rescan; else the connection to abort on cancel (may be
+    /// null for sources without one).
+    /// </summary>
+    private async Task<(bool Ok, IConnectedStorage? Connection)> PrepareRemoteRescanAsync(ScanSession s, Scanner scanner, Node node)
+    {
+        if (scanner.Provider.Id == DiskProvider.ProviderId) return (true, null);
+        var provider = scanner.Provider;
+        if (provider.Profile == null && StorageProviders.TryResolve(node.FullPath, out var loc) && loc.Provider.Id == provider.Id)
+            provider = loc.Provider; // bound to the saved source of this server, if there is one
+        if (provider.Profile == null && SourceKinds.Get(provider.Id) is { RequiresProfile: true } kind)
+        {
+            Dialogs.Info(_window,
+                $"Für\n{node.FullPath}\nist keine Quelle vom Typ „{kind.DisplayName}“ angelegt. Neu scannen geht nur mit einer passenden " +
+                "gespeicherten Quelle (unter „☁ Quellen …“ anlegen).");
+            return (false, null);
+        }
+        if (provider is not IConnectedStorage connected) return (true, null);
+
+        s.Pending = true;
+        var before = s.Status;
+        _status.SetStatus(s, $"Verbinde mit {SourceName(provider)} …");
+        try
+        {
+            await ConnectingAsync(s, connected, ct => { connected.Connect(ct); return true; });
+            return (true, connected);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException
+                                       or ArgumentException or NotSupportedException or TimeoutException or OperationCanceledException)
+        {
+            if (ex is not OperationCanceledException) ShowConnectError(provider, ex);
+            return (false, null);
+        }
+        finally
+        {
+            s.Pending = false;
+            _status.SetStatus(s, before);
+        }
+    }
+
+    /// <summary>"S3 („Backup“)" / "S3": the source as the user knows it.</summary>
+    private static string SourceName(IStorageProvider provider) =>
+        provider.Profile is { } p ? $"{provider.DisplayName} „{p.Name}“" : provider.DisplayName;
+
+    /// <summary>
+    /// Sources that charge per request (S3): the scan pauses after <see cref="AppSettings.RequestWarnThreshold"/>
+    /// requests and asks whether to go on. Hooked once per scanner (a rescan reuses it).
+    /// </summary>
+    private void HookCosts(ScanSession s, Scanner scanner)
+    {
+        bool costs = (scanner.Provider.Caps & StorageCaps.CostsPerRequest) != 0;
+        scanner.RequestLimit = costs ? Math.Max(0, _settings.RequestWarnThreshold) : 0;
+        if (!costs || ReferenceEquals(s.CostHook, scanner)) return;
+        s.CostHook = scanner;
+        scanner.RequestLimitReached += run =>
+            _window.Dispatcher.InvokeAsync(() => AskToContinue(s, scanner, run));
+    }
+
+    private void AskToContinue(ScanSession s, Scanner scanner, ListRun run)
+    {
+        if (s.Scanner != scanner || s.Cts == null || run.Cancellation.IsCancellationRequested) return;
+        UpdateStatus(s, running: true);
+        long limit = Math.Max(1, _settings.RequestWarnThreshold);
+        bool more = Dialogs.Confirm(_window,
+            $"Der Scan hat bereits {run.Requests:N0} LIST-Anfragen an {SourceName(scanner.Provider)} gestellt.\n\n" +
+            "Bei Cloud-Speichern kostet jede Anfrage Geld. Der Scan wartet auf diese Entscheidung.\n\n" +
+            $"Weiter scannen? (Die nächste Rückfrage kommt nach weiteren {limit:N0} Anfragen.)\n\n" +
+            "Ja = weiter · Nein = Scan abbrechen\n\n" +
+            "Die Schwelle lässt sich unter „Quellen …“ ändern.",
+            System.Windows.MessageBoxImage.Warning);
+        if (more) run.Resume(run.Requests + limit);
+        else s.Cts?.Cancel();
+    }
     /// <summary>Scans one folder of the existing tree again, in place (nothing happens without a scan).</summary>
     public Task RescanAsync(Node? node)
     {
@@ -188,7 +424,9 @@ public sealed class ScanController
     private async Task StartRescan(ScanSession s, Node node)
     {
         var scanner = s.Scanner!;
-        if (BlockedByOperation() || _snapshots.BlockedByLoad() || !_snapshots.CanRescan(node)) return;
+        // A remote folder is checked after connecting (below), never on the UI thread.
+        bool remote = scanner.Provider.Id != DiskProvider.ProviderId;
+        if (BlockedByOperation() || _snapshots.BlockedByLoad() || (!remote && !_snapshots.CanRescan(node))) return;
         if (_tabs.Busy is { } other && other != s) { _tabs.NoticeBusy(other); return; }
 
         // A running scan has to stop first. (s.ScanTask still is the old scan here: this method runs
@@ -205,13 +443,25 @@ public sealed class ScanController
             finally { s.Pending = false; }
         }
 
-        await RunAsync(s, ct =>
+        IConnectedStorage? connection = null;
+        if (remote)
+        {
+            // The source that serves the folder (a loaded snapshot: the saved source of that server) connects in the
+            // background first; it may ask about the host key, which must not block the UI thread.
+            var (ready, connected) = await PrepareRemoteRescanAsync(s, scanner, node);
+            if (!ready || s.Scanner != scanner || s.IsRunningOrPending || !_snapshots.CanRescan(node)) return;
+            if (_tabs.Busy is { } busy && busy != s) { _tabs.NoticeBusy(busy); return; }
+            connection = connected;
+        }
+
+        await RunAsync(s, connection, ct =>
         {
             // The previous scan's last change event may never have been acknowledged (the UI had already
             // finished); without this the scanner stays silent and the row would not update.
             scanner.Acknowledge();
             scanner.Excludes = _winSettings.CurrentExcludes(); // the same rules as the scan (incl. changes made since)
-            var scan = scanner.RescanAsync(node, (int)_threadsBox.SelectedItem, ct);
+            HookCosts(s, scanner);
+            var scan = scanner.RescanAsync(node, ThreadsFor(scanner.Provider), ct);
             s.Root?.FindDescendant(node)?.ResetForRescan();
             s.ScanTarget = scanner.ScanTarget;
             if (s == Cur) s.Root?.Refresh(); // spinner and "…" right away
@@ -224,9 +474,12 @@ public sealed class ScanController
     /// this method shows the progress and the result. It only touches window controls while <paramref name="s"/> is
     /// the active tab: the user may switch tabs while the scan runs.
     /// </summary>
-    private async Task RunAsync(ScanSession s, Func<CancellationToken, Task> begin)
+    private async Task RunAsync(ScanSession s, IConnectedStorage? connection, Func<CancellationToken, Task> begin)
     {
         var cts = s.Cts = new CancellationTokenSource();
+        // Esc / "Abbrechen" also ends the listings that run on the source's connection right now (SFTP); the
+        // connection itself stays usable for the next scan, the "Dateien" row and rescans.
+        using var abort = connection?.CancelWith(cts.Token);
         if (s == Cur) _status.ShowScanButton(true);
         s.Sw.Restart();
 
@@ -305,6 +558,7 @@ public sealed class ScanController
         session.Status =
             $"{(done ? "Fertig: " : "")}{s.Dirs:N0} Ordner · {s.Files:N0} Dateien · {SizeFormat.Format(s.Bytes)}" +
             $" · {s.Errors:N0} nicht lesbar" + (s.Excluded > 0 ? $" · {s.Excluded:N0} ausgeschlossen" : "") +
+            Requests(s) +
             $" · {session.Sw.Elapsed:mm\\:ss\\.f}{percent}";
         session.StatusTip = s.Excluded > 0 ? ExcludedTooltip(s) : null;
         session.CurrentLine = running ? s.Current : "";
@@ -318,10 +572,37 @@ public sealed class ScanController
         else _status.UpdateTaskbar();
     }
 
-    /// <summary>Tab title and tooltip from what was scanned.</summary>
-    private static void SetTabTitle(ScanSession s, IReadOnlyList<string> paths)
+    /// <summary>
+    /// Sources that charge per request: how many the scan has sent so far (and that it waits for a decision). Empty
+    /// for the disk, so its status line stays as it was.
+    /// </summary>
+    private static string Requests(Scanner s)
+    {
+        if ((s.Provider.Caps & StorageCaps.CostsPerRequest) == 0) return "";
+        return $" · {s.Requests:N0} LIST-Anfragen" + (s.Run is { IsPaused: true, Cancellation.IsCancellationRequested: false } ? " (angehalten)" : "");
+    }
+
+    /// <summary>Tab title and tooltip from what was scanned (a saved source: its name and the bucket / folder).</summary>
+    private static void SetTabTitle(ScanSession s, IReadOnlyList<string> paths, IStorageProvider provider)
     {
         string tip = PathList.Join(paths);
-        s.SetTitle(paths.Count > 1 ? $"{paths.Count} Pfade" : paths[0], tip);
+        string title = paths.Count > 1 ? $"{paths.Count} Pfade" : paths[0];
+        if (provider.Profile is { } profile)
+        {
+            if (paths.Count == 1) title = $"{profile.Name} · {WithoutScheme(paths[0])}";
+            else title = $"{profile.Name} · {paths.Count} Pfade";
+            tip += $"\nQuelle: {profile.Name} ({provider.DisplayName})";
+        }
+        else if (provider.Id != DiskProvider.ProviderId)
+        {
+            tip += $"\nQuelle: {provider.DisplayName} (ohne gespeicherte Verbindung)";
+        }
+        s.SetTitle(title, tip);
+    }
+
+    private static string WithoutScheme(string path)
+    {
+        int i = path.IndexOf("://", StringComparison.Ordinal);
+        return i > 0 ? path[(i + 3)..] : path;
     }
 }
