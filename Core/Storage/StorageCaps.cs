@@ -32,6 +32,11 @@ public enum StorageCaps : long
     CostsPerRequest = 1L << 9,
     /// <summary>Objects have a storage class (e.g. S3 STANDARD / GLACIER).</summary>
     StorageClasses = 1L << 10,
+    /// <summary>
+    /// Entries carry POSIX owner (uid), group (gid) and mode bits (rwx): the "Besitzer" tab shows those instead of
+    /// Windows owners and ACLs.
+    /// </summary>
+    PosixPermissions = 1L << 11,
 
     // ---- what the features may do
     /// <summary>File contents can be read (duplicate search hashes them).</summary>

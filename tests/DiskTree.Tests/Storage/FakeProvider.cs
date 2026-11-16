@@ -10,18 +10,25 @@ namespace DiskTree.Tests.Storage;
 /// </summary>
 public class FakeProvider : IStorageProvider
 {
-    private sealed class Dir
+    private protected sealed class Dir
     {
         public readonly SortedDictionary<string, Dir> Dirs = new(StringComparer.Ordinal);
         public readonly SortedDictionary<string, FakeFile> Files = new(StringComparer.Ordinal);
         public bool Denied;
         public bool Link;
+        /// <summary>POSIX owner, group and mode bits (only FakeStore looks at them).</summary>
+        public int Uid = 1000, Gid = 1000, Mode = 0x4000 | 0x1ED;
     }
 
     public sealed record FakeFile(long Size, long ModifiedTicks, long CreatedTicks, long AccessedTicks, FileAttributes Attributes)
     {
         /// <summary>The bytes of the file (null: zeros of <see cref="Size"/>).</summary>
         public byte[]? Content { get; init; }
+
+        /// <summary>POSIX owner, group and mode bits (only FakeStore looks at them).</summary>
+        public int Uid { get; init; } = 1000;
+        public int Gid { get; init; } = 1000;
+        public int Mode { get; init; } = 0x8000 | 0x1A4;
     }
 
     private readonly Dir _root = new();
@@ -110,7 +117,7 @@ public class FakeProvider : IStorageProvider
         return this;
     }
 
-    private (Dir Dir, string Name) ParentAndName(string path)
+    private protected (Dir Dir, string Name) ParentAndName(string path)
     {
         var parts = Paths.Split(path);
         var dir = _root;
@@ -122,7 +129,7 @@ public class FakeProvider : IStorageProvider
         return (dir, parts[^1]);
     }
 
-    private Dir? Get(string path, bool create = false)
+    private protected Dir? Get(string path, bool create = false)
     {
         var dir = _root;
         foreach (var part in Paths.Split(path))
