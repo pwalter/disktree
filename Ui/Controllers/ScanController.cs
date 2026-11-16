@@ -81,7 +81,35 @@ public sealed class ScanController
     public bool IsRunning => Cur.IsRunningOrPending;
 
     /// <summary>Stops the scan of the active tab (it finishes as "Abgebrochen").</summary>
-    public void Cancel() => Cur.Cts?.Cancel();
+    public void Cancel()
+    {
+        Cur.Cts?.Cancel();
+        if (_connecting is { } c && c.Session == Cur) c.Cts.Cancel(); // still connecting to a remote source
+    }
+
+    /// <summary>A remote source is being connected for this tab (before its scan starts): Esc / "Abbrechen" stops that too.</summary>
+    private (ScanSession Session, CancellationTokenSource Cts)? _connecting;
+
+    /// <summary>Runs the connecting step of a remote source; cancelling ends it (and requests in flight on the connection).</summary>
+    private async Task<T> ConnectingAsync<T>(ScanSession s, IConnectedStorage? connected, Func<CancellationToken, T> work)
+    {
+        using var cts = new CancellationTokenSource();
+        _connecting = (s, cts);
+        try
+        {
+            return await Task.Run(() =>
+            {
+                using var abort = connected?.CancelWith(cts.Token);
+                var result = work(cts.Token);
+                cts.Token.ThrowIfCancellationRequested();
+                return result;
+            });
+        }
+        finally
+        {
+            _connecting = null;
+        }
+    }
 
     // The scan button: "Scannen" starts, "Abbrechen" cancels.
     private async Task ScanOrCancelAsync()
@@ -156,7 +184,7 @@ public sealed class ScanController
                 return;
             }
             if (!Dialogs.Confirm(_window,
-                    $"Für\n{paths[0]}\nist keine gespeicherte {kind.DisplayName}-Quelle angelegt.\n\n" +
+                    $"Für\n{paths[0]}\nist keine gespeicherte Quelle vom Typ „{kind.DisplayName}“ angelegt.\n\n" +
                     "Ohne Quelle verbindet sich DiskTree mit Amazon S3 (AWS) und meldet sich mit der AWS-Standardkette an " +
                     "(Umgebungsvariablen, ~/.aws, SSO). Das sind echte, ggf. kostenpflichtige Anfragen an AWS.\n\n" +
                     "Für einen eigenen S3-kompatiblen Server bitte zuerst unter „☁ Quellen …“ eine Quelle anlegen.\n\n" +
@@ -226,13 +254,13 @@ public sealed class ScanController
         List<string> missing;
         try
         {
-            missing = await Task.Run(() =>
+            missing = await ConnectingAsync(s, provider as IConnectedStorage, ct =>
             {
                 // A source with a connection (SFTP) connects first: sign-in and host key problems come as one clear
                 // error, and the host-key question is asked here (on this background thread, shown on the UI thread).
                 if (provider is IConnectedStorage connected)
                 {
-                    connected.Connect(CancellationToken.None);
+                    connected.Connect(ct);
                     for (int i = 0; i < paths.Count; i++) paths[i] = connected.ResolvePath(paths[i]); // "~" = home folder
                 }
                 return paths.Where(p => !provider.FolderExists(p)).ToList();
@@ -247,7 +275,7 @@ public sealed class ScanController
         }
         catch (OperationCanceledException)
         {
-            _status.SetStatus(s, ScanSession.DefaultStatus);
+            _status.SetStatus(s, "Verbinden abgebrochen.");
             return false;
         }
         finally
@@ -270,7 +298,7 @@ public sealed class ScanController
     private bool OfferSource(ISourceKind kind, string path)
     {
         bool create = Dialogs.Confirm(_window,
-            $"Für\n{path}\nist noch keine {kind.DisplayName}-Quelle angelegt.\n\n" +
+            $"Für\n{path}\nist noch keine Quelle vom Typ „{kind.DisplayName}“ angelegt.\n\n" +
             "Bitte zuerst eine Quelle anlegen: Server, Benutzer und Anmeldung (Passwort oder Schlüsseldatei) werden dort " +
             "gespeichert, Passwörter nur im Windows-Anmeldeinformationsspeicher.\n\n" +
             "Jetzt anlegen? (Server, Benutzer und Ordner sind aus dem Pfad vorbelegt.)");
@@ -319,7 +347,7 @@ public sealed class ScanController
         if (provider.Profile == null && SourceKinds.Get(provider.Id) is { RequiresProfile: true } kind)
         {
             Dialogs.Info(_window,
-                $"Für\n{node.FullPath}\nist keine {kind.DisplayName}-Quelle angelegt. Neu scannen geht nur mit einer passenden " +
+                $"Für\n{node.FullPath}\nist keine Quelle vom Typ „{kind.DisplayName}“ angelegt. Neu scannen geht nur mit einer passenden " +
                 "gespeicherten Quelle (unter „☁ Quellen …“ anlegen).");
             return (false, null);
         }
@@ -330,7 +358,7 @@ public sealed class ScanController
         _status.SetStatus(s, $"Verbinde mit {SourceName(provider)} …");
         try
         {
-            await Task.Run(() => connected.Connect(CancellationToken.None));
+            await ConnectingAsync(s, connected, ct => { connected.Connect(ct); return true; });
             return (true, connected);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException
