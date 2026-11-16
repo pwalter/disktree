@@ -577,14 +577,38 @@ public sealed class DuplicateFinder
     {
         if (!await budget.ReserveAsync(count, ct)) return false;
         var buf = ArrayPool<byte>.Shared.Rent((int)Math.Min(1 << 20, Math.Max(count, 1)));
+        bool dangling = false;
+        Stream? s = null;
         try
         {
-            // Opening may block (SFTP open, first range request): off the caller's thread.
-            using var s = await Task.Run(() => src.OpenRead(f.Path, offset, count, run), ct).ConfigureAwait(false);
+            // Opening may block (SFTP open, first range request): off the caller's thread. A cancel does not wait for
+            // the source to give up (an SFTP read may sit in its operation timeout): the run ends at once, the request
+            // is left to fail in the background.
+            var open = Task.Run(() => src.OpenRead(f.Path, offset, count, run), ct);
+            try
+            {
+                s = await open.WaitAsync(ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                _ = open.ContinueWith(t => DisposeQuietly(t.Result), TaskContinuationOptions.OnlyOnRanToCompletion);
+                throw;
+            }
             while (count > 0)
             {
                 ct.ThrowIfCancellationRequested();
-                int n = await s.ReadAsync(buf.AsMemory(0, (int)Math.Min(buf.Length, count)), ct).ConfigureAwait(false);
+                var read = s.ReadAsync(buf.AsMemory(0, (int)Math.Min(buf.Length, count)), ct).AsTask();
+                int n;
+                try
+                {
+                    n = await read.WaitAsync(ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!read.IsCompleted)
+                {
+                    dangling = true; // the read may still write into buf: it must not go back to the pool
+                    _ = read.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+                    throw;
+                }
                 if (n <= 0) throw new EndOfStreamException(); // shorter than listed: changed meanwhile
                 h.AppendData(buf, 0, n);
                 count -= n;
@@ -595,8 +619,20 @@ public sealed class DuplicateFinder
         }
         finally
         {
-            ArrayPool<byte>.Shared.Return(buf);
+            if (s != null)
+            {
+                // Closing a remote handle is a request as well: after a cancel it is done in the background.
+                if (ct.IsCancellationRequested) _ = Task.Run(() => DisposeQuietly(s));
+                else s.Dispose();
+            }
+            if (!dangling) ArrayPool<byte>.Shared.Return(buf);
         }
+    }
+
+    private static void DisposeQuietly(Stream s)
+    {
+        try { s.Dispose(); }
+        catch (Exception) { /* a handle on an aborted connection */ }
     }
 
     // ================================================================== partial + full hash
