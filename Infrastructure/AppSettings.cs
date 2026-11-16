@@ -25,6 +25,8 @@ public sealed class AppSettings
     public List<string> Excludes { get; set; } = new();
     /// <summary>Duplicate search ignores files smaller than this.</summary>
     public long DuplicateMinBytes { get; set; } = 1 << 20;
+    /// <summary>Duplicate search of a remote source: bytes one run may download before it asks (0 = no limit).</summary>
+    public long DuplicateDownloadLimit { get; set; } = 2L << 30;
     /// <summary>Saved remote sources (S3, SFTP …) without their secrets: those are in the Windows Credential Manager (SourceSecrets).</summary>
     public List<SourceProfile> Sources { get; set; } = new();
     /// <summary>A scan of a source that charges per request (S3) pauses and asks after this many requests (0 = never).</summary>

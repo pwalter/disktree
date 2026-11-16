@@ -55,7 +55,14 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel>
-                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                <Border Visibility="{Binding BadgeVisibility}" BorderBrush="{Binding BadgeBrush}" BorderThickness="1"
+                                        CornerRadius="3" Padding="4,0" Margin="8,1,0,1" VerticalAlignment="Center"
+                                        ToolTip="{Binding BadgeTip}" AutomationProperties.Name="{Binding BadgeText}">
+                                    <TextBlock Text="{Binding BadgeText}" FontSize="10.5" Foreground="{Binding BadgeBrush}" />
+                                </Border>
+                            </StackPanel>
                             <TextBlock Text="{Binding Subtitle}" FontSize="11" Foreground="{DynamicResource Muted}" />
                         </StackPanel>
                         <TextBlock Grid.Column="1" Text="{Binding WastedText}" FontWeight="SemiBold" Margin="10,0,0,0"
@@ -68,7 +75,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,6,0"
+                        <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,6,0" Visibility="{Binding CheckVisibility}"
                                   ToolTip="Für Verschieben, ZIP oder Löschen mehrerer Dateien markieren" />
                         <StackPanel Grid.Column="1">
                             <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
