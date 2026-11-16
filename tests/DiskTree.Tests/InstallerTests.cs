@@ -105,6 +105,14 @@ public class InstallerTests : TestBase
     }
 
     [Fact]
+    public void Cli_NoInstallPrompt()
+    {
+        var o = CliOptions.Parse(new[] { "--no-install-prompt", "C:\\" });
+        Assert.True(o.NoInstallPrompt);
+        Assert.Null(o.Error);
+    }
+
+    [Fact]
     public void Cli_Uninstall() => Assert.True(CliOptions.Parse(new[] { "--uninstall" }).Uninstall);
 
     [Theory]

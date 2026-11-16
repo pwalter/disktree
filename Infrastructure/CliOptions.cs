@@ -31,6 +31,8 @@ public sealed class CliOptions
         "                        \"Mit DiskTree analysieren\" für Ordner und Laufwerke\n" +
         "      --no-context-menu Mit --install: das Explorer-Kontextmenü nicht einrichten\n" +
         "      --uninstall       Installation, Startmenü-Eintrag und Kontextmenü wieder entfernen\n" +
+        "      --no-install-prompt\n" +
+        "                        Die Frage nach einer Installation in diesem Start überspringen\n" +
         "  -h, --help, /?        Diese Hilfe\n" +
         "\n" +
         "Beispiele:\n" +
@@ -52,6 +54,7 @@ public sealed class CliOptions
     public bool Install { get; private set; }
     public bool Uninstall { get; private set; }
     public bool NoContextMenu { get; private set; }
+    public bool NoInstallPrompt { get; private set; }
     public bool Help { get; private set; }
     public string? Error { get; private set; }
 
@@ -85,6 +88,9 @@ public sealed class CliOptions
                     break;
                 case "--no-context-menu":
                     o.NoContextMenu = true;
+                    break;
+                case "--no-install-prompt":
+                    o.NoInstallPrompt = true;
                     break;
                 case "--no-admin-prompt":
                     o.NoAdminPrompt = true;

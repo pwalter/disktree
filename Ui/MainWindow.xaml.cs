@@ -166,7 +166,8 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
         _ = new ExportController(this, ExportButton, this);
         _updater = new UpdateController(this, _settings, UpdateButton, AutoUpdateItem, CheckUpdateItem, OpenReleasesItem,
             () => PathBox.Text, () => _tabs.Busy != null, SaveSettings);
-        _ = new AppMenuController(this, _settings, VersionMenu, ExplorerItem, PortableItem);
+        _ = new AppMenuController(this, _settings, VersionMenu, InstallItem, ExplorerItem, PortableItem,
+            () => PathBox.Text, SaveSettings);
     }
 
     // ---------------------------------------------------------------- window events
@@ -175,6 +176,7 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        if (InstallStartup.InstallIfWanted(this, SaveSettings)) return; // replaced by the installed copy
         if (_admin.ElevateIfWanted()) return; // replaced by an elevated instance
 
         // A path on the command line is scanned right away.

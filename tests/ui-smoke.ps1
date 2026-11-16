@@ -3,7 +3,7 @@
   Start-Test der gebauten DiskTree-App: Fenster erscheint, App laeuft ein paar Sekunden ohne Absturz, wird beendet.
 
 .DESCRIPTION
-  Startet DiskTree.exe mit einem kleinen Testordner (--no-admin-prompt --no-update-check --portable), wartet auf das
+  Startet DiskTree.exe mit einem kleinen Testordner (--no-admin-prompt --no-install-prompt --no-update-check --portable), wartet auf das
   Hauptfenster, wartet danach -Seconds Sekunden und prueft, dass der Prozess noch laeuft. Beendet die App am Ende.
   --portable haelt die Einstellungen des Smoke-Tests aus dem Profil des Benutzers heraus (settings.json landet neben der exe).
   Mit -Screenshot wird das Fenster nach tests\out\ fotografiert (Ordner ist in .gitignore).
@@ -48,7 +48,7 @@ foreach ($f in 'a.docx', 'sub\b.pdf', 'sub\deeper\c.bin') {
 $proc = $null
 $ok = $false
 try {
-    $proc = Start-Process -FilePath $Exe -ArgumentList @('--no-admin-prompt', '--no-update-check', '--portable', "`"$data`"") -PassThru
+    $proc = Start-Process -FilePath $Exe -ArgumentList @('--no-admin-prompt', '--no-install-prompt', '--no-update-check', '--portable', "`"$data`"") -PassThru
     Write-Host "Gestartet: PID $($proc.Id)"
 
     # 1. window appears

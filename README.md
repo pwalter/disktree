@@ -61,20 +61,24 @@ DiskTree.exe [Pfad] [Optionen]
       --install         Für den aktuellen Benutzer installieren (inkl. Kontextmenü)
       --no-context-menu Mit --install: ohne Explorer-Kontextmenü
       --uninstall       Installation wieder entfernen
+      --no-install-prompt
+                        Die Frage nach einer Installation überspringen
   -h, --help, /?        Hilfe
 ```
 
 ### Installieren (optional)
 
-DiskTree läuft ohne Installation. Wer es fest einrichten möchte:
+DiskTree läuft ohne Installation. Wer es fest einrichten möchte, hat drei Wege:
 
-```
-DiskTree.exe --install
-```
+- **Beim Start:** Eine nicht installierte DiskTree.exe fragt beim ersten Start „DiskTree installieren?“ (vor der Frage nach Administratorrechten, mit „Nicht mehr fragen“). Nach dem Installieren startet direkt die installierte Version.
+- **Im Programm:** Rechtsklick auf die Versionsanzeige unten rechts → „DiskTree installieren …“ (in der installierten Version: „DiskTree deinstallieren …“).
+- **Kommandozeile:** `DiskTree.exe --install`
+
+Im Portable-Modus wird nicht nach einer Installation gefragt.
 
 Das kopiert die exe nach `%LocalAppData%\Programs\DiskTree`, legt einen Startmenü-Eintrag an, trägt DiskTree unter *Einstellungen > Apps* ein (dort auch deinstallierbar) und richtet das Explorer-Kontextmenü **„Mit DiskTree analysieren“** für Ordner, Laufwerke und den Ordnerhintergrund ein. Ein Klick darauf startet sofort den Scan des Ordners. Unter Windows 11 steht der Eintrag unter „Weitere Optionen anzeigen“. Alles läuft nur für den aktuellen Benutzer, Administratorrechte sind nicht nötig, und das Self-Update funktioniert weiter.
 
-`DiskTree.exe --uninstall` entfernt alles wieder; die Einstellungen in `%AppData%\DiskTree` bleiben erhalten.
+`DiskTree.exe --uninstall` (oder *Einstellungen > Apps*, oder der Menüeintrag) entfernt alles wieder; die Einstellungen in `%AppData%\DiskTree` bleiben erhalten.
 
 ## Selbst bauen
 

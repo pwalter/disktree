@@ -213,6 +213,8 @@
                         <MenuItem x:Name="AutoUpdateItem" Header="Beim Start automatisch suchen" IsCheckable="True" />
                         <MenuItem x:Name="OpenReleasesItem" Header="Alle Versionen im Browser öffnen" />
                         <Separator />
+                        <MenuItem x:Name="InstallItem" Header="DiskTree installieren …"
+                                  ToolTip="Kopiert DiskTree nach %LocalAppData%\Programs\DiskTree, mit Startmenü-Eintrag, Explorer-Kontextmenü und Eintrag unter Einstellungen &gt; Apps (nur für diesen Benutzer, ohne Administratorrechte)." />
                         <MenuItem x:Name="ExplorerItem" Header="Im Explorer-Kontextmenü anzeigen" IsCheckable="True"
                                   ToolTip="Fügt „Mit DiskTree analysieren“ zum Rechtsklick auf Ordner, Laufwerke und Ordnerhintergrund hinzu (nur für diesen Benutzer, ohne Administratorrechte). Unter Windows 11 unter „Weitere Optionen anzeigen“." />
                         <MenuItem x:Name="PortableItem" Header="Portable-Modus (Einstellungen neben der exe)" IsCheckable="True"

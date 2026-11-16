@@ -4,6 +4,7 @@ using System.IO;
 using System.Security.Principal;
 using System.Windows;
 using System.Windows.Controls;
+using DiskTree.Ui;
 
 namespace DiskTree.Infrastructure;
 
@@ -57,57 +58,11 @@ public static class AdminHelper
     }
 
     /// <summary>Asks whether to restart as administrator. <paramref name="dontAskAgain"/> is only meaningful for "No".</summary>
-    public static bool Ask(Window owner, out bool dontAskAgain)
-    {
-        bool restart = false, never = false;
-
-        var never_ = new CheckBox { Content = "Nicht mehr fragen", Margin = new Thickness(0, 14, 0, 0) };
-        var yes = new Button { Content = "Als Administrator neu starten", Padding = new Thickness(14, 6, 14, 6), IsDefault = true };
-        var no = new Button { Content = "Ohne Administratorrechte fortfahren", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(8, 0, 0, 0), IsCancel = true };
-
-        var dlg = new Window
-        {
-            Title = "DiskTree",
-            Owner = owner,
-            Icon = owner.Icon,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            SizeToContent = SizeToContent.WidthAndHeight,
-            ResizeMode = ResizeMode.NoResize,
-            ShowInTaskbar = false,
-            FontFamily = owner.FontFamily,
-            FontSize = owner.FontSize,
-            Content = new StackPanel
-            {
-                Margin = new Thickness(22),
-                Children =
-                {
-                    new TextBlock
-                    {
-                        Text = "Als Administrator neu starten?",
-                        FontSize = 17, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8),
-                    },
-                    new TextBlock
-                    {
-                        Text = "Ohne Administratorrechte kann DiskTree geschützte Ordner (z. B. „System Volume Information“ oder " +
-                               "Ordner anderer Benutzer) nicht lesen. Die Größen auf einem Laufwerk sind dann etwas zu klein.\n\n" +
-                               "Du kannst auch ohne Administratorrechte weiterarbeiten.",
-                        TextWrapping = TextWrapping.Wrap, MaxWidth = 460,
-                    },
-                    never_,
-                    new StackPanel
-                    {
-                        Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
-                        Margin = new Thickness(0, 18, 0, 0), Children = { yes, no },
-                    },
-                },
-            },
-        };
-
-        yes.Click += (_, _) => { restart = true; dlg.Close(); };
-        no.Click += (_, _) => { never = never_.IsChecked == true; dlg.Close(); };
-        dlg.ShowDialog();
-
-        dontAskAgain = never;
-        return restart;
-    }
+    public static bool Ask(Window owner, out bool dontAskAgain) =>
+        Dialogs.AskAtStart(owner,
+            "Als Administrator neu starten?",
+            "Ohne Administratorrechte kann DiskTree geschützte Ordner (z. B. „System Volume Information“ oder " +
+            "Ordner anderer Benutzer) nicht lesen. Die Größen auf einem Laufwerk sind dann etwas zu klein.\n\n" +
+            "Du kannst auch ohne Administratorrechte weiterarbeiten.",
+            "Als Administrator neu starten", "Ohne Administratorrechte fortfahren", out dontAskAgain);
 }
