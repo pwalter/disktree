@@ -165,12 +165,12 @@
                     </Style>
                 </ListBox.ItemContainerStyle>
             </ListBox>
-            <TabControl x:Name="SideTabs" Grid.Row="1" BorderThickness="0" Background="Transparent" Padding="0">
-                <TabControl.Template>
+            <local:SideTabControl x:Name="SideTabs" Grid.Row="1" BorderThickness="0" Background="Transparent" Padding="0">
+                <local:SideTabControl.Template>
                     <ControlTemplate TargetType="TabControl">
                         <ContentPresenter ContentSource="SelectedContent" />
                     </ControlTemplate>
-                </TabControl.Template>
+                </local:SideTabControl.Template>
                 <TabItem Header="Dateitypen">
                     <types:TypeChartPanel x:Name="TypePane" />
                 </TabItem>
@@ -195,7 +195,7 @@
                 <TabItem Header="Vergleich">
                     <local:ComparePanel x:Name="Compare" />
                 </TabItem>
-            </TabControl>
+            </local:SideTabControl>
             </Grid>
         </Border>
 
