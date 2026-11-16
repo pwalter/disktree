@@ -23,7 +23,7 @@ Speicherplatz-Analyse für Windows, ähnlich wie TreeSize: Pfad oder Laufwerk an
 - **Export** als CSV (Excel-tauglich), außerdem **Bericht** als HTML oder PDF (größte Ordner, Dateitypen, Alter, größte Dateien).
 - **Aufräumen:** mehrere Dateien markieren (Größte Dateien, Suche, Duplikate) und verschieben, in ZIP archivieren, umbenennen (F2, auch per Muster) oder in den Papierkorb legen – immer mit Bestätigung.
 - **Filter** nach Zugriffs-, Erstell- und Änderungsdatum sowie Dateiattributen (versteckt, System, komprimiert, Cloud-Platzhalter …); der Alters-Tab kann nach jedem der drei Zeitstempel auswerten.
-- **Explorer-Kontextmenü** „Mit DiskTree analysieren“ (Rechtsklick auf die Versionsanzeige schaltet es ein) und **Portable-Modus** (`DiskTree.portable` neben die exe legen oder `--portable`).
+- **Explorer-Kontextmenü** „Mit DiskTree analysieren“ (Rechtsklick auf die Versionsanzeige schaltet es ein, oder gleich mit `--install`) und **Portable-Modus** (`DiskTree.portable` neben die exe legen oder `--portable`).
 - **Scans speichern und öffnen** (`.disktree`) und **vergleichen**: welche Ordner sind gewachsen, geschrumpft, neu oder entfernt.
 
 ## Download
@@ -34,6 +34,8 @@ Die fertige Datei steht unter [Releases](../../releases):
 | --- | --- |
 | `DiskTree.exe` | Eine einzelne Datei, läuft überall (Windows x64), nichts zu installieren |
 | `DiskTree-slim.exe` | Sehr klein, braucht die [.NET 10 Desktop-Laufzeit](https://dotnet.microsoft.com/download/dotnet/10.0) |
+
+Optional lässt sich DiskTree mit `DiskTree.exe --install` fest einrichten (Startmenü, *Einstellungen > Apps*, Explorer-Kontextmenü), siehe [Installieren](#installieren-optional).
 
 Die Dateien sind nicht code-signiert. Prüfen lässt sich ein Download auf zwei Wegen:
 
@@ -56,8 +58,23 @@ DiskTree.exe [Pfad] [Optionen]
       --no-update-check Beim Start nicht nach einer neuen Version suchen
       --admin           Direkt als Administrator neu starten
       --no-admin-prompt Die Frage nach Administratorrechten überspringen
+      --install         Für den aktuellen Benutzer installieren (inkl. Kontextmenü)
+      --no-context-menu Mit --install: ohne Explorer-Kontextmenü
+      --uninstall       Installation wieder entfernen
   -h, --help, /?        Hilfe
 ```
+
+### Installieren (optional)
+
+DiskTree läuft ohne Installation. Wer es fest einrichten möchte:
+
+```
+DiskTree.exe --install
+```
+
+Das kopiert die exe nach `%LocalAppData%\Programs\DiskTree`, legt einen Startmenü-Eintrag an, trägt DiskTree unter *Einstellungen > Apps* ein (dort auch deinstallierbar) und richtet das Explorer-Kontextmenü **„Mit DiskTree analysieren“** für Ordner, Laufwerke und den Ordnerhintergrund ein. Ein Klick darauf startet sofort den Scan des Ordners. Unter Windows 11 steht der Eintrag unter „Weitere Optionen anzeigen“. Alles läuft nur für den aktuellen Benutzer, Administratorrechte sind nicht nötig, und das Self-Update funktioniert weiter.
+
+`DiskTree.exe --uninstall` entfernt alles wieder; die Einstellungen in `%AppData%\DiskTree` bleiben erhalten.
 
 ## Selbst bauen
 
@@ -76,6 +93,7 @@ Alle Quelldateien liegen unter dem Namespace `DiskTree`, je Ordner ein Unter-Nam
 | --- | --- |
 | `Core/` | Scanner, Knoten (`Node`), Ausschlussregeln, Pfadlisten, Dateityp- und Alters-Klassen, Größenformat |
 | `Core/Snapshots/` | Gespeicherte Scans (`.disktree`): Lesen und Schreiben, Vergleich zweier Scans |
+| `Features/Install/` | Installation per `--install` / `--uninstall` (Startmenü, Apps-Eintrag, Kontextmenü) |
 | `Features/Search/` | Suche in Baum und Dateisystem samt Datums- und Attributfiltern |
 | `Features/Duplicates/` | Duplikate-Suche (Größe, Teil-Hash, SHA-256) und Duplikate-Tab |
 | `Features/Owner/` | Besitzer und Rechte, Speicher pro Besitzer |
