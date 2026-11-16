@@ -1,6 +1,7 @@
 using System.Windows;
 using DiskTree.Core.Storage;
 using DiskTree.Features.Explorer;
+using DiskTree.Features.Install;
 using DiskTree.Features.Storage.S3;
 using DiskTree.Features.Storage.Sftp;
 using DiskTree.Features.Update;
@@ -45,6 +46,12 @@ public partial class App : Application
             return;
         }
 
+        if (Options.Install || Options.Uninstall)
+        {
+            Shutdown(RunInstaller() ? 0 : 1);
+            return;
+        }
+
         Portable.ForcedByFlag = Options.Portable;
         // Remote sources: secrets in the Windows Credential Manager; registering S3 / SFTP does not load the AWS SDK or
         // SSH.NET yet (that happens on the first connection).
@@ -53,8 +60,29 @@ public partial class App : Application
         SftpStorage.Register();
         Updater.CleanupOld();
         ExplorerIntegration.RefreshIfStale();
+        Installer.RefreshIfInstalled();
         Theme.Init(AppSettings.Load().Theme);
         base.OnStartup(e);
+    }
+
+    /// <summary>--install / --uninstall: does the work, reports to the console (or a window) and returns success.</summary>
+    private static bool RunInstaller()
+    {
+        try
+        {
+            if (!Updater.CanSelfReplace || Environment.ProcessPath is not { } exe)
+                throw new InvalidOperationException("DiskTree läuft nicht aus einer eigenen exe und kann sich daher nicht installieren.");
+            CliOptions.Report(Options.Install
+                ? Installer.Install(exe, contextMenu: !Options.NoContextMenu)
+                : Installer.Uninstall(exe), isError: false);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write(Options.Install ? "Install" : "Uninstall", ex);
+            CliOptions.Report((Options.Install ? "Die Installation" : "Die Deinstallation") + " ist fehlgeschlagen:\n" + ex.Message, isError: true);
+            return false;
+        }
     }
 
     /// <summary>A readable error box (German) pointing at crash.log. Never throws; never stacks up several boxes.</summary>

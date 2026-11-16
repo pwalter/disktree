@@ -42,9 +42,23 @@ public static class ExplorerIntegration
         }
     }
 
-    public static void Enable()
+    /// <summary>The exe the entry currently starts, or null when there is no entry.</summary>
+    public static string? RegisteredExe()
     {
-        var exe = Exe ?? throw new InvalidOperationException("Pfad der Programmdatei unbekannt.");
+        try
+        {
+            // Written by Command(): "C:\…\DiskTree.exe" "%1"
+            if (CurrentCommand() is not { } cmd || !cmd.StartsWith('"')) return null;
+            int end = cmd.IndexOf('"', 1);
+            return end > 1 ? cmd[1..end] : null;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Registers the entry for <paramref name="exePath"/> (default: the running exe).</summary>
+    public static void Enable(string? exePath = null)
+    {
+        var exe = exePath ?? Exe ?? throw new InvalidOperationException("Pfad der Programmdatei unbekannt.");
         foreach (var (key, arg) in Targets)
         {
             using var k = Registry.CurrentUser.CreateSubKey(KeyPath(key));
@@ -61,13 +75,18 @@ public static class ExplorerIntegration
             Registry.CurrentUser.DeleteSubKeyTree(KeyPath(key), throwOnMissingSubKey: false);
     }
 
-    /// <summary>At start: when the entry is active but points to another exe path (moved or copied), point it here.</summary>
+    /// <summary>
+    /// At start: when the entry is active but its exe no longer exists (moved or deleted), point it here. An entry for
+    /// another exe that still exists (e.g. the installed copy while a downloaded one is started) is left alone.
+    /// </summary>
     public static void RefreshIfStale()
     {
         try
         {
             if (Exe is not { } exe || !Updater.CanSelfReplace) return;
-            if (CurrentCommand() is { } cmd && cmd != Command(exe, Targets[0].Arg)) Enable();
+            if (CurrentCommand() is { } cmd && cmd != Command(exe, Targets[0].Arg)
+                && (RegisteredExe() is not { } reg || !System.IO.File.Exists(reg)))
+                Enable();
         }
         catch { /* the entry is a convenience only */ }
     }

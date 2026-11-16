@@ -26,6 +26,12 @@ public sealed class CliOptions
         "      --no-admin-prompt Die Frage nach Administratorrechten in diesem Start überspringen\n" +
         "      --no-update-check Beim Start nicht nach einer neuen Version suchen\n" +
         "      --portable        Einstellungen neben der exe speichern (oder Datei DiskTree.portable anlegen)\n" +
+        "      --install         Für den aktuellen Benutzer installieren (ohne Administratorrechte):\n" +
+        "                        nach %LocalAppData%\\Programs\\DiskTree kopieren, Startmenü-Eintrag,\n" +
+        "                        Eintrag unter Einstellungen > Apps und Explorer-Kontextmenü\n" +
+        "                        \"Mit DiskTree analysieren\" für Ordner und Laufwerke\n" +
+        "      --no-context-menu Mit --install: das Explorer-Kontextmenü nicht einrichten\n" +
+        "      --uninstall       Installation, Startmenü-Eintrag und Kontextmenü wieder entfernen\n" +
         "  -h, --help, /?        Diese Hilfe\n" +
         "\n" +
         "Beispiele:\n" +
@@ -33,7 +39,8 @@ public sealed class CliOptions
         "  DiskTree.exe \"D:\\Daten\" --threads 32 --admin\n" +
         "  DiskTree.exe \"D:\\Daten\" \"E:\\Backup\" \\\\server\\share\\Ordner\n" +
         "  DiskTree.exe s3://mein-bucket/logs\n" +
-        "  DiskTree.exe C:\\ --exclude node_modules --exclude \"*.tmp\" --exclude \"C:\\Windows\\Temp\"\n";
+        "  DiskTree.exe C:\\ --exclude node_modules --exclude \"*.tmp\" --exclude \"C:\\Windows\\Temp\"\n" +
+        "  DiskTree.exe --install\n";
 
     public List<string> Paths { get; } = new();
     /// <summary>All paths as the text for the path box (semicolon separated), or null if none was given.</summary>
@@ -44,6 +51,9 @@ public sealed class CliOptions
     public bool NoAdminPrompt { get; private set; }
     public bool NoUpdateCheck { get; private set; }
     public bool Portable { get; private set; }
+    public bool Install { get; private set; }
+    public bool Uninstall { get; private set; }
+    public bool NoContextMenu { get; private set; }
     public bool Help { get; private set; }
     public string? Error { get; private set; }
 
@@ -68,6 +78,15 @@ public sealed class CliOptions
                     break;
                 case "--portable":
                     o.Portable = true;
+                    break;
+                case "--install":
+                    o.Install = true;
+                    break;
+                case "--uninstall":
+                    o.Uninstall = true;
+                    break;
+                case "--no-context-menu":
+                    o.NoContextMenu = true;
                     break;
                 case "--no-admin-prompt":
                     o.NoAdminPrompt = true;
@@ -103,6 +122,10 @@ public sealed class CliOptions
                     break;
             }
         }
+        if (o.Install && o.Uninstall) return o.Fail("--install und --uninstall schließen sich aus.");
+        if (o.NoContextMenu && !o.Install) return o.Fail("--no-context-menu gilt nur zusammen mit --install.");
+        if ((o.Install || o.Uninstall) && o.Paths.Count > 0)
+            return o.Fail("--install / --uninstall erwarten keinen Pfad.");
         return o;
     }
 
@@ -124,10 +147,12 @@ public sealed class CliOptions
     }
 
     /// <summary>Prints the help to the console the program was started from, or shows it in a window if there is none.</summary>
-    public static void ShowHelp(string? error)
-    {
-        var text = (error != null ? $"Fehler: {error}\n\n" : "") + Usage;
+    public static void ShowHelp(string? error) =>
+        Report((error != null ? $"Fehler: {error}\n\n" : "") + Usage, isError: error != null);
 
+    /// <summary>Prints a message to the console the program was started from, or shows it in a window if there is none.</summary>
+    public static void Report(string text, bool isError)
+    {
         // A WinExe has no console of its own; borrow the one of the shell that started it.
         if (AttachConsole(ATTACH_PARENT_PROCESS))
         {
@@ -136,7 +161,7 @@ public sealed class CliOptions
         }
         else
         {
-            if (error != null) Dialogs.Warn(null, text); else Dialogs.Info(null, text);
+            if (isError) Dialogs.Warn(null, text); else Dialogs.Info(null, text);
         }
     }
 
