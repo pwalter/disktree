@@ -14,7 +14,7 @@
         </Grid.RowDefinitions>
 
         <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource Muted}" Margin="0,0,0,10"
-                   Text="Gespeicherte Verbindungen zu entfernten Speichern (S3 und S3-kompatible Server). Eine Quelle wird gescannt, indem ihr Pfad (z. B. s3://bucket/ordner) im Pfadfeld steht – oder über „Scannen“ hier." />
+                   Text="Gespeicherte Verbindungen zu entfernten Speichern (S3, S3-kompatible Server und SFTP). Eine Quelle wird gescannt, indem ihr Pfad (z. B. s3://bucket/ordner oder sftp://benutzer@server/ordner) im Pfadfeld steht – oder über „Scannen“ hier." />
 
         <Border Grid.Row="1" Background="{DynamicResource PanelBg}" BorderBrush="{DynamicResource PanelBorder}"
                 BorderThickness="1" CornerRadius="6">

@@ -103,7 +103,8 @@ public sealed class SftpSourceKind : ISourceKind
         {
             throw new InvalidOperationException("Bitte das Passwort eingeben.");
         }
-        var options = SftpSource.OptionsFor(profile, auth, persist: false);
+        bool asked = false; // the time to connect then includes the user's decision: not shown
+        var options = SftpSource.OptionsFor(profile, auth, persist: false, onAsked: () => asked = true);
         var start = SftpSource.StartOf(profile);
 
         SftpConnectionTestResult r;
@@ -129,11 +130,14 @@ public sealed class SftpSourceKind : ISourceKind
 
         // The confirmed key goes with the profile; the dialog stores it on "Speichern".
         profile.HostKeySha256 = r.HostKeySha256;
-        var text = $"Verbindung OK ({ServerName(r.ServerVersion)}, {r.ConnectTime.TotalMilliseconds:0} ms). " +
-                   $"Host-Schlüssel {r.HostKeySha256}. {RemoteOf(r.Folder)}: {r.Folders:N0} Ordner, {r.Files:N0} Dateien";
-        if (r.Total > 0) text += $", frei {SizeFormat.Format(r.Free)} von {SizeFormat.Format(r.Total)}";
-        return text + ".";
+        var text = $"Verbindung OK ({ServerName(r.ServerVersion)}" + (asked ? "" : $", {r.ConnectTime.TotalMilliseconds:0} ms") + ").\n" +
+                   $"Host-Schlüssel: {r.HostKeySha256}\n" +
+                   $"{RemoteOf(r.Folder)}: {Count(r.Folders, "Ordner", "Ordner")}, {Count(r.Files, "Datei", "Dateien")}";
+        if (r.Total > 0) text += $" · frei {SizeFormat.Format(r.Free)} von {SizeFormat.Format(r.Total)}";
+        return text;
     }
+
+    private static string Count(int n, string one, string many) => $"{n:N0} {(n == 1 ? one : many)}";
 
     private static string ServerName(string version) => version.StartsWith("SSH-2.0-", StringComparison.Ordinal) ? version[8..] : version;
 

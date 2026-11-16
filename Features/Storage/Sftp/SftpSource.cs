@@ -276,7 +276,7 @@ public sealed class SftpSource : IStorageProvider, IConnectedStorage
     /// Options of a profile. <paramref name="persist"/>: a host key the user trusts is stored with the profile
     /// (<see cref="SftpStorage.HostKeyTrusted"/>); the connection test only asks.
     /// </summary>
-    internal static SftpConnectionOptions OptionsFor(SourceProfile p, SftpAuth auth, bool persist)
+    internal static SftpConnectionOptions OptionsFor(SourceProfile p, SftpAuth auth, bool persist, Action? onAsked = null)
     {
         var server = ServerOf(p) ?? throw new IOException($"Ungültiger Server in der Quelle „{p.Name}“.");
         var profile = p.Clone();
@@ -290,6 +290,7 @@ public sealed class SftpSource : IStorageProvider, IConnectedStorage
             MaxParallelListings = SftpStorage.ParallelListings,
             ConfirmHostKey = fingerprint =>
             {
+                onAsked?.Invoke();
                 if (SftpStorage.AskHostKey?.Invoke(profile, fingerprint) != true) return false;
                 if (persist) SftpStorage.HostKeyTrusted?.Invoke(profile, fingerprint);
                 return true;
