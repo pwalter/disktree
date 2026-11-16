@@ -48,7 +48,7 @@ public sealed class SideTabsController
     /// Switches a tab off for the scan of the active tab (null = on): its chip stays visible, greyed out, with the reason
     /// as tooltip. If it was the open tab, the first tab opens instead.
     /// </summary>
-    public void SetAvailable(TabItem tab, string? whyNot)
+    public void SetAvailable(TabItem tab, string? whyNot, string? note = null)
     {
         int i = _tabs.Items.IndexOf(tab);
         if (i < 0 || _chips.Items[i] is not ListBoxItem chip) return;
@@ -56,7 +56,7 @@ public sealed class SideTabsController
         tab.IsEnabled = on;
         chip.IsEnabled = on;
         chip.Opacity = on ? 1 : 0.45;
-        chip.ToolTip = whyNot;
+        chip.ToolTip = whyNot ?? note; // on, but with a note (e.g. "lädt Inhalte herunter")
         ToolTipService.SetShowOnDisabled(chip, true);
         if (!on && _tabs.SelectedIndex == i) _tabs.SelectedIndex = 0;
     }

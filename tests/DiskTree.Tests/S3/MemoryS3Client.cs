@@ -37,6 +37,62 @@ public sealed class MemoryS3Client : IS3Client
         return this;
     }
 
+    private readonly Dictionary<(string, string), (byte[] Data, string? Encryption)> _content = new();
+    private int _heads, _gets;
+    private long _bytes;
+
+    /// <summary>HEAD and ranged GET requests so far, bytes sent by GETs.</summary>
+    public int Heads => Volatile.Read(ref _heads);
+    public int Gets => Volatile.Read(ref _gets);
+    public long BytesSent => Interlocked.Read(ref _bytes);
+
+    /// <summary>
+    /// An object with content. ETag: the MD5 of the content (single part), or the given one (e.g. multipart "…-2");
+    /// <paramref name="encryption"/> as the HEAD reports it ("aws:kms" …).
+    /// </summary>
+    public MemoryS3Client PutContent(string bucket, string key, byte[] data, string? etag = null, string? encryption = null)
+    {
+        Bucket(bucket);
+        etag ??= "\"" + Convert.ToHexString(System.Security.Cryptography.MD5.HashData(data)).ToLowerInvariant() + "\"";
+        _buckets[bucket][key] = new S3ObjectInfo(key, data.Length, new DateTime(2024, 5, 1, 0, 0, 0, DateTimeKind.Utc).Ticks, "STANDARD", etag);
+        _content[(bucket, key)] = (data, encryption);
+        return this;
+    }
+
+    /// <summary>Ranged GETs hang until cancelled; <see cref="GetStarted"/> fires on the first.</summary>
+    public bool BlockGets { get; set; }
+    public TaskCompletionSource GetStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public async Task<S3ObjectHead> HeadAsync(string bucket, string key, CancellationToken ct)
+    {
+        Interlocked.Increment(ref _requests);
+        Interlocked.Increment(ref _heads);
+        await Task.Yield();
+        if (!_buckets.TryGetValue(bucket, out var objects) || !objects.TryGetValue(key, out var o))
+            throw new IOException("S3-Fehler (404): Nicht gefunden.");
+        return new S3ObjectHead(o.Size, o.ETag, _content.TryGetValue((bucket, key), out var c) ? c.Encryption : null);
+    }
+
+    public async Task<int> ReadRangeAsync(string bucket, string key, long offset, Memory<byte> buffer, CancellationToken ct)
+    {
+        Interlocked.Increment(ref _requests);
+        Interlocked.Increment(ref _gets);
+        if (BlockGets)
+        {
+            GetStarted.TrySetResult();
+            await Task.Delay(Timeout.Infinite, ct);
+        }
+        await Task.Yield();
+        if (!_buckets.TryGetValue(bucket, out var objects) || !objects.TryGetValue(key, out var o))
+            throw new IOException("S3-Fehler NoSuchKey (404): Nicht gefunden.");
+        var data = _content.TryGetValue((bucket, key), out var c) ? c.Data : new byte[o.Size];
+        if (offset >= data.Length) throw new IOException("S3-Fehler InvalidRange (416).");
+        int n = (int)Math.Min(buffer.Length, data.Length - offset);
+        data.AsMemory((int)offset, n).CopyTo(buffer);
+        Interlocked.Add(ref _bytes, n);
+        return n;
+    }
+
     public string Describe() => "Speicher (Test)";
 
     public Task<IReadOnlyList<string>> ListBucketsAsync(CancellationToken ct)

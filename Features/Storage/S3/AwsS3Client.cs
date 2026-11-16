@@ -107,10 +107,53 @@ internal sealed class AwsS3Client : IS3Client, IDisposable
 
             var objects = r.S3Objects is { } os
                 ? os.Select(o => new S3ObjectInfo(o.Key, o.Size ?? 0, o.LastModified is { } m ? m.ToUniversalTime().Ticks : 0,
-                    o.StorageClass?.Value)).ToList()
+                    o.StorageClass?.Value, o.ETag)).ToList()
                 : new List<S3ObjectInfo>();
             var prefixes = r.CommonPrefixes ?? new List<string>();
             return new S3ListPage(objects, prefixes, r.IsTruncated == true ? r.NextContinuationToken : null);
+        }
+        catch (Exception ex) when (S3Errors.Translate(ex, ct, bucket) is { } mapped)
+        {
+            throw mapped;
+        }
+    }
+
+    public async Task<S3ObjectHead> HeadAsync(string bucket, string key, CancellationToken ct)
+    {
+        try
+        {
+            var r = await _client.GetObjectMetadataAsync(new GetObjectMetadataRequest { BucketName = bucket, Key = key }, ct)
+                .ConfigureAwait(false);
+            var sse = r.ServerSideEncryptionMethod?.Value;
+            return new S3ObjectHead(r.ContentLength, r.ETag,
+                string.IsNullOrEmpty(sse) || sse.Equals("None", StringComparison.OrdinalIgnoreCase) ? null : sse,
+                r.ServerSideEncryptionCustomerMethod != null && r.ServerSideEncryptionCustomerMethod != ServerSideEncryptionCustomerMethod.None);
+        }
+        catch (Exception ex) when (S3Errors.Translate(ex, ct, bucket) is { } mapped)
+        {
+            throw mapped;
+        }
+    }
+
+    public async Task<int> ReadRangeAsync(string bucket, string key, long offset, Memory<byte> buffer, CancellationToken ct)
+    {
+        if (buffer.Length == 0) return 0;
+        try
+        {
+            using var r = await _client.GetObjectAsync(new GetObjectRequest
+            {
+                BucketName = bucket,
+                Key = key,
+                ByteRange = new ByteRange(offset, offset + buffer.Length - 1),
+            }, ct).ConfigureAwait(false);
+            int total = 0;
+            while (total < buffer.Length)
+            {
+                int n = await r.ResponseStream.ReadAsync(buffer[total..], ct).ConfigureAwait(false);
+                if (n <= 0) break;
+                total += n;
+            }
+            return total;
         }
         catch (Exception ex) when (S3Errors.Translate(ex, ct, bucket) is { } mapped)
         {

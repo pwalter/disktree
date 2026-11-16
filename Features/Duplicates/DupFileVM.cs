@@ -1,3 +1,4 @@
+using System.Windows;
 using DiskTree.Core.Storage;
 
 namespace DiskTree.Features.Duplicates;
@@ -10,13 +11,17 @@ public sealed class DupFileVM
     public string Folder { get; }
     /// <summary>Check mark for choosing several files for move / ZIP / delete.</summary>
     public bool IsChecked { get; set; }
+    /// <summary>The check box is only offered where files can be moved / zipped / deleted (the disk).</summary>
+    public Visibility CheckVisibility { get; }
 
-    public DupFileVM(DupGroupVM group, string path)
+    /// <param name="paths">Path rules of the source the file belongs to (null: the disk).</param>
+    public DupFileVM(DupGroupVM group, string path, PathOps? paths = null, bool canCheck = true)
     {
         Group = group;
         Path = path;
-        // The duplicate search reads file contents from the local file system only (DuplicateFinder).
-        Name = DiskPathOps.Instance.NameOf(path);
-        Folder = DiskPathOps.Instance.ParentOf(path) ?? "";
+        paths ??= DiskPathOps.Instance;
+        Name = paths.NameOf(path);
+        Folder = paths.ParentOf(path) ?? "";
+        CheckVisibility = canCheck ? Visibility.Visible : Visibility.Collapsed;
     }
 }

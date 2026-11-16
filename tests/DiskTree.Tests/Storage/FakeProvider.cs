@@ -8,7 +8,7 @@ namespace DiskTree.Tests.Storage;
 /// an SFTP server), capacity and caps as the test likes. Paths look like "/data/a/b.txt"; "/" is the top.
 /// The content must not change while a scan runs (it is read from several worker threads); between scans it may.
 /// </summary>
-public sealed class FakeProvider : IStorageProvider
+public class FakeProvider : IStorageProvider
 {
     private sealed class Dir
     {
@@ -18,7 +18,11 @@ public sealed class FakeProvider : IStorageProvider
         public bool Link;
     }
 
-    public sealed record FakeFile(long Size, long ModifiedTicks, long CreatedTicks, long AccessedTicks, FileAttributes Attributes);
+    public sealed record FakeFile(long Size, long ModifiedTicks, long CreatedTicks, long AccessedTicks, FileAttributes Attributes)
+    {
+        /// <summary>The bytes of the file (null: zeros of <see cref="Size"/>).</summary>
+        public byte[]? Content { get; init; }
+    }
 
     private readonly Dir _root = new();
     private int _listings;
@@ -56,6 +60,25 @@ public sealed class FakeProvider : IStorageProvider
         long m = (modified ?? DateTime.UtcNow).Ticks;
         dir.Files[name] = new FakeFile(size, m, created?.Ticks ?? m, accessed?.Ticks ?? m, attributes);
         return this;
+    }
+
+    /// <summary>A file with this content (its size is the content''s length).</summary>
+    public FakeProvider File(string path, byte[] content, DateTime? modified = null)
+    {
+        var (dir, name) = ParentAndName(path);
+        long m = (modified ?? DateTime.UtcNow).Ticks;
+        dir.Files[name] = new FakeFile(content.Length, m, m, m, FileAttributes.Normal) { Content = content };
+        return this;
+    }
+
+    /// <summary>The content of a file (zeros if it was created with a size only); null if there is no such file.</summary>
+    public byte[]? ContentOf(string path)
+    {
+        var parts = Paths.Split(path);
+        if (parts.Length == 0) return null;
+        var dir = Get(string.Join('/', parts[..^1]));
+        if (dir == null || !dir.Files.TryGetValue(parts[^1], out var f)) return null;
+        return f.Content ?? new byte[f.Size];
     }
 
     public FakeProvider Folder(string path)
@@ -187,6 +210,6 @@ public sealed class FakeProvider : IStorageProvider
     public Stream OpenRead(string path)
     {
         var (dir, name) = ParentAndName(path);
-        return dir.Files.TryGetValue(name, out var f) ? new MemoryStream(new byte[f.Size]) : throw new FileNotFoundException(path);
+        return dir.Files.TryGetValue(name, out var f) ? new MemoryStream(f.Content ?? new byte[f.Size]) : throw new FileNotFoundException(path);
     }
 }

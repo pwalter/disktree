@@ -181,6 +181,13 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
         // Duplicate finder tab (DuplicatesPanel.xaml.cs): searches the selected folder, uses the shell menu from here.
         Dup.Settings = _settings;
         Dup.RootProvider = _tree.DuplicateRoot;
+        Dup.SourceProvider = () => Cur.Provider;
+        Dup.RevealRequested = path =>
+        {
+            // A file is no row of its own in the tree: its folder is selected.
+            var folder = Cur.Provider.Paths.ParentOf(path) ?? path;
+            return _tree.TryJumpToPath(folder);
+        };
         Dup.ShellMenuRequested += _shell.ShowFileShellMenu;
         Dup.ShellDeleteRequested += _shell.DeleteFile;
         Dup.ExtraKeyDown = _fileOps.HandleKey;
@@ -279,6 +286,12 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
             e.Handled = true;
             _scan.Cancel();
         }
+        else if (e.Key == Key.Escape && Dup.IsRunning)
+        {
+            // Esc also stops a duplicate search (incl. downloads of a remote source in flight).
+            e.Handled = true;
+            Dup.Cancel();
+        }
     }
 
     // ---------------------------------------------------------------- the active tab changes
@@ -332,7 +345,7 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
         if (_sideTabs == null) return; // the first tab is shown while the window is still being built
         var p = Cur.Provider;
         _sideTabs.SetAvailable(OwnerTabItem, StorageFeatures.WhyNot(p, StorageFeature.Owner));
-        _sideTabs.SetAvailable(DupTab, StorageFeatures.WhyNot(p, StorageFeature.Duplicates));
+        _sideTabs.SetAvailable(DupTab, StorageFeatures.WhyNot(p, StorageFeature.Duplicates), StorageFeatures.Note(p, StorageFeature.Duplicates));
         _charts.ShowAgeStamp();
         _charts.AgeNoticesChanged();
         SearchPane.SetSource(p);

@@ -1,7 +1,13 @@
 namespace DiskTree.Features.Storage.S3;
 
-/// <summary>One object of a listing.</summary>
-public readonly record struct S3ObjectInfo(string Key, long Size, long ModifiedTicks, string? StorageClass = null);
+/// <summary>One object of a listing; <paramref name="ETag"/> as the server sends it (with quotes), null if none.</summary>
+public readonly record struct S3ObjectInfo(string Key, long Size, long ModifiedTicks, string? StorageClass = null, string? ETag = null);
+
+/// <summary>
+/// What HeadObject says about an object: size, ETag (with quotes) and its server-side encryption ("AES256", "aws:kms",
+/// "aws:kms:dsse"; null = none). <paramref name="CustomerKey"/>: encrypted with a key of the customer (SSE-C).
+/// </summary>
+public sealed record S3ObjectHead(long Size, string? ETag, string? Encryption, bool CustomerKey = false);
 
 /// <summary>One page of ListObjectsV2: objects, common prefixes (with delimiter) and the token for the next page (null = last).</summary>
 public sealed record S3ListPage(IReadOnlyList<S3ObjectInfo> Objects, IReadOnlyList<string> Prefixes, string? NextToken);
@@ -21,6 +27,15 @@ public interface IS3Client
 {
     /// <summary>ListObjectsV2 of <paramref name="bucket"/> below <paramref name="prefix"/>; <paramref name="delimiter"/> "/" or null (flat).</summary>
     Task<S3ListPage> ListAsync(string bucket, string prefix, string? delimiter, string? continuationToken, int maxKeys, CancellationToken ct);
+
+    /// <summary>HeadObject: size, ETag and encryption of one object (duplicate search, fast mode).</summary>
+    Task<S3ObjectHead> HeadAsync(string bucket, string key, CancellationToken ct);
+
+    /// <summary>
+    /// GetObject with a byte range: reads up to <c>buffer.Length</c> bytes of the object from <paramref name="offset"/>
+    /// into <paramref name="buffer"/> (memory only) and returns how many arrived (fewer at the end of the object).
+    /// </summary>
+    Task<int> ReadRangeAsync(string bucket, string key, long offset, Memory<byte> buffer, CancellationToken ct);
 
     /// <summary>Names of the buckets the credentials can see (connection test without a bucket).</summary>
     Task<IReadOnlyList<string>> ListBucketsAsync(CancellationToken ct);
