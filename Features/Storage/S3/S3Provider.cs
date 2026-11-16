@@ -17,7 +17,7 @@ namespace DiskTree.Features.Storage.S3;
 /// profile for every path it is given. No AWS SDK type is touched before the first request (lazy loading).
 /// </para>
 /// </summary>
-public sealed class S3Provider : IStorageProvider
+public sealed class S3Provider : IStorageProvider, IContentHashSource, IDeepListing
 {
     public const string ProviderId = "s3";
 
@@ -152,6 +152,133 @@ public sealed class S3Provider : IStorageProvider
     }
 
     public Stream OpenRead(string path) => throw new NotSupportedException("S3-Objekte werden nicht gelesen.");
+
+    // ------------------------------------------------------------------ contents (duplicate search)
+
+    /// <summary>Bytes per ranged GET: big files are read in parts, so a cancel ends a download quickly.</summary>
+    public const int ReadChunk = 4 << 20;
+
+    /// <summary>The object key of a file path ("s3://b/a/x.bin" gives "a/x.bin", "s3://b/a/(leer)" gives "a/").</summary>
+    public static (string Bucket, string Key) KeyOf(string path)
+    {
+        var (bucket, prefix) = SplitChecked(path);
+        if (prefix.Length == 0) throw new IOException("Kein Objekt: " + path);
+        return (bucket, prefix[..^1]);
+    }
+
+    /// <summary>The ETag without quotes, in lower case ("" if none).</summary>
+    public static string NormalizeETag(string? etag) => (etag ?? "").Trim().Trim('"').ToLowerInvariant();
+
+    /// <summary>
+    /// Single-part upload: the ETag is the MD5 of the content (32 hex digits) – unless SSE-KMS / SSE-C, which the HEAD
+    /// tells. Multipart "…-N": depends on the part size, only a candidate. Anything else (other servers): unusable.
+    /// </summary>
+    public ContentTagKind ClassifyTag(string? listedTag)
+    {
+        var t = NormalizeETag(listedTag);
+        if (t.Length == 32 && t.All(char.IsAsciiHexDigit)) return ContentTagKind.Strong;
+        int dash = t.LastIndexOf('-');
+        if (dash == 32 && t[..32].All(char.IsAsciiHexDigit) && t[(dash + 1)..].All(char.IsAsciiDigit) && dash + 1 < t.Length)
+            return ContentTagKind.Weak;
+        return ContentTagKind.None;
+    }
+
+    public int TagRequests => 1;
+
+    public bool TryGetContentTag(string path, string? listedTag, ListRun run, out string tag, out bool isStrong)
+    {
+        var target = Resolve(path);
+        var (bucket, key) = KeyOf(path);
+        run.BeforeRequest();
+        var head = target.Client.HeadAsync(bucket, key, run.Cancellation).GetAwaiter().GetResult();
+        tag = NormalizeETag(head.ETag);
+        // SSE-S3 (AES256) keeps the MD5; SSE-KMS / DSSE-KMS / SSE-C ETags are no digest of the content.
+        bool plain = head.Encryption is null || head.Encryption.Equals("AES256", StringComparison.OrdinalIgnoreCase);
+        isStrong = plain && !head.CustomerKey && ClassifyTag(tag) == ContentTagKind.Strong;
+        return tag.Length > 0;
+    }
+
+    public Stream OpenRead(string path, long offset, long length, ListRun run)
+    {
+        var target = Resolve(path);
+        var (bucket, key) = KeyOf(path);
+        return new RangeStream(target.Client, bucket, key, offset, length, run);
+    }
+
+    public long RequestsFor(long length) => Math.Max(1, (length + ReadChunk - 1) / ReadChunk);
+
+    /// <summary>A byte range of an object, fetched in parts of <see cref="ReadChunk"/> with one counted GET each.</summary>
+    private sealed class RangeStream(IS3Client client, string bucket, string key, long offset, long length, ListRun run) : Stream
+    {
+        private readonly byte[] _chunk = new byte[(int)Math.Clamp(length, 1, ReadChunk)];
+        private long _next = offset;              // object offset of the next GET
+        private readonly long _length = length;
+        private long _left = length;              // bytes not fetched yet
+        private int _pos, _len;                   // what of _chunk is still unread
+        private bool _end;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => _length;
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            ReadAsync(buffer.AsMemory(offset, count), CancellationToken.None).AsTask().GetAwaiter().GetResult();
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)
+        {
+            if (_pos == _len)
+            {
+                if (_end || _left <= 0 || buffer.Length == 0) return 0;
+                int want = (int)Math.Min(_chunk.Length, _left);
+                run.BeforeRequest();
+                using var both = CancellationTokenSource.CreateLinkedTokenSource(ct, run.Cancellation);
+                int got = await client.ReadRangeAsync(bucket, key, _next, _chunk.AsMemory(0, want), both.Token).ConfigureAwait(false);
+                if (got < want) _end = true; // the object is shorter than listed
+                _next += got;
+                _left -= got;
+                _pos = 0;
+                _len = got;
+                if (got == 0) return 0;
+            }
+            int n = Math.Min(buffer.Length, _len - _pos);
+            _chunk.AsMemory(_pos, n).CopyTo(buffer);
+            _pos += n;
+            return n;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct) =>
+            ReadAsync(buffer.AsMemory(offset, count), ct).AsTask();
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    /// <summary>All objects below a folder in one flat listing (1 request per 1000 objects), with their ETags.</summary>
+    public IEnumerable<DeepFile> ListFiles(string folder, ListOptions options) => Resolve(folder).Deep(folder, options);
+
+    private IEnumerable<DeepFile> Deep(string folder, ListOptions options)
+    {
+        var (bucket, prefix) = SplitChecked(folder);
+        var root = S3Path.Normalize(folder);
+        string? token = null;
+        do
+        {
+            var page = Fetch(bucket, prefix, null, token, options);
+            if (page == null) yield break;
+            foreach (var o in page.Objects)
+            {
+                if (!o.Key.StartsWith(prefix, StringComparison.Ordinal)) continue;
+                var rel = o.Key[prefix.Length..];
+                if ((rel.Length == 0 || rel.EndsWith('/')) && o.Size == 0) continue; // folder marker (one with content is a file "(leer)")
+                yield return new DeepFile(root + "/" + string.Join('/', rel.Split('/').Select(S3Path.Encode)), o.Size, o.ETag);
+            }
+            token = page.NextToken;
+        } while (token != null);
+    }
 
     // ------------------------------------------------------------------ listing
 
