@@ -48,7 +48,7 @@ public partial class DupEstimateDialog : Window
 
     public static string ListedText(DupCandidates c, bool costs) =>
         $"Aufgelistet: {c.FilesListed:N0} Dateien" +
-        (costs ? $" ({c.ListRequests:N0} LIST-Anfragen)" : "") +
+        (costs ? $" ({c.ListRequests:N0} LIST-Anfrage{(c.ListRequests == 1 ? "" : "n")})" : "") +
         (c.Errors > 0 ? $", {c.Errors:N0} Ordner nicht lesbar" : "") + ".\n" +
         $"Kandidaten: {c.Files:N0} Dateien mit zusammen {SizeFormat.Format(c.SameSize.Sum(g => g.Sum(f => f.Size)))}.";
 

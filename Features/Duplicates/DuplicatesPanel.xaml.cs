@@ -63,7 +63,16 @@ public partial class DuplicatesPanel : UserControl
     public bool IsRunning => _cts != null;
 
     /// <summary>Stops a running search (Esc): ends running downloads as well.</summary>
-    public void Cancel() => _cts?.Cancel();
+    public void Cancel() => CancelRun();
+
+    /// <summary>
+    /// Cancels without waiting for the callbacks (closing a connection that hangs must not freeze the window); the
+    /// search itself ends at once.
+    /// </summary>
+    private void CancelRun()
+    {
+        if (_cts is { IsCancellationRequested: false } cts) _ = cts.CancelAsync();
+    }
 
     /// <summary>The shown results come from a remote source: no file actions.</summary>
     private bool ShowsRemote => _shownSource != null && _shownSource.Id != DiskProvider.ProviderId;
@@ -93,7 +102,7 @@ public partial class DuplicatesPanel : UserControl
     /// <summary>The host switched to another scan: stop a running search and drop the groups of the old folder.</summary>
     public void Reset()
     {
-        _cts?.Cancel();
+        CancelRun();
         _groups.Clear();
         _shownSource = null;
         InfoText.Text = "";
@@ -147,7 +156,7 @@ public partial class DuplicatesPanel : UserControl
 
     private async void Run_Click(object sender, RoutedEventArgs e)
     {
-        if (_cts != null) { _cts.Cancel(); return; }
+        if (_cts != null) { CancelRun(); return; }
 
         var source = Source;
         if (source.Id != DiskProvider.ProviderId)
@@ -348,7 +357,7 @@ public partial class DuplicatesPanel : UserControl
             "Ja = weiter · Nein = Suche abbrechen\n\nDie Schwelle lässt sich unter „Quellen …“ ändern.",
             MessageBoxImage.Warning);
         if (more) run.Resume(run.Requests + Math.Max(1, threshold));
-        else _cts?.Cancel();
+        else CancelRun();
     }
 
     /// <summary>The download limit of the run is reached: download more (the limit grows by its amount again) or stop downloading.</summary>

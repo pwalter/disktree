@@ -70,6 +70,6 @@ public class DupViewTests : TestBase
 
         var listed = DupEstimateDialog.ListedText(c, costs: true);
         Assert.Contains("3 Dateien", listed);
-        Assert.Contains("LIST-Anfragen", listed);
+        Assert.Contains("(1 LIST-Anfrage)", listed);
     }
 }

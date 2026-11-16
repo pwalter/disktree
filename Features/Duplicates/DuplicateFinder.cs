@@ -597,7 +597,10 @@ public sealed class DuplicateFinder
             while (count > 0)
             {
                 ct.ThrowIfCancellationRequested();
-                var read = s.ReadAsync(buf.AsMemory(0, (int)Math.Min(buf.Length, count)), ct).AsTask();
+                // The token is not handed to the stream: some clients run blocking work in their cancel callback (SSH.NET
+                // on a dead connection), which would hold up whoever cancels (the UI). The source ends its requests through
+                // the run's token / CancelWith; here the wait ends at once.
+                var read = s.ReadAsync(buf.AsMemory(0, (int)Math.Min(buf.Length, count)), CancellationToken.None).AsTask();
                 int n;
                 try
                 {
