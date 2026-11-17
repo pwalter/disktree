@@ -437,7 +437,7 @@ public sealed class S3FileOpsTests : IDisposable
         Assert.True(plan.Cost.Copy >= 2501);
         Assert.True(plan.Cost.Head >= 2 * 2501);
         var text = plan.Describe();
-        Assert.Contains("ca. 2.501", text);
+        Assert.Contains($"ca. {2501:N0}", text); // the text uses the current culture (CI runs in en-US)
         Assert.Contains("COPY (zählt wie PUT)", text);
         Assert.Contains("Nicht atomar", text);
         Assert.Contains("teils am alten, teils am neuen Ort", text);
