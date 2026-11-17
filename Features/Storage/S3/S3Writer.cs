@@ -345,6 +345,13 @@ public sealed class S3Writer : IStorageWriter, ICopyingWriter, IBatchDeleter, IP
         return null;
     }
 
+    private static bool SameMetadata(IReadOnlyDictionary<string, string>? a, IReadOnlyDictionary<string, string>? b)
+    {
+        if (a is not { Count: > 0 }) return true; // nothing to keep
+        if (b == null || b.Count != a.Count) return false;
+        return a.All(kv => b.TryGetValue(kv.Key, out var v) && v == kv.Value);
+    }
+
     private static bool Plain(S3ObjectHead h) => h.Encryption is null || h.Encryption.Equals("AES256", StringComparison.OrdinalIgnoreCase);
 
     private static string ClassOf(string? storageClass) => string.IsNullOrEmpty(storageClass) ? "STANDARD" : storageClass.ToUpperInvariant();
@@ -381,6 +388,23 @@ public sealed class S3Writer : IStorageWriter, ICopyingWriter, IBatchDeleter, IP
             wrong = $"Verschlüsselung {copy.Encryption ?? "keine"} statt {head.Encryption}";
         else if (head.KmsKeyId != null && copy.KmsKeyId != null && !string.Equals(copy.KmsKeyId, head.KmsKeyId, StringComparison.Ordinal))
             wrong = "anderer KMS-Schlüssel";
+        else if (head.ContentType != null && !string.Equals(copy.ContentType, head.ContentType, StringComparison.OrdinalIgnoreCase))
+            wrong = $"Content-Type {copy.ContentType ?? "keiner"} statt {head.ContentType}";
+        else if (!SameMetadata(head.Metadata, copy.Metadata))
+            wrong = "Metadaten fehlen oder weichen ab";
+        else if (head.TagCount > 0 && copy.TagCount != head.TagCount)
+        {
+            // Some S3-compatible servers ignore TaggingDirective COPY: the tags are carried over by hand (2 requests).
+            try
+            {
+                var tags = Finish(t => client.GetTagsAsync(bucket, key, t));
+                Finish(async t => { await client.PutTagsAsync(bucket, targetKey, tags, t).ConfigureAwait(false); return true; });
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                wrong = "Tags ließen sich nicht übernehmen: " + ex.Message;
+            }
+        }
         if (wrong != null)
         {
             string removed = "";

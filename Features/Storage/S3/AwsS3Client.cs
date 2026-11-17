@@ -161,6 +161,11 @@ internal sealed class AwsS3Client : IS3Client, IDisposable
                 BucketKey = r.BucketKeyEnabled == true,
                 Restored = r.RestoreInProgress == false && r.RestoreExpiration != null,
                 ArchiveStatus = string.IsNullOrEmpty(archive) ? null : archive,
+                ContentType = string.IsNullOrEmpty(r.Headers?.ContentType) ? null : r.Headers.ContentType,
+                Metadata = r.Metadata?.Keys.ToDictionary(
+                    k => (k.StartsWith("x-amz-meta-", StringComparison.OrdinalIgnoreCase) ? k[11..] : k).ToLowerInvariant(),
+                    k => r.Metadata[k] ?? "", StringComparer.Ordinal),
+                TagCount = r.TagsCount ?? 0,
             };
         }
         catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.BadRequest && !ct.IsCancellationRequested
@@ -255,6 +260,36 @@ internal sealed class AwsS3Client : IS3Client, IDisposable
 
         static IReadOnlyList<S3DeleteError> Errors(DeleteObjectsResponse resp) =>
             resp.DeleteErrors?.Select(e => new S3DeleteError(e.Key, e.Code ?? "", e.Message ?? "")).ToList() ?? [];
+    }
+
+    public async Task<IReadOnlyList<KeyValuePair<string, string>>> GetTagsAsync(string bucket, string key, CancellationToken ct)
+    {
+        try
+        {
+            var r = await _client.GetObjectTaggingAsync(new GetObjectTaggingRequest { BucketName = bucket, Key = key }, ct).ConfigureAwait(false);
+            return r.Tagging?.Select(t => new KeyValuePair<string, string>(t.Key, t.Value ?? "")).ToList() ?? [];
+        }
+        catch (Exception ex) when (S3Errors.Translate(ex, ct, bucket) is { } mapped)
+        {
+            throw mapped;
+        }
+    }
+
+    public async Task PutTagsAsync(string bucket, string key, IReadOnlyList<KeyValuePair<string, string>> tags, CancellationToken ct)
+    {
+        try
+        {
+            await _client.PutObjectTaggingAsync(new PutObjectTaggingRequest
+            {
+                BucketName = bucket,
+                Key = key,
+                Tagging = new Tagging { TagSet = tags.Select(t => new Tag { Key = t.Key, Value = t.Value }).ToList() },
+            }, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (S3Errors.Translate(ex, ct, bucket) is { } mapped)
+        {
+            throw mapped;
+        }
     }
 
     public async Task<S3Versioning> GetVersioningAsync(string bucket, CancellationToken ct)

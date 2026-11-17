@@ -169,7 +169,37 @@ public sealed class MemoryS3Client : IS3Client
             BucketKey = x?.BucketKey ?? false,
             Restored = x?.Restored ?? false,
             ArchiveStatus = x?.ArchiveStatus,
+            ContentType = x?.ContentType,
+            Metadata = x?.Metadata is { Count: > 0 } m ? new Dictionary<string, string>(m, StringComparer.Ordinal) : null,
+            TagCount = x?.Tags.Count ?? 0,
         };
+    }
+
+    /// <summary>Copies lose their tags (a server that ignores TaggingDirective COPY), or their metadata.</summary>
+    public bool DropTags { get; set; }
+    public bool DropMetadata { get; set; }
+
+    /// <summary>PutObjectTagging fails (no permission).</summary>
+    public bool DenyPutTags { get; set; }
+
+    public async Task<IReadOnlyList<KeyValuePair<string, string>>> GetTagsAsync(string bucket, string key, CancellationToken ct)
+    {
+        Interlocked.Increment(ref _requests);
+        await Task.Yield();
+        if (!Has(bucket, key)) throw new FileNotFoundException("Das Objekt gibt es nicht (mehr).");
+        return ExtraOf(bucket, key).Tags.ToList();
+    }
+
+    public async Task PutTagsAsync(string bucket, string key, IReadOnlyList<KeyValuePair<string, string>> tags, CancellationToken ct)
+    {
+        Interlocked.Increment(ref _requests);
+        await Task.Yield();
+        if (DenyPutTags) throw new UnauthorizedAccessException($"Zugriff verweigert auf „{bucket}“ (AccessDenied).");
+        if (!Has(bucket, key)) throw new FileNotFoundException("Das Objekt gibt es nicht (mehr).");
+        var x = ExtraOf(bucket, key);
+        x.Tags = tags.ToDictionary(t => t.Key, t => t.Value, StringComparer.Ordinal);
+        _extra[(bucket, key)] = x;
+        lock (Ops) Ops.Add("tags " + key);
     }
 
     public async Task<int> ReadRangeAsync(string bucket, string key, long offset, Memory<byte> buffer, CancellationToken ct)
@@ -214,6 +244,8 @@ public sealed class MemoryS3Client : IS3Client
         copy.KmsKeyId = r.Encryption is "aws:kms" or "aws:kms:dsse" ? r.KmsKeyId ?? "aws/s3" : null;
         copy.BucketKey = r.BucketKey;
         copy.Restored = false;
+        if (DropTags) copy.Tags.Clear();
+        if (DropMetadata) copy.Metadata.Clear();
         long size = BreakCopy.Contains(r.SourceKey) ? Math.Max(0, o.Size - 1) : o.Size;
         string? etag = r.Encryption is "aws:kms" or "aws:kms:dsse" ? "\"" + Guid.NewGuid().ToString("N") + "\"" : o.ETag;
         if (_content.TryGetValue((r.Bucket, r.SourceKey), out var c))

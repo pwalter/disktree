@@ -26,6 +26,15 @@ public sealed record S3ObjectHead(long Size, string? ETag, string? Encryption, b
 
     /// <summary>Intelligent-Tiering archive tier ("ARCHIVE_ACCESS", "DEEP_ARCHIVE_ACCESS"): needs a restore first; null = readable.</summary>
     public string? ArchiveStatus { get; init; }
+
+    /// <summary>Content-Type (null = none sent).</summary>
+    public string? ContentType { get; init; }
+
+    /// <summary>User metadata (x-amz-meta-*), names in lower case without the prefix.</summary>
+    public IReadOnlyDictionary<string, string>? Metadata { get; init; }
+
+    /// <summary>Number of tags (x-amz-tagging-count; 0 = none or not reported).</summary>
+    public int TagCount { get; init; }
 }
 
 /// <summary>
@@ -83,6 +92,12 @@ public interface IS3Client
     /// delete markers are written (no version id is sent). A missing key counts as deleted.
     /// </summary>
     Task<IReadOnlyList<S3DeleteError>> DeleteManyAsync(string bucket, IReadOnlyList<string> keys, CancellationToken ct);
+
+    /// <summary>GetObjectTagging: the tags of an object.</summary>
+    Task<IReadOnlyList<KeyValuePair<string, string>>> GetTagsAsync(string bucket, string key, CancellationToken ct);
+
+    /// <summary>PutObjectTagging: replaces the tags of an object (repairs a copy of a server that ignores TaggingDirective COPY).</summary>
+    Task PutTagsAsync(string bucket, string key, IReadOnlyList<KeyValuePair<string, string>> tags, CancellationToken ct);
 
     /// <summary>GetBucketVersioning.</summary>
     Task<S3Versioning> GetVersioningAsync(string bucket, CancellationToken ct);

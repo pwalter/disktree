@@ -316,6 +316,37 @@ public sealed class S3FileOpsTests : IDisposable
     }
 
     [Fact]
+    public void Tags_a_server_drops_on_copy_are_carried_over_by_hand_lost_metadata_is_a_wrong_copy()
+    {
+        Sample();
+        _server.With("bk", "a/y.txt", x => { x.Tags["projekt"] = "dt"; x.Tags["team"] = "ops"; });
+        _server.DropTags = true;
+        var res = RemoteFileOperations.Move(Writer(), S3PathOps.Instance, [Item("s3://bk/a/y.txt", false, 50)], "s3://bk/b",
+            ConflictPolicy.Skip, null, CancellationToken.None);
+        Assert.Single(res.Done);
+        Assert.Contains("tags b/y.txt", _server.Ops);
+        Assert.Equal("ops", _server.ExtraOf("bk", "b/y.txt").Tags["team"]);
+
+        // Tags that cannot be written: the copy goes again, the original stays.
+        _server.With("bk", "a/x.bin", x => x.Tags["projekt"] = "dt");
+        _server.DenyPutTags = true;
+        res = RemoteFileOperations.Move(Writer(), S3PathOps.Instance, [Item("s3://bk/a/x.bin", false, 2_000_000)], "s3://bk/b",
+            ConflictPolicy.Skip, null, CancellationToken.None);
+        Assert.Contains("Tags ließen sich nicht übernehmen", res.Failed.Single().Error);
+        Assert.True(_server.Has("bk", "a/x.bin"));
+        Assert.False(_server.Has("bk", "b/x.bin"));
+
+        // Metadata lost on the way: a wrong copy.
+        _server.With("bk", "readme.txt", x => x.Metadata["herkunft"] = "scan");
+        _server.DropMetadata = true;
+        res = RemoteFileOperations.Move(Writer(), S3PathOps.Instance, [Item("s3://bk/readme.txt", false, 10)], "s3://bk/b",
+            ConflictPolicy.Skip, null, CancellationToken.None);
+        Assert.Contains("Metadaten", res.Failed.Single().Error);
+        Assert.True(_server.Has("bk", "readme.txt"));
+        Assert.False(_server.Has("bk", "b/readme.txt"));
+    }
+
+    [Fact]
     public void An_original_that_cannot_be_deleted_gets_its_copy_removed()
     {
         Sample();
