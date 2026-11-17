@@ -43,18 +43,32 @@ public sealed class AppSettings
     /// </summary>
     public static AppSettings LoadFrom(string file)
     {
-        string text;
-        try { text = File.ReadAllText(file); }
-        catch { return new AppSettings(); } // missing or unreadable: nothing to rescue
+        if (TryRead(file, out var settings, out var text)) return settings;
+        if (!string.IsNullOrWhiteSpace(text)) BackUpDamaged(file, text);
+        // Missing, empty or damaged: the version before the last save (see SaveTo) still has the sources and the rest.
+        return TryRead(PreviousOf(file), out var previous, out _) ? previous : new AppSettings();
+    }
 
+    /// <summary>The copy of the settings before the last save ("settings.json.prev").</summary>
+    public static string PreviousOf(string file) => file + ".prev";
+
+    /// <summary>Reads and parses a settings file; false if it is missing, unreadable, empty or damaged (<paramref name="text"/> then holds what was read).</summary>
+    private static bool TryRead(string file, out AppSettings settings, out string? text)
+    {
+        settings = new AppSettings();
+        text = null;
+        try { text = File.ReadAllText(file); }
+        catch { return false; } // missing or unreadable
+
+        if (string.IsNullOrWhiteSpace(text)) return false;
         try
         {
-            return JsonSerializer.Deserialize<AppSettings>(text) ?? new AppSettings();
+            settings = JsonSerializer.Deserialize<AppSettings>(text) ?? new AppSettings();
+            return true;
         }
         catch
         {
-            if (!string.IsNullOrWhiteSpace(text)) BackUpDamaged(file, text);
-            return new AppSettings();
+            return false;
         }
     }
 
@@ -78,16 +92,49 @@ public sealed class AppSettings
         }
     }
 
-    public void Save()
+    public void Save() => SaveTo(FilePath);
+
+    /// <summary>
+    /// Writes the settings so that a crash or power cut at any moment leaves a readable file: first a complete
+    /// "settings.json.tmp" (flushed to the disk), then it replaces settings.json in one step; the version before goes to
+    /// "settings.json.prev", which <see cref="LoadFrom"/> falls back to. Errors are swallowed (nothing to remember is harmless).
+    /// </summary>
+    public bool SaveTo(string file)
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            var tmp = file + ".tmp";
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(this, new JsonSerializerOptions { WriteIndented = true });
+            using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                fs.Write(bytes);
+                fs.Flush(flushToDisk: true);
+            }
+
+            if (!File.Exists(file))
+            {
+                File.Move(tmp, file);
+                return true;
+            }
+            // Keep the old version only if it is readable: a damaged file must not overwrite the last good copy.
+            bool keepOld = TryRead(file, out _, out _);
+            try
+            {
+                if (keepOld) File.Replace(tmp, file, PreviousOf(file), ignoreMetadataErrors: true);
+                else File.Move(tmp, file, overwrite: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+            {
+                // File.Replace is not offered everywhere (some network shares, FAT sticks in portable mode): copy, then move.
+                if (keepOld) File.Copy(file, PreviousOf(file), overwrite: true);
+                File.Move(tmp, file, overwrite: true);
+            }
+            return true;
         }
         catch
         {
-            // Not being able to remember the settings is harmless.
+            return false;
         }
     }
 }

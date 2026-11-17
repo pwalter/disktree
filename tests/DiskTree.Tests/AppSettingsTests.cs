@@ -64,6 +64,65 @@ public class AppSettingsTests : TestBase
     }
 
     [Fact]
+    public void Save_Writes_ThroughTmp_AndKeepsThePreviousVersion()
+    {
+        var s = new AppSettings { Threads = 4 };
+        s.Sources.Add(new DiskTree.Core.Storage.SourceProfile { Kind = "s3", Name = "Archiv", Path = "s3://archiv" });
+        Assert.True(s.SaveTo(File_));
+        Assert.False(File.Exists(File_ + ".tmp"));
+        Assert.False(File.Exists(AppSettings.PreviousOf(File_)));
+
+        s.Threads = 8;
+        Assert.True(s.SaveTo(File_));
+        Assert.Equal(8, AppSettings.LoadFrom(File_).Threads);
+        Assert.Equal(4, AppSettings.LoadFrom(AppSettings.PreviousOf(File_)).Threads);
+        Assert.False(File.Exists(File_ + ".tmp"));
+    }
+
+    [Theory]
+    [InlineData("")]                   // a crash of the old, direct write left an empty file
+    [InlineData("{\"Threads\": 8, ")]  // ... or half of it
+    [InlineData(null)]                 // ... or none
+    public void Broken_Or_Missing_File_FallsBack_ToThePreviousVersion_WithItsSources(string? content)
+    {
+        var s = new AppSettings { Threads = 4 };
+        s.Sources.Add(new DiskTree.Core.Storage.SourceProfile { Kind = "sftp", Name = "NAS", Path = "sftp://nas/daten" });
+        s.SaveTo(File_);
+        s.SaveTo(File_); // now settings.json.prev exists too
+        if (content == null) File.Delete(File_); else File.WriteAllText(File_, content);
+
+        var loaded = AppSettings.LoadFrom(File_);
+
+        Assert.Equal(4, loaded.Threads);
+        Assert.Equal("NAS", Assert.Single(loaded.Sources).Name);
+    }
+
+    [Fact]
+    public void A_Damaged_File_DoesNotReplace_TheLastGoodCopy()
+    {
+        new AppSettings { Threads = 4 }.SaveTo(File_);
+        new AppSettings { Threads = 5 }.SaveTo(File_);   // .prev = 4
+        File.WriteAllText(File_, "kaputt");
+
+        new AppSettings { Threads = 6 }.SaveTo(File_);
+
+        Assert.Equal(6, AppSettings.LoadFrom(File_).Threads);
+        Assert.Equal(4, AppSettings.LoadFrom(AppSettings.PreviousOf(File_)).Threads);
+    }
+
+    [Fact]
+    public void A_Leftover_Tmp_From_A_Crash_IsIgnored_AndOverwritten()
+    {
+        new AppSettings { Threads = 4 }.SaveTo(File_);
+        File.WriteAllText(File_ + ".tmp", "{\"Threads\": 9, ");
+
+        Assert.Equal(4, AppSettings.LoadFrom(File_).Threads);
+        new AppSettings { Threads = 5 }.SaveTo(File_);
+        Assert.Equal(5, AppSettings.LoadFrom(File_).Threads);
+        Assert.False(File.Exists(File_ + ".tmp"));
+    }
+
+    [Fact]
     public void EmptyFile_GivesDefaults_WithoutBackup()
     {
         File.WriteAllText(File_, "");

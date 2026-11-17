@@ -45,7 +45,9 @@ public static class Portable
             ForcedByFlag = false;
             if (HasMarker) File.Delete(MarkerPath);
             current.Save();                       // now lands in %AppData%
-            try { File.Delete(SettingsIn(ExeDir)); } catch { /* leftover copy is harmless */ }
+            var portable = SettingsIn(ExeDir);
+            foreach (var f in new[] { portable, AppSettings.PreviousOf(portable), portable + ".tmp" })
+                try { File.Delete(f); } catch { /* leftover copy is harmless */ }
         }
     }
 }
