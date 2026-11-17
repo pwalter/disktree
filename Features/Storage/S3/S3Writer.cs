@@ -656,6 +656,8 @@ public sealed class S3Writer : IStorageWriter, ICopyingWriter, IBatchDeleter, IP
         "das Änderungsdatum wird neu gesetzt.\n" +
         "Nicht kopierbar (Fehler je Objekt, das Original bleibt): Objekte über 5 GB, archivierte Objekte (GLACIER, DEEP_ARCHIVE) " +
         "ohne Wiederherstellung, Objekte mit eigenem Schlüssel (SSE-C).\n" +
+        "Ist die Versionierung des Buckets aktiv, bleiben die Originale als ältere Versionen erhalten und belegen weiter " +
+        "Speicher (bis eine Lifecycle-Regel sie entfernt); DiskTree löscht keine Versionen.\n" +
         "Verschoben wird nur innerhalb desselben Buckets. DELETE-Anfragen berechnet AWS nicht; andere Anbieter ggf. schon.";
 
     public DeleteNote DescribeDelete(IReadOnlyCollection<string> paths, CancellationToken ct)
