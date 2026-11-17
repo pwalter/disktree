@@ -236,6 +236,9 @@ public static class RemoteFileOperations
     /// <summary>The top of the source cannot be changed.</summary>
     public static bool IsRoot(OpItem i) => i.Parent == null;
 
+    /// <summary>From this many items in one folder, a source with <see cref="IFolderStat"/> lists the folder instead of looking each one up.</summary>
+    public const int FolderStatFrom = 3;
+
     /// <summary>
     /// Looks every item up on the source right before an action: what is gone is skipped, the rest gets its real kind and,
     /// for files, its age bucket (<paramref name="ages"/>). Returns the items that exist.
@@ -244,11 +247,32 @@ public static class RemoteFileOperations
         OpResult res, IDictionary<string, long>? modifiedTicks, CancellationToken ct)
     {
         var list = new List<OpItem>();
+        // Many items in one folder of a source that lists cheaper than it looks up one by one (S3): one listing instead.
+        var listed = new Dictionary<string, Dictionary<(string, bool), StorageItemInfo>>(StringComparer.Ordinal);
+        if (writer is IFolderStat folderStat)
+        {
+            foreach (var g in items.Where(i => i.Parent != null).GroupBy(i => i.Parent!, StringComparer.Ordinal).Where(g => g.Count() >= FolderStatFrom))
+            {
+                ct.ThrowIfCancellationRequested();
+                try
+                {
+                    var entries = new Dictionary<(string, bool), StorageItemInfo>();
+                    foreach (var (name, info) in folderStat.StatAll(g.Key, ct)) entries[(name, info.IsDirectory)] = info;
+                    listed[g.Key] = entries;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* one by one below */ }
+            }
+        }
         foreach (var i in items)
         {
             ct.ThrowIfCancellationRequested();
             StorageItemInfo? info;
-            try { info = writer.Stat(i.Path, ct); }
+            try
+            {
+                if (i.Parent != null && listed.TryGetValue(i.Parent, out var entries))
+                    info = entries.TryGetValue((i.Name, i.IsDir), out var e) ? e : null;
+                else info = writer is IKindAwareWriter kind ? kind.Stat(i.Path, i.IsDir, ct) : writer.Stat(i.Path, ct);
+            }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 res.Failed.Add((i.Path, ex.Message));
@@ -478,7 +502,9 @@ public static class RemoteFileOperations
             if (p.Problem != null) { res.Failed.Add((p.Item.Path, p.Problem)); continue; }
             try
             {
-                var newPath = writer.Rename(p.Item.Path, p.NewName, ct);
+                var newPath = writer is IKindAwareWriter kind && p.Item.Parent is { } parent
+                    ? kind.Move(p.Item.Path, p.Item.IsDir, parent, p.NewName, replace: false, ct)
+                    : writer.Rename(p.Item.Path, p.NewName, ct);
                 res.Done.Add(p.Item);
                 res.NewPaths[p.Item.Path] = newPath;
                 TakeStamp(writer, res, newPath);
@@ -526,7 +552,7 @@ public static class RemoteFileOperations
         HashSet<string> taken;
         try
         {
-            if (writer.Stat(destDir, ct) is not { IsDirectory: true })
+            if (StatFolder(writer, destDir, ct) is not { IsDirectory: true })
             {
                 res.Failed.Add((destDir, "Zielordner nicht vorhanden."));
                 return res;
@@ -586,7 +612,9 @@ public static class RemoteFileOperations
                     }
                 }
 
-                var newPath = writer.Move(item.Path, destDir, name, replace, ct);
+                var newPath = writer is IKindAwareWriter kind
+                    ? kind.Move(item.Path, item.IsDir, destDir, name, replace, ct)
+                    : writer.Move(item.Path, destDir, name, replace, ct);
                 taken.Add(name);
                 res.Done.Add(item);
                 res.NewPaths[item.Path] = newPath;
@@ -656,13 +684,17 @@ public static class RemoteFileOperations
         return full;
     }
 
+    /// <summary>The folder at <paramref name="path"/> (on a source where a file may have the same name: the folder, not the file).</summary>
+    public static StorageItemInfo? StatFolder(IStorageWriter writer, string path, CancellationToken ct) =>
+        writer is IKindAwareWriter kind ? kind.Stat(path, true, ct) ?? kind.Stat(path, false, ct) : writer.Stat(path, ct);
+
     /// <summary>Creates a folder and the missing folders above it (like mkdir -p). Throws on errors.</summary>
     public static void CreateFolders(IStorageWriter writer, PathOps paths, string folder, CancellationToken ct)
     {
         var missing = new Stack<string>();
         for (var f = folder; f != null; f = paths.ParentOf(f))
         {
-            var info = writer.Stat(f, ct);
+            var info = StatFolder(writer, f, ct);
             if (info is { IsDirectory: true }) break;
             if (info != null) throw new IOException($"Es gibt schon eine Datei dieses Namens: {f}");
             missing.Push(f);

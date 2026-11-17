@@ -26,7 +26,7 @@ public sealed class S3CustomerKeyException(string message, Exception? inner = nu
 /// archive tiers) without a restore, SSE-C objects.
 /// </para>
 /// </summary>
-public sealed class S3Writer : IStorageWriter, ICopyingWriter, IBatchDeleter, IPrefixFolders
+public sealed class S3Writer : IStorageWriter, ICopyingWriter, IBatchDeleter, IPrefixFolders, IKindAwareWriter, IFolderStat
 {
     /// <summary>
     /// The limit of CopyObject. Bigger objects would need a multipart copy (UploadPartCopy), and with that metadata,
@@ -134,8 +134,29 @@ public sealed class S3Writer : IStorageWriter, ICopyingWriter, IBatchDeleter, IP
         catch (FileNotFoundException) { }
         catch (S3CustomerKeyException) { return new StorageItemInfo(false, false, 0); } // exists, attributes unreadable without its key
 
+        return StatFolder(client, bucket, prefix, ct);
+    }
+
+    private StorageItemInfo? StatFolder(IS3Client client, string bucket, string prefix, CancellationToken ct)
+    {
         var page = Send(t => client.ListAsync(bucket, prefix, "/", null, 1, t), ct);
         return page.Objects.Count > 0 || page.Prefixes.Count > 0 ? new StorageItemInfo(true, false, 0) : null;
+    }
+
+    /// <summary>The file "a" (one HEAD) or the folder "a/" (one LIST) – on S3 both can exist at the same time.</summary>
+    public StorageItemInfo? Stat(string path, bool isDir, CancellationToken ct)
+    {
+        var (bucket, prefix) = Split(path);
+        if (prefix.Length == 0) return isDir ? Stat(path, ct) : null;
+        var client = ClientFor(path);
+        if (isDir) return StatFolder(client, bucket, prefix, ct);
+        try
+        {
+            var head = Send(t => client.HeadAsync(bucket, prefix[..^1], t), ct);
+            return new StorageItemInfo(false, false, head.Size, head.ModifiedTicks);
+        }
+        catch (FileNotFoundException) { return null; }
+        catch (S3CustomerKeyException) { return new StorageItemInfo(false, false, 0); }
     }
 
     public DeleteOutcome Delete(string path, bool recursive, Action<DeleteOutcome>? progress, CancellationToken ct)
@@ -270,7 +291,14 @@ public sealed class S3Writer : IStorageWriter, ICopyingWriter, IBatchDeleter, IP
         return Move(path, parent, newName, replace: false, ct);
     }
 
-    public string Move(string path, string targetFolder, string? newName, bool replace, CancellationToken ct)
+    public string Move(string path, string targetFolder, string? newName, bool replace, CancellationToken ct) =>
+        Move(path, null, targetFolder, newName, replace, ct);
+
+    public string Move(string path, bool isDir, string targetFolder, string? newName, bool replace, CancellationToken ct) =>
+        Move(path, (bool?)isDir, targetFolder, newName, replace, ct);
+
+    /// <param name="isDir">The folder or the file of that name; null: the file if there is one, else the folder.</param>
+    private string Move(string path, bool? isDir, string targetFolder, string? newName, bool replace, CancellationToken ct)
     {
         var paths = S3PathOps.Instance;
         var (bucket, prefix) = Split(path);
@@ -284,14 +312,18 @@ public sealed class S3Writer : IStorageWriter, ICopyingWriter, IBatchDeleter, IP
         var target = S3Path.Normalize(paths.Join(S3Path.Normalize(targetFolder), name));
         var (_, targetPrefix) = Split(target);
         if (targetPrefix == prefix) throw new IOException("Quelle und Ziel sind gleich: " + target);
-        if (targetPrefix.StartsWith(prefix, StringComparison.Ordinal))
+        if (isDir != false && targetPrefix.StartsWith(prefix, StringComparison.Ordinal))
             throw new IOException("Ein Ordner kann nicht in sich selbst verschoben werden.");
 
         var client = ClientFor(path);
         S3ObjectHead? head = null;
-        try { head = Send(t => client.HeadAsync(bucket, prefix[..^1], t), ct); }
-        catch (FileNotFoundException) { }
-        catch (S3CustomerKeyException ex) { throw new IOException(ex.Message + " (" + path + ")", ex); }
+        if (isDir != true)
+        {
+            try { head = Send(t => client.HeadAsync(bucket, prefix[..^1], t), ct); }
+            catch (FileNotFoundException) when (isDir == null) { }
+            catch (FileNotFoundException) { throw new FileNotFoundException("Nicht gefunden: " + path); }
+            catch (S3CustomerKeyException ex) { throw new IOException(ex.Message + " (" + path + ")", ex); }
+        }
 
         if (head != null) MoveObject(client, bucket, path, prefix[..^1], head, target, targetPrefix[..^1], replace, ct);
         else MoveFolder(client, bucket, path, prefix, target, targetPrefix, ct);
@@ -517,11 +549,14 @@ public sealed class S3Writer : IStorageWriter, ICopyingWriter, IBatchDeleter, IP
         Send(t => client.PutEmptyAsync(bucket, prefix, t), ct); // the folder marker "prefix/", as the S3 console does it
     }
 
-    public IReadOnlyCollection<string> ListNames(string folder, CancellationToken ct)
+    public IReadOnlyCollection<string> ListNames(string folder, CancellationToken ct) =>
+        StatAll(folder, ct).Select(e => e.Name).ToHashSet(StringComparer.Ordinal);
+
+    public IReadOnlyList<(string Name, StorageItemInfo Info)> StatAll(string folder, CancellationToken ct)
     {
         var (bucket, prefix) = Split(folder);
         var client = ClientFor(folder);
-        var names = new HashSet<string>(StringComparer.Ordinal);
+        var entries = new List<(string, StorageItemInfo)>();
         string? token = null;
         do
         {
@@ -530,8 +565,9 @@ public sealed class S3Writer : IStorageWriter, ICopyingWriter, IBatchDeleter, IP
             foreach (var p in page.Prefixes)
             {
                 if (p.Length <= prefix.Length || !p.StartsWith(prefix, StringComparison.Ordinal)) continue;
-                var rel = p[prefix.Length..].TrimEnd('/');
-                if (!rel.Contains('/')) names.Add(S3Path.Encode(rel));
+                var rel = p[prefix.Length..];
+                if (rel.EndsWith('/')) rel = rel[..^1];
+                if (!rel.Contains('/')) entries.Add((S3Path.Encode(rel), new StorageItemInfo(true, false, 0)));
             }
             foreach (var o in page.Objects)
             {
@@ -543,11 +579,11 @@ public sealed class S3Writer : IStorageWriter, ICopyingWriter, IBatchDeleter, IP
                     if (o.Size == 0) continue; // the folder's marker
                     name = S3Path.EmptySegment;
                 }
-                names.Add(name);
+                entries.Add((name, new StorageItemInfo(false, false, o.Size, o.ModifiedTicks)));
             }
             token = page.NextToken;
         } while (token != null);
-        return names;
+        return entries;
     }
 
     // ------------------------------------------------------------------ IPrefixFolders
@@ -575,14 +611,19 @@ public sealed class S3Writer : IStorageWriter, ICopyingWriter, IBatchDeleter, IP
 
     private static long Pages(long objects) => (objects + DeleteBatch - 1) / DeleteBatch;
 
+    // Per file: HEAD of the original and of the target, COPY, HEAD of the copy, DELETE. Per folder: one LIST whether the
+    // target is free, one LIST per 1000 objects, per object HEAD + COPY + HEAD, one DeleteObjects per 1000 originals.
+    // Per action: the target folder and its names (2 LIST).
     public CopyCost EstimateCopy(long files, long folders, long folderObjects) => new(
-        List: folders * 2 + Pages(folderObjects) + (files + folders > 0 ? 1 : 0),
-        Head: files * 3 + folders + folderObjects * 2,
+        List: folders + Pages(folderObjects) + (files + folders > 0 ? 2 : 0),
+        Head: files * 3 + folderObjects * 2,
         Copy: files + folderObjects,
         Delete: files + Math.Max(folders, Pages(folderObjects)));
 
+    // A single file: HEAD + DELETE; several: one DeleteObjects per 1000. A folder: one LIST and one DeleteObjects per 1000
+    // objects. Then one LIST whether the folder above is gone.
     public long EstimateDelete(long files, long folders, long folderObjects) =>
-        (files == 1 && folders == 0 ? 2 : Pages(files)) + folders * 2 + Pages(folderObjects) * 2 + 1;
+        (files == 1 && folders == 0 ? 2 : Pages(files)) + 2 * Math.Max(folders, Pages(folderObjects)) + 1;
 
     public string CopyNotes =>
         "Beim Kopieren bleiben erhalten: Storage-Klasse, Content-Type und Metadaten, Tags, serverseitige Verschlüsselung " +

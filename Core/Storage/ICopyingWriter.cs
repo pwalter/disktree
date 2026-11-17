@@ -57,6 +57,29 @@ public interface ICopyingWriter
 /// <param name="Highlight">Shown in a box of its own (e.g. "Versionierung aktiv: …"), or null.</param>
 public sealed record DeleteNote(string? Text, string? Highlight = null);
 
+/// <summary>
+/// Optional for a source where a file and a folder can have the same name (S3: the key "a" and the prefix "a/"): the
+/// caller says which one it means, so a selected folder is never taken for the file of the same name or the other way round.
+/// </summary>
+public interface IKindAwareWriter
+{
+    /// <summary>Like <see cref="IStorageWriter.Stat"/>, for the file (<paramref name="isDir"/> false) or the folder of that name.</summary>
+    StorageItemInfo? Stat(string path, bool isDir, CancellationToken ct);
+
+    /// <summary>Like <see cref="IStorageWriter.Move"/> (and, with the parent as target, rename), for the file or the folder of that name.</summary>
+    string Move(string path, bool isDir, string targetFolder, string? newName, bool replace, CancellationToken ct);
+}
+
+/// <summary>
+/// Optional: what lies directly in a folder, with sizes and times, in few requests (S3: one LIST per 1000 entries
+/// instead of one HEAD per file). Used to look up many selected items of one folder before an action.
+/// </summary>
+public interface IFolderStat
+{
+    /// <summary>The entries directly in <paramref name="folder"/>: name and what is known about it (a name can be a file and a folder).</summary>
+    IReadOnlyList<(string Name, StorageItemInfo Info)> StatAll(string folder, CancellationToken ct);
+}
+
 /// <summary>Optional: deletes many single files in few requests (S3: DeleteObjects with up to 1000 keys).</summary>
 public interface IBatchDeleter
 {

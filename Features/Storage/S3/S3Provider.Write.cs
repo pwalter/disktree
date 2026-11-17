@@ -4,8 +4,15 @@ namespace DiskTree.Features.Storage.S3;
 
 // File actions: the provider is a writer of its own (each call counts in a run of its own) and hands out writers bound
 // to the run of one action (S3Writer), which the UI uses so the requests of the action are counted and can pause.
-public sealed partial class S3Provider : IStorageWriter, IRunBoundWriter, ICopyingWriter, IBatchDeleter, IPrefixFolders
+public sealed partial class S3Provider : IStorageWriter, IRunBoundWriter, ICopyingWriter, IBatchDeleter, IPrefixFolders, IKindAwareWriter, IFolderStat
 {
+    public IReadOnlyList<(string Name, StorageItemInfo Info)> StatAll(string folder, CancellationToken ct) => Once(ct).StatAll(folder, ct);
+
+    public StorageItemInfo? Stat(string path, bool isDir, CancellationToken ct) => Once(ct).Stat(path, isDir, ct);
+
+    public string Move(string path, bool isDir, string targetFolder, string? newName, bool replace, CancellationToken ct) =>
+        Once(ct).Move(path, isDir, targetFolder, newName, replace, ct);
+
     public IStorageWriter Bind(ListRun run, Action<long, long>? progress = null) => new S3Writer(this, run, progress);
 
     private S3Writer Once(CancellationToken ct) => new(this, new ListRun(ct), null);
