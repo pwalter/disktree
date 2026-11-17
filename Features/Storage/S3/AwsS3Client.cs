@@ -20,12 +20,17 @@ internal sealed class AwsS3Client : IS3Client, IDisposable
 {
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(30);
 
+    /// <summary>CopyObject of up to 5 GB runs on the server and may take minutes: its own client with a longer timeout.</summary>
+    private static readonly TimeSpan CopyTimeout = TimeSpan.FromMinutes(15);
+
     private readonly AmazonS3Client _client;
+    private readonly Lazy<AmazonS3Client> _copyClient;
     private readonly string _where;
 
-    private AwsS3Client(AmazonS3Client client, string where)
+    private AwsS3Client(AmazonS3Client client, Func<AmazonS3Client> copyClient, string where)
     {
         _client = client;
+        _copyClient = new Lazy<AmazonS3Client>(copyClient);
         _where = where;
     }
 
@@ -83,7 +88,26 @@ internal sealed class AwsS3Client : IS3Client, IDisposable
         }
 
         var client = credentials != null ? new AmazonS3Client(credentials, config) : new AmazonS3Client(config);
-        return new AwsS3Client(client, where);
+        var creds = credentials;
+        AmazonS3Client CopyClient()
+        {
+            var c = new AmazonS3Config
+            {
+                RequestChecksumCalculation = config.RequestChecksumCalculation,
+                ResponseChecksumValidation = config.ResponseChecksumValidation,
+                Timeout = CopyTimeout,
+                MaxErrorRetry = config.MaxErrorRetry,
+                ForcePathStyle = config.ForcePathStyle,
+            };
+            if (config.ServiceURL != null)
+            {
+                c.ServiceURL = config.ServiceURL;
+                c.AuthenticationRegion = config.AuthenticationRegion;
+            }
+            else c.RegionEndpoint = config.RegionEndpoint;
+            return creds != null ? new AmazonS3Client(creds, c) : new AmazonS3Client(c);
+        }
+        return new AwsS3Client(client, CopyClient, where);
     }
 
     private static string? FirstNonEmpty(params string?[] values) =>
@@ -125,9 +149,25 @@ internal sealed class AwsS3Client : IS3Client, IDisposable
             var r = await _client.GetObjectMetadataAsync(new GetObjectMetadataRequest { BucketName = bucket, Key = key }, ct)
                 .ConfigureAwait(false);
             var sse = r.ServerSideEncryptionMethod?.Value;
+            var cls = r.StorageClass?.Value;
+            var archive = r.ArchiveStatus?.Value;
             return new S3ObjectHead(r.ContentLength, r.ETag,
                 string.IsNullOrEmpty(sse) || sse.Equals("None", StringComparison.OrdinalIgnoreCase) ? null : sse,
-                r.ServerSideEncryptionCustomerMethod != null && r.ServerSideEncryptionCustomerMethod != ServerSideEncryptionCustomerMethod.None);
+                r.ServerSideEncryptionCustomerMethod != null && r.ServerSideEncryptionCustomerMethod != ServerSideEncryptionCustomerMethod.None)
+            {
+                ModifiedTicks = r.LastModified is { } m ? m.ToUniversalTime().Ticks : 0,
+                StorageClass = string.IsNullOrEmpty(cls) ? null : cls,
+                KmsKeyId = string.IsNullOrEmpty(r.ServerSideEncryptionKeyManagementServiceKeyId) ? null : r.ServerSideEncryptionKeyManagementServiceKeyId,
+                BucketKey = r.BucketKeyEnabled == true,
+                Restored = r.RestoreInProgress == false && r.RestoreExpiration != null,
+                ArchiveStatus = string.IsNullOrEmpty(archive) ? null : archive,
+            };
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.BadRequest && !ct.IsCancellationRequested
+                                           && (string.IsNullOrEmpty(ex.ErrorCode) || ex.ErrorCode == "BadRequest"))
+        {
+            // HEAD of an object encrypted with a key of the customer (SSE-C), sent without that key.
+            throw new S3CustomerKeyException(S3Errors.CustomerKeyText, ex);
         }
         catch (Exception ex) when (S3Errors.Translate(ex, ct, bucket) is { } mapped)
         {
@@ -161,6 +201,90 @@ internal sealed class AwsS3Client : IS3Client, IDisposable
         }
     }
 
+    public async Task CopyAsync(S3CopyRequest request, CancellationToken ct)
+    {
+        var r = new CopyObjectRequest
+        {
+            SourceBucket = request.Bucket,
+            SourceKey = request.SourceKey,
+            DestinationBucket = request.Bucket,
+            DestinationKey = request.TargetKey,
+            MetadataDirective = S3MetadataDirective.COPY,
+            TaggingDirective = TaggingDirective.COPY,
+        };
+        // Without these S3 would write STANDARD and the bucket's default encryption.
+        if (request.StorageClass != null) r.StorageClass = S3StorageClass.FindValue(request.StorageClass);
+        if (request.Encryption != null)
+        {
+            r.ServerSideEncryptionMethod = ServerSideEncryptionMethod.FindValue(request.Encryption);
+            if (request.KmsKeyId != null) r.ServerSideEncryptionKeyManagementServiceKeyId = request.KmsKeyId;
+            if (request.BucketKey) r.BucketKeyEnabled = true;
+        }
+        try
+        {
+            await _copyClient.Value.CopyObjectAsync(r, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (S3Errors.Translate(ex, ct, request.Bucket) is { } mapped)
+        {
+            throw mapped;
+        }
+    }
+
+    public async Task<IReadOnlyList<S3DeleteError>> DeleteManyAsync(string bucket, IReadOnlyList<string> keys, CancellationToken ct)
+    {
+        if (keys.Count == 0) return [];
+        var r = new DeleteObjectsRequest
+        {
+            BucketName = bucket,
+            Quiet = true,
+            Objects = keys.Select(k => new KeyVersion { Key = k }).ToList(),
+        };
+        try
+        {
+            var resp = await _client.DeleteObjectsAsync(r, ct).ConfigureAwait(false);
+            return Errors(resp);
+        }
+        catch (DeleteObjectsException ex) when (ex.Response != null)
+        {
+            return Errors(ex.Response); // some keys failed: the SDK throws, its response says which
+        }
+        catch (Exception ex) when (S3Errors.Translate(ex, ct, bucket) is { } mapped)
+        {
+            throw mapped;
+        }
+
+        static IReadOnlyList<S3DeleteError> Errors(DeleteObjectsResponse resp) =>
+            resp.DeleteErrors?.Select(e => new S3DeleteError(e.Key, e.Code ?? "", e.Message ?? "")).ToList() ?? [];
+    }
+
+    public async Task<S3Versioning> GetVersioningAsync(string bucket, CancellationToken ct)
+    {
+        try
+        {
+            var r = await _client.GetBucketVersioningAsync(new GetBucketVersioningRequest { BucketName = bucket }, ct).ConfigureAwait(false);
+            var status = r.VersioningConfig?.Status?.Value;
+            if (string.Equals(status, VersionStatus.Enabled.Value, StringComparison.OrdinalIgnoreCase)) return S3Versioning.Enabled;
+            if (string.Equals(status, VersionStatus.Suspended.Value, StringComparison.OrdinalIgnoreCase)) return S3Versioning.Suspended;
+            return S3Versioning.Off;
+        }
+        catch (Exception ex) when (S3Errors.Translate(ex, ct, bucket) is { } mapped)
+        {
+            throw mapped;
+        }
+    }
+
+    public async Task PutEmptyAsync(string bucket, string key, CancellationToken ct)
+    {
+        try
+        {
+            await _client.PutObjectAsync(new PutObjectRequest { BucketName = bucket, Key = key, ContentBody = "" }, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (S3Errors.Translate(ex, ct, bucket) is { } mapped)
+        {
+            throw mapped;
+        }
+    }
+
     public async Task<IReadOnlyList<string>> ListBucketsAsync(CancellationToken ct)
     {
         try
@@ -174,12 +298,21 @@ internal sealed class AwsS3Client : IS3Client, IDisposable
         }
     }
 
-    public void Dispose() => _client.Dispose();
+    public void Dispose()
+    {
+        _client.Dispose();
+        if (_copyClient.IsValueCreated) _copyClient.Value.Dispose();
+    }
 }
 
 /// <summary>Turns SDK / network errors into the exceptions the scanner counts as "nicht lesbar", with German messages.</summary>
 public static class S3Errors
 {
+    /// <summary>HEAD answered 400 without details: the object is encrypted with a key of the customer (SSE-C).</summary>
+    public const string CustomerKeyText =
+        "Das Objekt lässt sich ohne seinen Schlüssel nicht lesen (400): es ist vermutlich mit einem eigenen Schlüssel des Kunden " +
+        "verschlüsselt (SSE-C). Ohne diesen Schlüssel kann DiskTree es weder prüfen noch kopieren.";
+
     private static readonly HashSet<string> AuthCodes = new(StringComparer.OrdinalIgnoreCase)
     {
         "AccessDenied", "InvalidAccessKeyId", "SignatureDoesNotMatch", "ExpiredToken", "InvalidToken", "TokenRefreshRequired",
@@ -204,6 +337,12 @@ public static class S3Errors
                 var code = s.ErrorCode ?? "";
                 if (code.Equals("NoSuchBucket", StringComparison.OrdinalIgnoreCase))
                     return new DirectoryNotFoundException($"Den Bucket {b} gibt es nicht.", ex);
+                if (code.Equals("NoSuchKey", StringComparison.OrdinalIgnoreCase)
+                    || (s.StatusCode == HttpStatusCode.NotFound && (code.Length == 0 || code.Equals("NotFound", StringComparison.OrdinalIgnoreCase))))
+                    return new FileNotFoundException("Das Objekt gibt es nicht (mehr).", ex);
+                if (code.Equals("InvalidObjectState", StringComparison.OrdinalIgnoreCase))
+                    return new IOException("Das Objekt ist archiviert (Glacier/Deep Archive bzw. Archiv-Stufe): es muss erst " +
+                                           "wiederhergestellt werden, bevor es kopiert werden kann (InvalidObjectState).", ex);
                 if (AuthCodes.Contains(code) || s.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized)
                     return new UnauthorizedAccessException(AuthText(code, b), ex);
                 if (code.Equals("PermanentRedirect", StringComparison.OrdinalIgnoreCase) || s.StatusCode == HttpStatusCode.MovedPermanently)

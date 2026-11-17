@@ -68,6 +68,23 @@ public sealed class ListRun
         if (raise) LimitReached?.Invoke(this);
     }
 
+    /// <summary>
+    /// Counts a request that has to be sent even though the run was cancelled or is paused: the last step of a change
+    /// that must not stop half way (S3: deleting the originals of objects that were already copied, so nothing is left
+    /// twice). Does not wait and does not throw; reaching the limit pauses the run for the next <see cref="BeforeRequest"/>.
+    /// </summary>
+    public void CountRequest()
+    {
+        bool raise;
+        lock (_gate)
+        {
+            long n = Interlocked.Increment(ref _requests);
+            raise = RequestLimit > 0 && n == RequestLimit && _open.IsSet;
+            if (raise) _open.Reset();
+        }
+        if (raise) LimitReached?.Invoke(this);
+    }
+
     /// <summary>Carries on after the limit; the next pause comes at <paramref name="nextLimit"/> requests (0 = never).</summary>
     public void Resume(long nextLimit = 0)
     {

@@ -107,7 +107,9 @@ public sealed class S3ProviderTests : IDisposable
     public void Caps_and_threads()
     {
         var p = Unbound;
-        Assert.Equal(StorageCaps.CaseSensitive | StorageCaps.ParallelListing | StorageCaps.CostsPerRequest, p.Caps);
+        // Delete / Rename / Move since the S3 file actions; no Trash, ZIP, shell or owners.
+        Assert.Equal(StorageCaps.CaseSensitive | StorageCaps.ParallelListing | StorageCaps.CostsPerRequest
+                     | StorageCaps.Delete | StorageCaps.Rename | StorageCaps.Move, p.Caps);
         Assert.Equal(32, ((IStorageProvider)p).ScanThreads);
         Assert.False(p.TryGetCapacity("s3://bk", out _, out _));
         var root = p.ResolveRoot("s3://bk/a/");

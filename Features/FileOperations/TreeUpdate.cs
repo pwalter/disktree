@@ -35,7 +35,10 @@ public static class TreeUpdate
         }
     }
 
-    /// <summary>Renamed items: folders (and everything below) get the new path, files are counted out and in again (the type may change).</summary>
+    /// <summary>
+    /// Renamed items: folders (and everything below) get the new path, files are counted out and in again (the type may
+    /// change). Where the source gave the new entry a new change time (S3 copies), the age buckets follow.
+    /// </summary>
     public static void Renamed(Scanner scanner, OpResult res)
     {
         var paths = scanner.Paths;
@@ -45,13 +48,36 @@ public static class TreeUpdate
             var newName = paths.NameOf(newPath);
             if (item.IsDir)
             {
-                if (scanner.FindNode(item.Path) is { } node) TreeEditor.RenameFolder(node, newName, paths);
+                if (scanner.FindNode(item.Path) is { } node)
+                {
+                    TreeEditor.RenameFolder(node, newName, paths);
+                    if (res.NewTicks.TryGetValue(newPath, out var ticks) && ticks > 0) TreeEditor.RestampFolder(node, scanner.Ages.Of(ticks));
+                }
             }
             else if (item.Parent is { } parent && scanner.FindNode(parent) is { } dir)
             {
-                TreeEditor.RenameFile(dir, item.Name, newName, item.Size, item.AgeBucket);
+                TreeEditor.RemoveFile(dir, item.Name, item.Size, item.AgeBucket);
+                TreeEditor.AddFile(dir, newName, item.Size, NewBucket(scanner, res, newPath, item.AgeBucket));
             }
             scanner.RenameTop(item.Path, newPath);
+        }
+    }
+
+    /// <summary>The age bucket of a renamed / moved file: from its new change time if the source gave it one, else the old one.</summary>
+    private static int NewBucket(Scanner scanner, OpResult res, string newPath, int oldBucket) =>
+        oldBucket >= 0 && res.NewTicks.TryGetValue(newPath, out var ticks) && ticks > 0 ? scanner.Ages.Of(ticks) : oldBucket;
+
+    /// <summary>
+    /// Folders that are gone because nothing lies in them any more (S3 prefixes, <see cref="OpResult.Vanished"/>): they
+    /// leave the tree (not the top of the scan).
+    /// </summary>
+    public static void Vanished(Scanner scanner, IEnumerable<string> folders, Action<Node>? removeFolder = null)
+    {
+        foreach (var f in folders)
+        {
+            if (scanner.FindNode(f) is not { Parent: not null } node) continue;
+            (removeFolder ?? TreeEditor.RemoveFolder)(node);
+            scanner.RemoveTop(f);
         }
     }
 
@@ -78,7 +104,7 @@ public static class TreeUpdate
         foreach (var it in res.Done)
         {
             var newPath = res.NewPaths[it.Path];
-            TreeEditor.AddFile(node, paths.NameOf(newPath), it.Size, it.AgeBucket);
+            TreeEditor.AddFile(node, paths.NameOf(newPath), it.Size, NewBucket(scanner, res, newPath, it.AgeBucket));
         }
         return null;
     }

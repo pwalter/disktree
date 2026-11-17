@@ -24,7 +24,20 @@ public enum ConflictPolicy { Ask, Skip, Replace, Rename }
 public sealed class OpResult
 {
     /// <param name="comparer">How paths are compared (default: Windows, case-insensitive; SFTP: ordinal).</param>
-    public OpResult(StringComparer? comparer = null) => NewPaths = new(comparer ?? StringComparer.OrdinalIgnoreCase);
+    public OpResult(StringComparer? comparer = null)
+    {
+        NewPaths = new(comparer ?? StringComparer.OrdinalIgnoreCase);
+        NewTicks = new(comparer ?? StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// New path → change time (UTC ticks) of what a source that copies instead of renaming (S3) created; the age buckets
+    /// of those entries follow. Missing: the entry kept its time.
+    /// </summary>
+    public Dictionary<string, long> NewTicks { get; }
+
+    /// <summary>Folders that are gone after the action because nothing lies in them any more (S3 prefixes).</summary>
+    public List<string> Vanished { get; } = new();
 
     /// <summary>Items that are gone from their old place (moved, deleted, renamed) or fully handled (archived).</summary>
     public List<OpItem> Done { get; } = new();

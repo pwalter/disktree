@@ -119,6 +119,43 @@ public static class TreeEditor
         Repath(node, paths);
     }
 
+    /// <summary>
+    /// Every file below <paramref name="node"/> got a new time that falls into <paramref name="bucket"/> (S3 renames a
+    /// folder by copying its objects: the copies are new). The age sums of the subtree and of all parents follow;
+    /// sizes, counts and types stay.
+    /// </summary>
+    public static void RestampFolder(Node node, int bucket)
+    {
+        if (bucket < 0 || bucket >= AgeBuckets.Count) return;
+        AgeBuckets.RemoveSubtree(node);
+        long total = Restamp(node, bucket);
+        if (node.Parent != null && total != 0) AgeBuckets.AddSub(node.Parent, bucket, total);
+    }
+
+    private static long Restamp(Node n, int bucket)
+    {
+        long sum = 0;
+        if (n.OwnAges is { } own)
+        {
+            long size = 0, count = 0;
+            for (int b = 0; b < AgeBuckets.Count; b++)
+            {
+                size += own[b];
+                count += own[AgeBuckets.Count + b];
+            }
+            var r = new long[AgeBuckets.Count * 2];
+            r[bucket] = size;
+            r[AgeBuckets.Count + bucket] = count;
+            n.OwnAges = r;
+            sum = size;
+        }
+        foreach (var c in n.Snapshot()) sum += Restamp(c, bucket);
+        var sub = new long[AgeBuckets.Count];
+        sub[bucket] = sum;
+        n.AgeSub = sum == 0 && n.AgeSub == null ? null : sub;
+        return sum;
+    }
+
     private static void Repath(Node node, PathOps paths)
     {
         foreach (var c in node.Snapshot())
