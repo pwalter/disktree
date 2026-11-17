@@ -40,21 +40,16 @@
         </StackPanel>
 
         <StackPanel Grid.Row="1" Margin="4,10,4,0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="Speicher pro Besitzer" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <StackPanel x:Name="GroupingPanel" Grid.Column="1" Orientation="Horizontal" Visibility="Collapsed"
-                            ToolTip="Die Auswertung nach Benutzer (uid) oder nach Gruppe (gid) zeigen">
-                    <RadioButton x:Name="ByUserRadio" Content="Benutzer" IsChecked="True" Margin="0,0,10,0"
-                                 Foreground="{DynamicResource Ink}" Checked="Grouping_Changed"
-                                 AutomationProperties.Name="Nach Benutzer" />
-                    <RadioButton x:Name="ByGroupRadio" Content="Gruppe" Foreground="{DynamicResource Ink}" Checked="Grouping_Changed"
-                                 AutomationProperties.Name="Nach Gruppe" />
-                </StackPanel>
-            </Grid>
+            <TextBlock Text="Speicher pro Besitzer" FontWeight="SemiBold" />
+            <!-- Own line below the title: next to it the radio buttons covered the title in a narrow side panel. -->
+            <StackPanel x:Name="GroupingPanel" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,6,0,0" Visibility="Collapsed"
+                        ToolTip="Die Auswertung nach Benutzer (uid) oder nach Gruppe (gid) zeigen">
+                <RadioButton x:Name="ByUserRadio" Content="Benutzer" IsChecked="True" Margin="0,0,16,0"
+                             Foreground="{DynamicResource Ink}" Checked="Grouping_Changed"
+                             AutomationProperties.Name="Nach Benutzer" />
+                <RadioButton x:Name="ByGroupRadio" Content="Gruppe" Foreground="{DynamicResource Ink}" Checked="Grouping_Changed"
+                             AutomationProperties.Name="Nach Gruppe" />
+            </StackPanel>
             <CheckBox x:Name="SampleBox" IsChecked="True" Margin="0,6,0,0" Foreground="{DynamicResource Ink}"
                       Content="Stichprobe: nur Dateien ≥ 1 MB"
                       ToolTip="Überspringt kleine Dateien. Deutlich schneller, besonders auf Netzfreigaben." />
