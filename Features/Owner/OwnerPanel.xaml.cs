@@ -67,8 +67,10 @@ public partial class OwnerPanel : UserControl
         AclExpander.Header = source?.RightsTitle ?? "Rechte (ACL)";
         SampleBox.Visibility = source is { SamplingHelps: false } ? Visibility.Collapsed : Visibility.Visible;
         GroupingPanel.Visibility = source is { HasGroups: true } ? Visibility.Visible : Visibility.Collapsed;
+        bool costs = (provider.Caps & StorageCaps.CostsPerRequest) != 0;
         RunButton.ToolTip = source is { SamplingHelps: false }
-            ? "Listet alle Ordner unter dem markierten Ordner erneut (mit Besitzer und Gruppe jeder Datei) und summiert."
+            ? "Listet alle Ordner unter dem markierten Ordner erneut (mit " + (source.HasGroups ? "Besitzer und Gruppe" : "dem Besitzer") +
+              " jeder Datei) und summiert." + (costs ? " Kostet eine Anfrage je 1.000 Objekte." : "")
             : "Liest den Besitzer jeder Datei unter dem markierten Ordner. Kann auf Netzfreigaben dauern.";
         ShowOwnerAsync().Forget("ShowOwnerAsync");
     }

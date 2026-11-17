@@ -64,7 +64,8 @@ public class StorageFeaturesTests
         Assert.False(StorageFeatures.Has(s3, StorageFeature.LiveFileList));
         Assert.False(StorageFeatures.Has(s3, StorageFeature.FreeSpace));
         Assert.False(StorageFeatures.Has(s3, StorageFeature.Attributes));
-        Assert.Contains("S3", StorageFeatures.WhyNot(s3, StorageFeature.Owner));
+        Assert.Null(StorageFeatures.WhyNot(s3, StorageFeature.Owner)); // owners per object and bucket rights
+        Assert.Contains("S3", StorageFeatures.WhyNot(s3, StorageFeature.Zip));
     }
 
     [Fact]

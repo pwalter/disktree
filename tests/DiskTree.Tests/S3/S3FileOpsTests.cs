@@ -88,7 +88,7 @@ public sealed class S3FileOpsTests : IDisposable
         Assert.True(StorageFeatures.Has(p, StorageFeature.Delete)); // what DuplicatesPanel asks for the check boxes
         Assert.False(StorageFeatures.Has(p, StorageFeature.Trash));
         Assert.False(StorageFeatures.Has(p, StorageFeature.Zip));
-        Assert.False(StorageFeatures.Has(p, StorageFeature.Owner));
+        Assert.True(StorageFeatures.Has(p, StorageFeature.Owner)); // since the S3 owners
         Assert.IsAssignableFrom<IRunBoundWriter>(p);
         Assert.IsAssignableFrom<ICopyingWriter>(Writer());
     }

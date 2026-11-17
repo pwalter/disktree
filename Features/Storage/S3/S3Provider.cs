@@ -92,10 +92,11 @@ public sealed partial class S3Provider : IStorageProvider, IContentHashSource, I
     public string DisplayName => "S3";
 
     /// <summary>
-    /// Delete (DeleteObjects), rename and move (copy + delete, <see cref="S3Writer"/>); no recycle bin, ZIP, shell or owners.
+    /// Delete (DeleteObjects), rename and move (copy + delete, <see cref="S3Writer"/>), owners per object and bucket rights
+    /// (S3Provider.Owner.cs); no recycle bin, ZIP or shell.
     /// </summary>
     public StorageCaps Caps => StorageCaps.CaseSensitive | StorageCaps.ParallelListing | StorageCaps.CostsPerRequest
-                               | StorageCaps.Delete | StorageCaps.Rename | StorageCaps.Move;
+                               | StorageCaps.Delete | StorageCaps.Rename | StorageCaps.Move | StorageCaps.Owner;
 
     public PathOps Paths => S3PathOps.Instance;
 

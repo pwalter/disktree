@@ -312,6 +312,68 @@ public sealed class MemoryS3Client : IS3Client
         lock (Ops) Ops.Add("put " + key);
     }
 
+    // ------------------------------------------------------------------ owners and bucket rights
+
+    /// <summary>Owner of an object as ListWithOwners reports it (none set: no owner sent).</summary>
+    public Dictionary<(string Bucket, string Key), S3Owner> Owners { get; } = new();
+
+    /// <summary>GetBucketAcl per bucket (none set: owner "owner" with FULL_CONTROL).</summary>
+    public Dictionary<string, S3Acl> Acls { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, string> Ownership { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, S3PublicAccessBlock> Blocks { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, bool> PolicyPublic { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Bucket calls ("acl", "ownership", "block", "policy") that are refused (AccessDenied).</summary>
+    public HashSet<string> DenyBucketCalls { get; } = new(StringComparer.Ordinal);
+
+    public static readonly S3Owner DefaultOwner = new(new string('a', 64), "owner");
+
+    public MemoryS3Client Own(string bucket, string key, S3Owner owner)
+    {
+        Owners[(bucket, key)] = owner;
+        return this;
+    }
+
+    public async Task<S3ListPage> ListWithOwnersAsync(string bucket, string prefix, string? continuationToken, int maxKeys, CancellationToken ct)
+    {
+        var page = await ListAsync(bucket, prefix, null, continuationToken, maxKeys, ct);
+        return page with { Objects = page.Objects.Select(o => o with { Owner = Owners.GetValueOrDefault((bucket, o.Key)) }).ToList() };
+    }
+
+    private async Task BucketCall(string bucket, string call)
+    {
+        Interlocked.Increment(ref _requests);
+        await Task.Yield();
+        if (DenyBucketCalls.Contains(call)) throw new UnauthorizedAccessException($"Zugriff verweigert auf „{bucket}“ (AccessDenied).");
+        if (!_buckets.ContainsKey(bucket)) throw new DirectoryNotFoundException($"Den Bucket „{bucket}“ gibt es nicht.");
+    }
+
+    public async Task<S3Acl> GetBucketAclAsync(string bucket, CancellationToken ct)
+    {
+        await BucketCall(bucket, "acl");
+        return Acls.TryGetValue(bucket, out var a)
+            ? a
+            : new S3Acl(DefaultOwner, [new S3Grant("CanonicalUser", DefaultOwner.Id, DefaultOwner.DisplayName, "FULL_CONTROL")]);
+    }
+
+    public async Task<string?> GetObjectOwnershipAsync(string bucket, CancellationToken ct)
+    {
+        await BucketCall(bucket, "ownership");
+        return Ownership.GetValueOrDefault(bucket);
+    }
+
+    public async Task<S3PublicAccessBlock?> GetPublicAccessBlockAsync(string bucket, CancellationToken ct)
+    {
+        await BucketCall(bucket, "block");
+        return Blocks.GetValueOrDefault(bucket);
+    }
+
+    public async Task<bool?> GetPolicyIsPublicAsync(string bucket, CancellationToken ct)
+    {
+        await BucketCall(bucket, "policy");
+        return PolicyPublic.TryGetValue(bucket, out var p) ? p : null;
+    }
+
     public string Describe() => "Speicher (Test)";
 
     public Task<IReadOnlyList<string>> ListBucketsAsync(CancellationToken ct)

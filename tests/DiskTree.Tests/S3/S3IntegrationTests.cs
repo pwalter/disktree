@@ -103,6 +103,40 @@ public sealed class S3IntegrationTests : IDisposable
     private static long Expected => 100 + 1000 + 2000 + 50 + 1100;
 
     [S3IntegrationFact]
+    public async Task Owners_and_bucket_rights_against_a_real_server()
+    {
+        await Fill();
+        Assert.True(StorageProviders.TryResolve($"s3://{_bucket}/", out var loc));
+        var owners = Assert.IsAssignableFrom<IOwnerSource>(loc.Provider);
+
+        // FetchOwner through the SDK: every object is counted, whatever the server reports as owner.
+        var r = owners.Aggregate(loc.Path, 0, null, CancellationToken.None);
+        Assert.Null(r.Error);
+        Assert.Equal(1104, r.Seen);
+        Assert.Equal(Expected, r.TotalBytes);
+        Assert.NotEmpty(r.Rows);
+
+        // Rights: each part either shows a value or says why not; never an exception.
+        var lines = owners.GetRights(loc.Path + "/a", CancellationToken.None);
+        Assert.Equal("Bucket: " + _bucket, lines[0]);
+        Assert.Contains(lines, l => l.StartsWith("ACL", StringComparison.Ordinal));
+        Assert.Contains(lines, l => l.StartsWith("Objektbesitz", StringComparison.Ordinal));
+        Assert.Contains(lines, l => l.StartsWith("Öffentlicher Zugriff", StringComparison.Ordinal));
+        Assert.Contains(lines, l => l.StartsWith("Bucket-Richtlinie", StringComparison.Ordinal));
+
+        // The owner: the bucket's, or a readable error if the server has no GetBucketAcl.
+        try
+        {
+            var o = await owners.GetOwnerAsync(loc.Path + "/a", CancellationToken.None);
+            if (o != null) Assert.EndsWith("(Bucket-Besitzer)", o.Owner);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(ex.Message));
+        }
+    }
+
+    [S3IntegrationFact]
     public async Task Scan_per_folder_and_flat_against_a_real_server()
     {
         await Fill();

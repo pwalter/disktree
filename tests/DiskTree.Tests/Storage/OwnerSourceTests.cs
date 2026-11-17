@@ -68,15 +68,15 @@ public class OwnerSourceTests : TestBase
     }
 
     [Fact]
-    public void S3_stays_without_owner_and_trash_but_has_file_actions()
+    public void S3_has_owners_and_file_actions_but_no_trash_zip_or_shell()
     {
-        // Changed with the S3 file actions (PR "S3: Dateiaktionen"): delete / move / rename are available now.
+        // Changed with the S3 file actions (delete / move / rename) and the S3 owners (Besitzer-Tab).
         var s3 = S3Provider.Generic;
-        foreach (var f in new[] { StorageFeature.Owner, StorageFeature.Trash, StorageFeature.Zip, StorageFeature.ShellMenu })
+        foreach (var f in new[] { StorageFeature.Trash, StorageFeature.Zip, StorageFeature.ShellMenu })
             Assert.False(StorageFeatures.Has(s3, f), f.ToString());
-        foreach (var f in new[] { StorageFeature.Delete, StorageFeature.Move, StorageFeature.Rename })
+        foreach (var f in new[] { StorageFeature.Owner, StorageFeature.Delete, StorageFeature.Move, StorageFeature.Rename })
             Assert.True(StorageFeatures.Has(s3, f), f.ToString());
-        Assert.Null(OwnerSources.For(s3));
+        Assert.Same(s3, OwnerSources.For(s3));
         Assert.True(StorageFeatures.IsRemoteWritable(s3));
         Assert.Contains("keinen Papierkorb", StorageFeatures.WhyNot(s3, StorageFeature.Trash));
     }
