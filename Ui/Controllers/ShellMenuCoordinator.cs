@@ -182,19 +182,24 @@ public sealed class ShellMenuCoordinator
         }
 
         var scanner = _host.Scanner;
-        if (isDir)
-            Add("Ab hier neu scannen", () => _host.Rescan(scanner?.FindNode(path)));
-        else
-            Add("Ordner dieser Datei neu scannen", () => _host.Rescan(scanner is { } s ? s.FindNode(s.Paths.ParentOf(path) ?? "") : null));
-        Add("Pfad kopieren", () => Clipboard.SetText(path));
+        void AddRescan()
+        {
+            if (isDir)
+                Add("Ab hier neu scannen", () => _host.Rescan(scanner?.FindNode(path)));
+            else
+                Add("Ordner dieser Datei neu scannen", () => _host.Rescan(scanner is { } s ? s.FindNode(s.Paths.ParentOf(path) ?? "") : null));
+        }
 
         if (StorageFeatures.IsRemoteWritable(provider))
         {
-            // A source that changes files itself (SFTP): our own actions, deleting is for good. What needs the Windows
-            // shell, ZIP or a recycle bin stays greyed out with the reason.
-            if (fromList) Add("Im Baum zeigen", () => _host.RevealInTree(path));
-            menu.Items.Add(new Separator());
+            // A source that changes files itself (SFTP): our own actions first (rename, move, delete for good), then
+            // copy path / show in tree / rescan. What needs the Windows shell, ZIP or a recycle bin stays greyed out
+            // with the reason.
             foreach (var e in _host.RemoteEntries(path, isDir)) Add(e.Text, e.Run, e.WhyNot);
+            menu.Items.Add(new Separator());
+            Add("Pfad kopieren", () => Clipboard.SetText(path));
+            if (fromList) Add("Im Baum zeigen", () => _host.RevealInTree(path));
+            AddRescan();
             menu.Items.Add(new Separator());
             Add("Übergeordneten Ordner öffnen", null, StorageFeatures.WhyNot(provider, StorageFeature.Explorer));
             Add("In ZIP archivieren …", null, StorageFeatures.WhyNot(provider, StorageFeature.Zip));
@@ -204,6 +209,8 @@ public sealed class ShellMenuCoordinator
             return;
         }
 
+        AddRescan();
+        Add("Pfad kopieren", () => Clipboard.SetText(path));
         menu.Items.Add(new Separator());
         Add("Übergeordneten Ordner öffnen", null, StorageFeatures.WhyNot(provider, StorageFeature.Explorer));
         Add("Verschieben nach …", null, StorageFeatures.WhyNot(provider, StorageFeature.Move));
