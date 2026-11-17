@@ -4,14 +4,18 @@ using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using DiskTree.Core;
+using DiskTree.Core.Storage;
 
 namespace DiskTree.Features.FileOperations;
 
-/// <summary>A file or folder the clean-up actions work on. <see cref="AgeBucket"/> is read before the action, while the file still exists.</summary>
-public sealed record OpItem(string Path, bool IsDir, long Size, int AgeBucket = -1)
+/// <summary>
+/// A file or folder the clean-up actions work on. <see cref="AgeBucket"/> is read before the action, while the file still
+/// exists. <see cref="Paths"/>: the path rules of a source other than the disk (SFTP); null = Windows paths.
+/// </summary>
+public sealed record OpItem(string Path, bool IsDir, long Size, int AgeBucket = -1, PathOps? Paths = null)
 {
-    public string Name => System.IO.Path.GetFileName(Path.TrimEnd('\\'));
-    public string? Parent => System.IO.Path.GetDirectoryName(Path.TrimEnd('\\'));
+    public string Name => Paths is { } p ? p.NameOf(Path) : System.IO.Path.GetFileName(Path.TrimEnd('\\'));
+    public string? Parent => Paths is { } p ? p.ParentOf(Path) : System.IO.Path.GetDirectoryName(Path.TrimEnd('\\'));
 }
 
 public enum ConflictPolicy { Ask, Skip, Replace, Rename }
@@ -19,14 +23,23 @@ public enum ConflictPolicy { Ask, Skip, Replace, Rename }
 /// <summary>Outcome of one action. Errors are collected per file, the action goes on after a failure.</summary>
 public sealed class OpResult
 {
+    /// <param name="comparer">How paths are compared (default: Windows, case-insensitive; SFTP: ordinal).</param>
+    public OpResult(StringComparer? comparer = null) => NewPaths = new(comparer ?? StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Items that are gone from their old place (moved, deleted, renamed) or fully handled (archived).</summary>
     public List<OpItem> Done { get; } = new();
     public List<(string Path, string Error)> Failed { get; } = new();
     public List<(OpItem Item, string Reason)> Skipped { get; } = new();
     /// <summary>Old path to new path (move, rename).</summary>
-    public Dictionary<string, string> NewPaths { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, string> NewPaths { get; }
     /// <summary>An existing target was replaced: sizes in the destination folder changed in a way that needs a rescan.</summary>
     public bool Replaced { get; set; }
+
+    /// <summary>Folders that were changed only partly (some content could not be deleted): their numbers need a rescan.</summary>
+    public List<OpItem> Partial { get; } = new();
+
+    /// <summary>The action was cancelled; what is in <see cref="Done"/> happened before.</summary>
+    public bool Cancelled { get; set; }
 
     public long DoneBytes => Done.Sum(i => i.Size);
 }
@@ -35,7 +48,7 @@ public sealed record RenamePlan(OpItem Item, string NewName, string? Problem)
 {
     public bool Unchanged => string.Equals(Item.Name, NewName, StringComparison.Ordinal);
     public bool Ok => Problem == null && !Unchanged;
-    public string NewPath => System.IO.Path.Combine(Item.Parent ?? "", NewName);
+    public string NewPath => Item.Paths is { } p ? p.Join(Item.Parent ?? "", NewName) : System.IO.Path.Combine(Item.Parent ?? "", NewName);
 }
 
 /// <summary>

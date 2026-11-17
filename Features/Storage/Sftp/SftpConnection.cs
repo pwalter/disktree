@@ -10,8 +10,9 @@ namespace DiskTree.Features.Storage.Sftp;
 /// <summary>What kind of entry a listing returned (no SSH.NET types leave this file).</summary>
 internal enum RemoteKind : byte { File, Directory, Link }
 
-/// <summary>One listed entry; times are UTC ticks, 0 if the server did not send them.</summary>
-internal readonly record struct RemoteEntry(string Name, RemoteKind Kind, long Length, long ModifiedTicks, long AccessedTicks);
+/// <summary>One listed entry; times are UTC ticks, 0 if the server did not send them. Uid / gid / POSIX mode of the entry itself.</summary>
+internal readonly record struct RemoteEntry(string Name, RemoteKind Kind, long Length, long ModifiedTicks, long AccessedTicks,
+    int Uid = 0, int Gid = 0, int Mode = 0);
 
 /// <summary>Capacity of a file system (statvfs); <see cref="Id"/> tells two file systems apart.</summary>
 internal readonly record struct RemoteCapacity(long Total, long Free, (ulong, ulong, ulong) Id);
@@ -431,12 +432,33 @@ internal sealed class SftpConnection : IDisposable
             var name = f.Name;
             if (name is "." or "..") continue;
             var kind = f.IsSymbolicLink ? RemoteKind.Link : f.IsDirectory ? RemoteKind.Directory : RemoteKind.File;
+            var a = f.Attributes;
             list.Add(new RemoteEntry(name, kind, kind == RemoteKind.File ? f.Length : 0,
-                Ticks(f.LastWriteTimeUtc), Ticks(f.LastAccessTimeUtc)));
+                Ticks(f.LastWriteTimeUtc), Ticks(f.LastAccessTimeUtc), a.UserId, a.GroupId, ModeOf(a)));
         }
         return list;
     }));
     private static long Ticks(DateTime utc) => utc.Ticks <= DateTime.UnixEpoch.Ticks ? 0 : utc.Ticks;
+
+    /// <summary>st_mode of an entry, put together from what SSH.NET hands out (type and permission flags).</summary>
+    internal static int ModeOf(SftpFileAttributes a)
+    {
+        int m = a.IsSymbolicLink ? 0xA000 : a.IsDirectory ? 0x4000 : a.IsRegularFile ? 0x8000
+            : a.IsCharacterDevice ? 0x2000 : a.IsBlockDevice ? 0x6000 : a.IsNamedPipe ? 0x1000 : a.IsSocket ? 0xC000 : 0;
+        if (a.IsUIDBitSet) m |= 0x800;
+        if (a.IsGroupIDBitSet) m |= 0x400;
+        if (a.IsStickyBitSet) m |= 0x200;
+        if (a.OwnerCanRead) m |= 0x100;
+        if (a.OwnerCanWrite) m |= 0x80;
+        if (a.OwnerCanExecute) m |= 0x40;
+        if (a.GroupCanRead) m |= 0x20;
+        if (a.GroupCanWrite) m |= 0x10;
+        if (a.GroupCanExecute) m |= 0x8;
+        if (a.OthersCanRead) m |= 0x4;
+        if (a.OthersCanWrite) m |= 0x2;
+        if (a.OthersCanExecute) m |= 0x1;
+        return m;
+    }
 
     /// <summary>Is there a folder (following links, like the disk does)? Not found / no access: false.</summary>
     public bool IsFolder(string remotePath, string display) => Run(display, live =>
@@ -493,6 +515,222 @@ internal sealed class SftpConnection : IDisposable
             }
         }), display);
 
+    // ------------------------------------------------------------------ single entries (no link is ever followed)
+
+    /// <summary>
+    /// The SFTP requests on one path exactly as given. SftpClient's own methods (DeleteFile, RenameFile, GetAttributes …)
+    /// first canonicalize the path with REALPATH, which follows symbolic links: removing or renaming a link would hit its
+    /// target, possibly outside the scanned folder. These go to the session directly (internal to SSH.NET, so through
+    /// reflection; checked once, and a missing member makes all writes fail with a clear message instead).
+    /// </summary>
+    private static class Raw
+    {
+        private static readonly Type? SessionType = typeof(SftpClient).Assembly.GetType("Renci.SshNet.Sftp.ISftpSession");
+        private static readonly System.Reflection.PropertyInfo? SessionProp =
+            typeof(SftpClient).GetProperty("SftpSession", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        private static readonly System.Reflection.MethodInfo? LStat = Find("RequestLStatAsync", 2);
+        private static readonly System.Reflection.MethodInfo? Remove = Find("RequestRemoveAsync", 2);
+        private static readonly System.Reflection.MethodInfo? RmDir = Find("RequestRmDirAsync", 2);
+        private static readonly System.Reflection.MethodInfo? Rename = Find("RequestRenameAsync", 3);
+        private static readonly System.Reflection.MethodInfo? MkDir = Find("RequestMkDirAsync", 2);
+        private static readonly System.Reflection.MethodInfo? PosixRename = Find("RequestPosixRename", 2);
+
+        private static System.Reflection.MethodInfo? Find(string name, int args) =>
+            SessionType?.GetMethods().FirstOrDefault(m => m.Name == name && m.GetParameters().Length == args);
+
+        /// <summary>Everything needed is there (the SSH.NET version fits).</summary>
+        public static bool Available => SessionProp != null && LStat != null && Remove != null && RmDir != null && Rename != null
+                                        && MkDir != null && PosixRename != null;
+
+        private static object Session(SftpClient c)
+        {
+            if (!Available) throw new NotSupportedException("Diese SSH.NET-Version bietet die nötigen SFTP-Anfragen nicht; Änderungen sind nicht möglich.");
+            return SessionProp!.GetValue(c) ?? throw new SshConnectionException("Keine SFTP-Sitzung.");
+        }
+
+        public static Task<SftpFileAttributes> LStatAsync(SftpClient c, string path, CancellationToken ct) =>
+            (Task<SftpFileAttributes>)LStat!.Invoke(Session(c), [path, ct])!;
+        public static Task RemoveAsync(SftpClient c, string path, CancellationToken ct) => (Task)Remove!.Invoke(Session(c), [path, ct])!;
+        public static Task RmDirAsync(SftpClient c, string path, CancellationToken ct) => (Task)RmDir!.Invoke(Session(c), [path, ct])!;
+        public static Task RenameAsync(SftpClient c, string from, string to, CancellationToken ct) => (Task)Rename!.Invoke(Session(c), [from, to, ct])!;
+        public static Task MkDirAsync(SftpClient c, string path, CancellationToken ct) => (Task)MkDir!.Invoke(Session(c), [path, ct])!;
+
+        /// <summary>posix-rename@openssh.com (replaces an existing file atomically); <see cref="NotSupportedException"/> if the server lacks it.</summary>
+        public static void PosixRenameSync(SftpClient c, string from, string to)
+        {
+            try { PosixRename!.Invoke(Session(c), [from, to]); }
+            catch (System.Reflection.TargetInvocationException tie) when (tie.InnerException != null)
+            {
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(tie.InnerException).Throw();
+            }
+        }
+    }
+
+    /// <summary>The SFTP requests needed for changes are available (tests).</summary>
+    internal static bool WritesAvailable => Raw.Available;
+
+    private T Request<T>(string display, Func<Live, CancellationToken, Task<T>> request) =>
+        Run(display, live => Await(live, ct => request(live, ct)));
+
+    private void Request(string display, Func<Live, CancellationToken, Task> request) =>
+        Run(display, live => Await(live, async ct => { await request(live, ct).ConfigureAwait(false); return true; }));
+
+    /// <summary>lstat: the entry itself (a link is reported as a link); null if there is none.</summary>
+    public RemoteEntry? Stat(string remotePath, string display) => Run(display, live =>
+    {
+        try
+        {
+            var a = Await(live, ct => Raw.LStatAsync(live.Client, remotePath, ct));
+            var kind = a.IsSymbolicLink ? RemoteKind.Link : a.IsDirectory ? RemoteKind.Directory : RemoteKind.File;
+            int slash = remotePath.LastIndexOf('/');
+            return (RemoteEntry?)new RemoteEntry(remotePath[(slash + 1)..], kind, kind == RemoteKind.File ? a.Size : 0,
+                Ticks(a.LastWriteTimeUtc), Ticks(a.LastAccessTimeUtc), a.UserId, a.GroupId, ModeOf(a));
+        }
+        catch (SftpPathNotFoundException)
+        {
+            return null;
+        }
+    });
+
+    /// <summary>Removes a file or a link (never its target).</summary>
+    public void Remove(string remotePath, string display) => Request(display, (live, ct) => Raw.RemoveAsync(live.Client, remotePath, ct));
+
+    /// <summary>Removes an empty folder.</summary>
+    public void RemoveDirectory(string remotePath, string display) => Request(display, (live, ct) => Raw.RmDirAsync(live.Client, remotePath, ct));
+
+    /// <summary>
+    /// Plain SFTP rename. OpenSSH never replaces an existing target with it (files: link + unlink, folders only if the
+    /// target is missing); the caller checks before anyway.
+    /// </summary>
+    public void Rename(string from, string to, string display) => Request(display, (live, ct) => Raw.RenameAsync(live.Client, from, to, ct));
+
+    /// <summary>posix-rename@openssh.com: replaces an existing file atomically. False if the server does not offer it.</summary>
+    public bool TryPosixRename(string from, string to, string display) => Run(display, live =>
+    {
+        try
+        {
+            Raw.PosixRenameSync(live.Client, from, to);
+            return true;
+        }
+        catch (NotSupportedException) when (Raw.Available)
+        {
+            return false;
+        }
+    });
+
+    public void CreateDirectory(string remotePath, string display) => Request(display, (live, ct) => Raw.MkDirAsync(live.Client, remotePath, ct));
+
+    // ------------------------------------------------------------------ owner names
+
+    private SftpOwnerNames? _names;
+    private readonly object _namesLock = new();
+
+    /// <summary>
+    /// The user and group names of the server, looked up once per connection: <c>getent passwd</c> and
+    /// <c>getent group</c> over SSH exec (same login and host key as the SFTP connection); if exec is not allowed
+    /// (SFTP-only account, chroot), /etc/passwd and /etc/group read over SFTP; else none (ids are shown).
+    /// </summary>
+    public SftpOwnerNames OwnerNames(CancellationToken ct)
+    {
+        lock (_namesLock)
+        {
+            if (_names != null) return _names;
+            var names = new SftpOwnerNames();
+            var passwd = Exec("getent passwd", ct);
+            if (SftpOwnerNames.LooksValid(passwd))
+            {
+                names.Load(OwnerNameSource.Getent, passwd, Exec("getent group", ct));
+            }
+            else
+            {
+                passwd = ReadSmallText("/etc/passwd", ct);
+                if (SftpOwnerNames.LooksValid(passwd)) names.Load(OwnerNameSource.EtcFiles, passwd, ReadSmallText("/etc/group", ct));
+                else names.Load(OwnerNameSource.Unavailable, null, null);
+            }
+            return _names = names;
+        }
+    }
+
+    /// <summary>Asks getent for ids that were not in the first answer (e.g. LDAP without enumeration).</summary>
+    public void ResolveMissing(SftpOwnerNames names, IEnumerable<int> uids, IEnumerable<int> gids, CancellationToken ct)
+    {
+        if (names.Source != OwnerNameSource.Getent) return;
+        var (u, g) = names.TakeMissing(uids, gids);
+        // Only numbers go into the command line.
+        string? pw = u.Length > 0 ? Exec("getent passwd " + string.Join(' ', u.Take(200)), ct) : null;
+        string? gr = g.Length > 0 ? Exec("getent group " + string.Join(' ', g.Take(200)), ct) : null;
+        names.Add(pw, gr);
+    }
+
+    /// <summary>Timeout of one exec (getent); a server that ignores the command must not hold the owner tab up.</summary>
+    internal static readonly TimeSpan ExecTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Runs a command over SSH exec with the login of this connection and checks the host key against the trusted one.
+    /// Its output if it ended with exit code 0, else null (exec not allowed, command missing, timeout …).
+    /// </summary>
+    internal string? Exec(string command, CancellationToken ct)
+    {
+        try
+        {
+            if (HostKey == null) Current(); // the host key is known (and trusted) once the SFTP connection is up
+            var expected = HostKey;
+            var (info, extras) = Login();
+            using var client = new SshClient(info);
+            try
+            {
+                client.HostKeyReceived += (_, e) =>
+                    e.CanTrust = expected != null && string.Equals(expected, "SHA256:" + e.FingerPrintSHA256, StringComparison.Ordinal);
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts.CancelAfter(ExecTimeout);
+                Task.Run(() => client.ConnectAsync(cts.Token)).GetAwaiter().GetResult();
+                using var cmd = client.CreateCommand(command);
+                cmd.CommandTimeout = ExecTimeout;
+                Task.Run(() => cmd.ExecuteAsync(cts.Token)).GetAwaiter().GetResult();
+                return cmd.ExitStatus == 0 ? cmd.Result : null;
+            }
+            finally
+            {
+                foreach (var d in extras)
+                {
+                    try { d.Dispose(); } catch (Exception) { }
+                }
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Exec refused, channel closed, timeout, login problem: names come from somewhere else.
+            return null;
+        }
+    }
+
+    /// <summary>A text file of the server (at most 4 MB), null if it cannot be read.</summary>
+    private string? ReadSmallText(string remotePath, CancellationToken ct)
+    {
+        try
+        {
+            using var s = OpenRead(remotePath, remotePath, 0);
+            using var mem = new MemoryStream();
+            var buf = new byte[64 * 1024];
+            int n;
+            while ((n = s.Read(buf, 0, buf.Length)) > 0)
+            {
+                ct.ThrowIfCancellationRequested();
+                mem.Write(buf, 0, n);
+                if (mem.Length > 4 << 20) return null;
+            }
+            return Encoding.UTF8.GetString(mem.ToArray());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
     // ------------------------------------------------------------------ errors
 
     /// <summary>A lost connection, or the client was taken out of service under the request (<see cref="Live.Dropped"/>).</summary>
@@ -503,6 +741,12 @@ internal sealed class SftpConnection : IDisposable
         or ObjectDisposedException or SocketException or ProxyException
         || (ex is IOException && ex.GetType() == typeof(IOException)) // raw socket errors from the stream
         || (ex is InvalidOperationException && ex.InnerException is SocketException);
+
+    /// <summary>
+    /// The server answered the request with an error status (SSH_FX_FAILURE and the like, e.g. "folder not empty"):
+    /// a problem of that one entry, not of the connection.
+    /// </summary>
+    internal static bool IsRefusedRequest(Exception ex) => ex is IOException && ex.InnerException is SftpException;
 
     /// <summary>
     /// Turns SSH.NET errors into what the scan understands: <see cref="UnauthorizedAccessException"/> (no access, login)

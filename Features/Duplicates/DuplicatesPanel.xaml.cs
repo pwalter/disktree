@@ -16,8 +16,9 @@ namespace DiskTree.Features.Duplicates;
 /// Tab "Duplikate": starts a <see cref="DuplicateFinder"/> run for a folder and lists the groups of identical files.
 /// The disk is searched and compared right away, as always. A remote source (S3, SFTP) is listed first; then a dialog
 /// shows what comparing would download and cost and lets the user choose the mode (<see cref="DupEstimateDialog"/>).
-/// Results of a remote source are marked "sicher" / "wahrscheinlich" and offer no file actions (read-only sources),
-/// only "Im Baum zeigen" and "Pfad kopieren".
+/// Results of a remote source are marked "sicher" / "wahrscheinlich". A read-only source (S3) offers no file actions,
+/// only "Im Baum zeigen" and "Pfad kopieren"; a source that changes files itself (SFTP) gets check marks, Delete (for good,
+/// with confirmation) and the host's menu with rename / move / delete.
 /// </summary>
 public partial class DuplicatesPanel : UserControl
 {
@@ -53,6 +54,9 @@ public partial class DuplicatesPanel : UserControl
     /// <summary>The user pressed Delete on a file (path, size). The host runs the shell's delete.</summary>
     public event Action<string, long>? ShellDeleteRequested;
 
+    /// <summary>Menu of a file of a remote source whose files can be changed (SFTP): the host shows its own menu (path, size, position).</summary>
+    public event Action<string, long, Point>? RemoteMenuRequested;
+
     /// <summary>"Im Baum zeigen" for a file of a remote source: the host selects its folder; false if the tree does not have it.</summary>
     public Func<string, bool>? RevealRequested { get; set; }
 
@@ -77,6 +81,11 @@ public partial class DuplicatesPanel : UserControl
     /// <summary>The shown results come from a remote source: no file actions.</summary>
     private bool ShowsRemote => _shownSource != null && _shownSource.Id != DiskProvider.ProviderId;
 
+    /// <summary>The shown results come from a remote source whose files can be deleted (SFTP): check marks, Delete, actions.</summary>
+    private bool ShowsWritable => ShowsRemote && CanChange(_shownSource!);
+
+    private static bool CanChange(IStorageProvider p) => StorageFeatures.IsRemoteWritable(p) && StorageFeatures.Has(p, StorageFeature.Delete);
+
     /// <summary>The files with a check mark; if none is checked, the selected file.</summary>
     public IReadOnlyList<(string Path, long Size)> SelectedFiles()
     {
@@ -88,7 +97,7 @@ public partial class DuplicatesPanel : UserControl
     /// <summary>True if the given paths contain every copy of at least one duplicate group.</summary>
     public bool AllCopiesChecked(IEnumerable<string> paths)
     {
-        var set = new HashSet<string>(paths, StringComparer.OrdinalIgnoreCase);
+        var set = new HashSet<string>(paths, ShowsRemote ? _shownSource!.Paths.Comparer : StringComparer.OrdinalIgnoreCase);
         return _groups.Any(g => g.Files.Count > 0 && g.Files.All(f => set.Contains(f.Path)));
     }
 
@@ -97,6 +106,13 @@ public partial class DuplicatesPanel : UserControl
     {
         if (ShowsRemote) return; // nothing is changed on a remote source (and File.Exists does not know its paths)
         foreach (var f in _groups.SelectMany(g => g.Files).ToList()) Prune(f);
+    }
+
+    /// <summary>Files of a remote source that an action deleted, moved or renamed leave their groups (a group of one goes).</summary>
+    public void ForgetPaths(Func<string, bool> gone)
+    {
+        if (!ShowsRemote) return;
+        foreach (var f in _groups.SelectMany(g => g.Files).Where(f => gone(f.Path)).ToList()) RemoveFile(f);
     }
 
     /// <summary>The host switched to another scan: stop a running search and drop the groups of the old folder.</summary>
@@ -119,8 +135,8 @@ public partial class DuplicatesPanel : UserControl
         {
             Selected = () => List.SelectedItem as DupFileVM,
             ExtraKey = (key, _) => ExtraKeyDown?.Invoke(key) == true,
-            // Remote sources are read-only: Delete does nothing there (the caps lack Delete).
-            CanDelete = _ => !ShowsRemote,
+            // Read-only remote sources (S3): Delete does nothing there. SFTP: Delete asks and deletes for good (host).
+            CanDelete = _ => !ShowsRemote || ShowsWritable,
             Delete = file =>
             {
                 ShellDeleteRequested?.Invoke(file.Path, file.Group.Size);
@@ -313,7 +329,7 @@ public partial class DuplicatesPanel : UserControl
             var found = await finder.FindAsync(candidates, mode, source.ScanThreads is > 8 ? 8 : 4, run, budget, progress);
 
             foreach (var (g, i) in found.Select((g, i) => (g, i)))
-                _groups.Add(new DupGroupVM(g, source.Paths, remote: true) { IsExpanded = i < 15 });
+                _groups.Add(new DupGroupVM(g, source.Paths, remote: true, canCheck: CanChange(source)) { IsExpanded = i < 15 });
             InfoText.Text = RemoteSummary(found, finder, run, sw.Elapsed, mode);
         }
         catch (OperationCanceledException)
@@ -423,6 +439,11 @@ public partial class DuplicatesPanel : UserControl
 
     private void ShowMenu(DupFileVM file, Point screenPos)
     {
+        if (ShowsWritable && RemoteMenuRequested != null)
+        {
+            RemoteMenuRequested(file.Path, file.Group.Size, screenPos);
+            return;
+        }
         if (ShowsRemote)
         {
             ShowRemoteMenu(file, _shownSource!);
@@ -466,6 +487,11 @@ public partial class DuplicatesPanel : UserControl
     private void Prune(DupFileVM file)
     {
         if (ShowsRemote || File.Exists(file.Path)) return;
+        RemoveFile(file);
+    }
+
+    private void RemoveFile(DupFileVM file)
+    {
         var group = file.Group;
         group.Files.Remove(file);
         if (group.Files.Count < 2) _groups.Remove(group);

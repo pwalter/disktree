@@ -41,14 +41,21 @@ public static class SftpStorage
 /// a connection is made.
 /// </para>
 /// </summary>
-public sealed class SftpSource : IStorageProvider, IConnectedStorage, IContentHashSource
+public sealed class SftpSource : IStorageProvider, IConnectedStorage, IContentHashSource, IOwnerSource, IStorageWriter
 {
     public const string ProviderId = SftpProvider.ProviderId;
 
-    /// <summary>What SFTP offers (the same as <see cref="SftpProvider.Caps"/>).</summary>
+    /// <summary>What SFTP offers for reading (the same as <see cref="SftpProvider.Caps"/>).</summary>
     public const StorageCaps SftpCaps =
         StorageCaps.Capacity | StorageCaps.AccessedTime | StorageCaps.Hierarchical | StorageCaps.ReparsePoints
         | StorageCaps.CaseSensitive | StorageCaps.ParallelListing | StorageCaps.LiveFileList | StorageCaps.ContentHash;
+
+    /// <summary>
+    /// What a saved SFTP source adds: owners with POSIX rights (Besitzer tab), deleting for good (no recycle bin),
+    /// renaming and moving on the same server. No ZIP, no Windows shell.
+    /// </summary>
+    public const StorageCaps WriteCaps =
+        StorageCaps.Owner | StorageCaps.PosixPermissions | StorageCaps.Delete | StorageCaps.Move | StorageCaps.Rename;
 
     /// <summary>The registered provider: binds every path to its saved source when it is used.</summary>
     public static readonly SftpSource Generic = new(null);
@@ -137,7 +144,7 @@ public sealed class SftpSource : IStorageProvider, IConnectedStorage, IContentHa
 
     public string DisplayName => _profile != null && AuthorityOf(_profile) is { } a ? "SFTP " + a[SftpUri.Prefix.Length..] : "SFTP";
 
-    public StorageCaps Caps => SftpCaps;
+    public StorageCaps Caps => SftpCaps | WriteCaps;
 
     public PathOps Paths => SftpPathOps.Instance;
 
@@ -241,6 +248,53 @@ public sealed class SftpSource : IStorageProvider, IConnectedStorage, IContentHa
     }
 
     public long RequestsFor(long length) => 1;
+
+    // ------------------------------------------------------------------ IOwnerSource (uid / gid / POSIX rights)
+
+    public string RightsTitle => "Rechte (POSIX)";
+
+    public bool HasGroups => true;
+
+    public bool SamplingHelps => false;
+
+    public Task<OwnerDetails?> GetOwnerAsync(string path, CancellationToken ct) => Server(path).GetOwnerAsync(path, ct);
+
+    public string[] GetRights(string path, CancellationToken ct) => Server(path).GetRights(path, ct);
+
+    public OwnerResult Aggregate(string folder, long minSize, Action<long, long>? progress, CancellationToken ct)
+    {
+        try
+        {
+            return Server(folder).Aggregate(folder, minSize, progress, ct);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return new OwnerResult([], 0, 0, 0, false, ex.Message, true); // no saved source, login failed …
+        }
+    }
+
+    // ------------------------------------------------------------------ IStorageWriter (delete for good, rename, move)
+
+    public StorageItemInfo? Stat(string path, CancellationToken ct) => Server(path).Stat(path, ct);
+
+    public bool Exists(string path, CancellationToken ct) => Server(path).Exists(path, ct);
+
+    public DeleteOutcome Delete(string path, bool recursive, Action<DeleteOutcome>? progress, CancellationToken ct) =>
+        Server(path).Delete(path, recursive, progress, ct);
+
+    public string Rename(string path, string newName, CancellationToken ct) => Server(path).Rename(path, newName, ct);
+
+    public string Move(string path, string targetFolder, string? newName, bool replace, CancellationToken ct)
+    {
+        var server = Server(path);
+        if (!ReferenceEquals(server, Server(targetFolder)))
+            throw new IOException("Verschieben geht nur innerhalb desselben Servers und Benutzers.");
+        return server.Move(path, targetFolder, newName, replace, ct);
+    }
+
+    public void CreateDirectory(string path, CancellationToken ct) => Server(path).CreateDirectory(path, ct);
+
+    public IReadOnlyCollection<string> ListNames(string folder, CancellationToken ct) => Server(folder).ListNames(folder, ct);
 
     // ------------------------------------------------------------------ IConnectedStorage
 

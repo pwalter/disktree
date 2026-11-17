@@ -11,8 +11,9 @@ namespace DiskTree.Core.Storage;
 /// once per entry while the entry is still in the provider's buffer, so the scan only copies what it keeps (a folder
 /// name, the name of a big file) and nothing else.
 /// </para>
-/// Changing things (delete, move, owners) is not part of this interface yet: those features only work on the disk
-/// for now and say so (see <see cref="StorageCaps"/>).
+/// Changing things and owners are not part of this interface: the disk does them with System.IO / the Windows shell,
+/// other sources offer them through the optional <see cref="IStorageWriter"/> and <see cref="IOwnerSource"/> (see
+/// <see cref="StorageCaps"/> and <see cref="StorageFeatures"/>).
 /// </summary>
 public interface IStorageProvider
 {

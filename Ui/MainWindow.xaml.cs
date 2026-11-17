@@ -171,10 +171,10 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
                 () => TopPane.SelectedRows.Select(r => new SelectedEntry(r.Path, false, r.Size))),
             new ListSelection(SearchPane.Results,
                 () => SearchPane.SelectedHits.Select(h => new SelectedEntry(h.Path, h.IsDir, h.Size)),
-                prune: SearchPane.PruneMissing),
+                prune: SearchPane.PruneMissing, forget: SearchPane.ForgetPaths),
             new ListSelection(Dup.List,
                 () => Dup.SelectedFiles().Select(f => new SelectedEntry(f.Path, false, f.Size)),
-                prune: Dup.PruneMissing, coversAllCopies: Dup.AllCopiesChecked),
+                prune: Dup.PruneMissing, coversAllCopies: Dup.AllCopiesChecked, forget: Dup.ForgetPaths),
         ]);
         SearchPane.ExtraKeyDown = _fileOps.HandleKey;
 
@@ -182,13 +182,9 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
         Dup.Settings = _settings;
         Dup.RootProvider = _tree.DuplicateRoot;
         Dup.SourceProvider = () => Cur.Provider;
-        Dup.RevealRequested = path =>
-        {
-            // A file is no row of its own in the tree: its folder is selected.
-            var folder = Cur.Provider.Paths.ParentOf(path) ?? path;
-            return _tree.TryJumpToPath(folder);
-        };
+        Dup.RevealRequested = RevealInTree;
         Dup.ShellMenuRequested += _shell.ShowFileShellMenu;
+        Dup.RemoteMenuRequested += _shell.ShowFileMenu;
         Dup.ShellDeleteRequested += _shell.DeleteFile;
         Dup.ExtraKeyDown = _fileOps.HandleKey;
 
@@ -285,6 +281,11 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
         {
             e.Handled = true;
             _scan.Cancel();
+        }
+        else if (e.Key == Key.Escape && _fileOps.IsBusy && _fileOps.CancelOperation())
+        {
+            // Esc stops a file action on a remote source (SFTP) after the current entry.
+            e.Handled = true;
         }
         else if (e.Key == Key.Escape && Dup.IsRunning)
         {
@@ -427,4 +428,18 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
 
     IReadOnlyList<(string Text, Action Run)> IShellMenuHost.OperationExtras(string path, bool isDir) =>
         _fileOps.OperationExtras(path, isDir);
+
+    IReadOnlyList<MenuEntry> IShellMenuHost.RemoteEntries(string path, bool isDir) => _fileOps.RemoteEntries(path, isDir);
+
+    void IShellMenuHost.DeleteRemote(string path, bool isDir, long size) => _fileOps.DeleteRemote(path, isDir, size);
+
+    bool IShellMenuHost.RevealInTree(string path) => RevealInTree(path);
+
+    /// <summary>"Im Baum zeigen": a folder is selected; a file is no row of its own in the tree, its folder is selected.</summary>
+    private bool RevealInTree(string path)
+    {
+        var paths = Cur.Provider.Paths;
+        if (Cur.Scanner?.FindNode(path) != null) return _tree.TryJumpToPath(path);
+        return _tree.TryJumpToPath(paths.ParentOf(path) ?? path);
+    }
 }

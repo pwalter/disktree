@@ -17,7 +17,11 @@ public sealed class OwnerRowVM
     public string Detail { get; init; } = "";
 }
 
-/// <summary>Right-panel tab: owner of the selected folder, its ACL, and (on demand) storage per owner.</summary>
+/// <summary>
+/// Right-panel tab: owner of the selected folder, its rights, and (on demand) storage per owner. The source of the scan
+/// answers (<see cref="IOwnerSource"/>): Windows owners and ACLs on the disk, uid / gid and POSIX mode bits on an SFTP
+/// server (there also per group).
+/// </summary>
 public partial class OwnerPanel : UserControl
 {
     private const long SampleMin = 1024 * 1024;
@@ -27,8 +31,11 @@ public partial class OwnerPanel : UserControl
     }.Select(BrushFactory.Frozen).ToArray();
 
     private string? _path;
+    private IStorageProvider _provider = DiskProvider.Instance;
     private int _version;
     private CancellationTokenSource? _cts;
+    private OwnerResult? _shown;
+    private bool _shownSampled;
 
     public OwnerPanel()
     {
@@ -36,18 +43,33 @@ public partial class OwnerPanel : UserControl
         IsVisibleChanged += (_, _) => { if (IsVisible) ShowOwnerAsync().Forget("ShowOwnerAsync"); };
     }
 
+    private IOwnerSource? Source => OwnerSources.For(_provider);
+
     /// <summary>Called when the tree selection changes. Cancels a running analysis (it belongs to the old folder).</summary>
-    public void SetFolder(string? path)
+    public void SetFolder(string? path) => SetFolder(path, DiskProvider.Instance);
+
+    /// <summary>Like <see cref="SetFolder(string?)"/> for a folder of <paramref name="provider"/> (its path rules, its owners).</summary>
+    public void SetFolder(string? path, IStorageProvider provider)
     {
-        if (string.Equals(path, _path, StringComparison.OrdinalIgnoreCase)) return;
+        bool same = provider == _provider && (path == null ? _path == null : _path != null && provider.Paths.NameEquals(path, _path));
+        if (same) return;
         _cts?.Cancel();
         _path = path;
+        _provider = provider;
+        _shown = null;
         OwnerList.ItemsSource = null;
         Pie.Visibility = Visibility.Collapsed;
         SummaryText.Text = "";
         ProgressText.Text = "";
         AclText.Text = "";
         AclExpander.IsExpanded = false;
+        var source = Source;
+        AclExpander.Header = source?.RightsTitle ?? "Rechte (ACL)";
+        SampleBox.Visibility = source is { SamplingHelps: false } ? Visibility.Collapsed : Visibility.Visible;
+        GroupingPanel.Visibility = source is { HasGroups: true } ? Visibility.Visible : Visibility.Collapsed;
+        RunButton.ToolTip = source is { SamplingHelps: false }
+            ? "Listet alle Ordner unter dem markierten Ordner erneut (mit Besitzer und Gruppe jeder Datei) und summiert."
+            : "Liest den Besitzer jeder Datei unter dem markierten Ordner. Kann auf Netzfreigaben dauern.";
         ShowOwnerAsync().Forget("ShowOwnerAsync");
     }
 
@@ -62,63 +84,91 @@ public partial class OwnerPanel : UserControl
     {
         int v = ++_version;
         string? path = _path;
-        // Owners and ACLs exist on the local file system only (StorageCaps.Owner).
-        FolderText.Text = path == null ? "Besitzer" : DiskPathOps.Instance.NameOf(path) is { Length: > 0 } n ? n : path;
-        RunButton.IsEnabled = _cts == null && path != null;
-        AclExpander.Visibility = path == null ? Visibility.Collapsed : Visibility.Visible;
+        var source = Source;
+        FolderText.Text = path == null ? "Besitzer" : _provider.Paths.NameOf(path) is { Length: > 0 } n ? n : path;
+        RunButton.IsEnabled = _cts == null && path != null && source != null;
+        AclExpander.Visibility = path == null || source == null ? Visibility.Collapsed : Visibility.Visible;
         if (path == null) { OwnerText.Text = "Ordner im Baum markieren."; return; }
+        if (source == null) { OwnerText.Text = StorageFeatures.WhyNot(_provider, StorageFeature.Owner) ?? "Besitzer: nicht verfügbar"; return; }
         if (!IsVisible) return; // lazy: only look it up while this tab is shown
 
         OwnerText.Text = "Besitzer wird ermittelt …";
-        string? owner = null;
-        try { owner = await OwnerInfo.GetOwnerNameAsync(path); } catch { }
+        OwnerDetails? owner = null;
+        string? error = null;
+        try
+        {
+            // Off the UI thread: a remote source asks its server (and may resolve names first).
+            owner = await Task.Run(() => source.GetOwnerAsync(path, CancellationToken.None));
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            error = ex.Message;
+        }
+        catch { }
         if (v != _version) return;
-        OwnerText.Text = owner == null ? "Besitzer: nicht lesbar" : "Besitzer: " + owner;
+        OwnerText.Text = owner == null
+            ? "Besitzer: nicht lesbar" + (error != null ? " – " + error : "")
+            : "Besitzer: " + owner.Owner + (owner.Group != null ? " · Gruppe: " + owner.Group : "") +
+              (owner.Permissions != null ? "\n" + owner.Permissions : "");
     }
 
     private void AclExpander_Expanded(object sender, RoutedEventArgs e)
     {
         string? path = _path;
-        if (path == null || AclText.Text.Length > 0) return;
+        var source = Source;
+        if (path == null || source == null || AclText.Text.Length > 0) return;
         AclText.Text = "Wird gelesen …";
-        _ = Task.Run(() => OwnerInfo.GetAclLines(path)).ContinueWith(t =>
+        _ = Task.Run(() =>
+        {
+            try { return source.GetRights(path, CancellationToken.None); }
+            catch (Exception ex) { return new[] { "Rechte nicht lesbar: " + ex.Message }; }
+        }).ContinueWith(t =>
         {
             if (path == _path) AclText.Text = string.Join(Environment.NewLine, t.Result);
         }, TaskScheduler.FromCurrentSynchronizationContext());
     }
 
+    private void Grouping_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_shown != null) Show(_shown, _shownSampled);
+    }
+
+    private OwnerGrouping Grouping => ByGroupRadio?.IsChecked == true ? OwnerGrouping.Group : OwnerGrouping.User;
+
     private async void Run_Click(object sender, RoutedEventArgs e)
     {
         if (_cts != null) { _cts.Cancel(); return; }
         string? path = _path;
-        if (path == null) return;
+        var source = Source;
+        if (path == null || source == null) return;
 
         var cts = _cts = new CancellationTokenSource();
-        long min = SampleBox.IsChecked == true ? SampleMin : 0;
+        long min = source.SamplingHelps && SampleBox.IsChecked == true ? SampleMin : 0;
         RunButton.Content = "Abbrechen";
         Bar.Visibility = Visibility.Visible;
         OwnerList.ItemsSource = null;
         Pie.Visibility = Visibility.Collapsed;
         SummaryText.Text = "";
+        _shown = null;
         var ui = Dispatcher;
         long lastTick = 0;
+        bool folders = !source.SamplingHelps;
 
         OwnerResult? result = null;
         string? failure = null;
         try
         {
-            // Few threads: owner lookups on a network share are latency-bound, and the file server should not be flooded.
-            bool unc = path.StartsWith(@"\\");
-            result = await Task.Run(() => OwnerAggregator.Aggregate(
-                OwnerAggregator.EnumerateFiles(path),
-                p => OwnerInfo.GetOwnerSid(p) is { } sid ? OwnerInfo.ResolveName(sid) : null,
-                min, unc ? 4 : 8,
+            result = await Task.Run(() => source.Aggregate(path, min,
                 (seen, failed) =>
                 {
                     long now = Environment.TickCount64;
                     if (now - lastTick < 200) return;
                     lastTick = now;
-                    ui.BeginInvoke(() => { if (_cts == cts) ProgressText.Text = $"{seen:N0} Dateien geprüft · {failed:N0} ohne Zugriff"; });
+                    ui.BeginInvoke(() =>
+                    {
+                        if (_cts == cts)
+                            ProgressText.Text = $"{seen:N0} Dateien geprüft · {failed:N0} " + (folders ? "Ordner nicht lesbar" : "ohne Zugriff");
+                    });
                 }, cts.Token));
         }
         catch (Exception ex)
@@ -148,12 +198,15 @@ public partial class OwnerPanel : UserControl
 
     private void Show(OwnerResult r, bool sampled)
     {
-        long total = r.TotalBytes;
+        _shown = r;
+        _shownSampled = sampled;
+        var shown = r.RowsBy(Grouping);
+        long total = shown.Sum(x => x.Bytes);
         var rows = new List<OwnerRowVM>();
         var slices = new List<PieSlice>();
-        for (int i = 0; i < r.Rows.Count; i++)
+        for (int i = 0; i < shown.Count; i++)
         {
-            var row = r.Rows[i];
+            var row = shown[i];
             var brush = Palette[i % Palette.Length];
             double share = total > 0 ? (double)row.Bytes / total : 0;
             string detail = $"{SizeFormat.Format(row.Bytes)} · {row.Files:N0} Dateien · {share:P1}";
@@ -161,10 +214,11 @@ public partial class OwnerPanel : UserControl
             slices.Add(new PieSlice(row.Owner, row.Bytes, brush, detail));
         }
         OwnerList.ItemsSource = rows;
-        Pie.SetData(slices, SizeFormat.Format(total), $"{r.Rows.Sum(x => x.Files):N0} Dateien");
+        Pie.SetData(slices, SizeFormat.Format(total), $"{shown.Sum(x => x.Files):N0} Dateien");
         Pie.Visibility = rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         SummaryText.Text = $"{r.Seen:N0} Dateien gesehen" +
             (sampled ? $", {r.Skipped:N0} kleinere übersprungen (Stichprobe)" : "") +
-            $", {r.Failed:N0} ohne Zugriff (nicht gezählt)." + (r.Cancelled ? " Teilergebnis." : "");
+            (r.FailedAreFolders ? $", {r.Failed:N0} Ordner nicht lesbar (nicht gezählt)." : $", {r.Failed:N0} ohne Zugriff (nicht gezählt).") +
+            (r.Cancelled ? " Teilergebnis." : "");
     }
 }

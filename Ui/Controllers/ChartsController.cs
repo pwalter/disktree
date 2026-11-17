@@ -95,7 +95,7 @@ public sealed class ChartsController : IScanViews
     }
 
     /// <summary>The owner view for the folder the charts describe.</summary>
-    public void ShowOwnerFolder() => _owner.SetFolder(_tree.CurrentChartTarget().Node?.FullPath);
+    public void ShowOwnerFolder() => _owner.SetFolder(_tree.CurrentChartTarget().Node?.FullPath, _tree.Provider);
 
     // ---- IScanViews: what a running scan (or a change of the tree) asks of the views
 

@@ -19,15 +19,18 @@ public partial class RenameDialog : Window
 {
     private readonly IReadOnlyList<OpItem> _items;
     private readonly bool _single;
+    private readonly RenameRules? _rules;
     private List<RenamePlan> _plans = new();
 
     /// <summary>The renames to carry out (valid and changed).</summary>
     public List<RenamePlan> Result { get; private set; } = new();
 
-    public RenameDialog(IReadOnlyList<OpItem> items)
+    /// <param name="rules">Name rules of a source other than the disk (SFTP: case-sensitive, names listed beforehand); null = Windows.</param>
+    public RenameDialog(IReadOnlyList<OpItem> items, RenameRules? rules = null)
     {
         InitializeComponent();
         _items = items;
+        _rules = rules;
         _single = items.Count == 1;
 
         if (_single)
@@ -43,7 +46,8 @@ public partial class RenameDialog : Window
             {
                 NameBox.Focus();
                 // Like Explorer: select the name without the extension.
-                var stem = items[0].IsDir ? items[0].Name : Path.GetFileNameWithoutExtension(items[0].Name);
+                var stem = rules != null ? RemoteFileOperations.Split(items[0]).Stem
+                    : items[0].IsDir ? items[0].Name : Path.GetFileNameWithoutExtension(items[0].Name);
                 NameBox.Select(0, stem.Length);
             };
         }
@@ -54,6 +58,7 @@ public partial class RenameDialog : Window
             SinglePanel.Visibility = Visibility.Collapsed;
             Loaded += (_, _) => { PatternBox.Focus(); PatternBox.CaretIndex = PatternBox.Text.Length; };
         }
+        if (rules is { CaseSensitive: true }) Summary.Text += " · Groß-/Kleinschreibung wird unterschieden";
         Update();
     }
 
@@ -69,7 +74,7 @@ public partial class RenameDialog : Window
 
         if (_single)
         {
-            _plans = FileOperations.PlanSingle(_items[0], NameBox.Text);
+            _plans = _rules != null ? RemoteFileOperations.PlanSingle(_items[0], NameBox.Text, _rules) : FileOperations.PlanSingle(_items[0], NameBox.Text);
             var p = _plans[0];
             Status.Text = p.Problem ?? (p.Unchanged ? "Name unverändert." : "");
             OkButton.IsEnabled = p.Ok;
@@ -81,11 +86,13 @@ public partial class RenameDialog : Window
         ReplacePanel.Visibility = replace ? Visibility.Visible : Visibility.Collapsed;
 
         if (replace)
-            _plans = FileOperations.PlanReplace(_items, FindBox.Text, ReplBox.Text, ignoreCase: true);
+            _plans = _rules != null
+                ? RemoteFileOperations.PlanReplace(_items, FindBox.Text, ReplBox.Text, ignoreCase: !_rules.CaseSensitive, _rules)
+                : FileOperations.PlanReplace(_items, FindBox.Text, ReplBox.Text, ignoreCase: true);
         else
         {
             int.TryParse(StartBox.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int start);
-            _plans = FileOperations.PlanPattern(_items, PatternBox.Text, start);
+            _plans = _rules != null ? RemoteFileOperations.PlanPattern(_items, PatternBox.Text, start, _rules) : FileOperations.PlanPattern(_items, PatternBox.Text, start);
         }
 
         Preview.ItemsSource = _plans.Select(p => new PreviewRow(p.Item.Name, p.NewName, p.Problem ?? (p.Unchanged ? "unverändert, wird übersprungen" : null))).ToList();

@@ -1,0 +1,72 @@
+<Window x:Class="DiskTree.Ui.RemoteTargetDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:DiskTree.Ui"
+        Title="Verschieben nach …" Width="620" Height="600" MinWidth="460" MinHeight="420"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource WindowBg}" Foreground="{DynamicResource Ink}" FontFamily="Segoe UI" FontSize="13">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="Summary" FontWeight="SemiBold" FontSize="14" TextWrapping="Wrap" />
+
+        <Border Grid.Row="1" Margin="0,8,0,10" Background="{DynamicResource PanelBg}" BorderBrush="{DynamicResource PanelBorder}"
+                BorderThickness="1" CornerRadius="6" MaxHeight="80">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <TextBlock x:Name="Names" Margin="8,6" FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="NoWrap"
+                           TextTrimming="CharacterEllipsis" />
+            </ScrollViewer>
+        </Border>
+
+        <TextBlock Grid.Row="2" Text="Zielordner auf demselben Server (Ordner des Scans)" Margin="0,0,0,4" />
+        <Border Grid.Row="3" Background="{DynamicResource PanelBg}" BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1" CornerRadius="6">
+            <TreeView x:Name="Folders" BorderThickness="0" Background="Transparent" SelectedItemChanged="Folders_SelectedItemChanged"
+                      AutomationProperties.Name="Ordner des Scans">
+                <TreeView.ItemContainerStyle>
+                    <Style TargetType="TreeViewItem">
+                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                        <Setter Property="Foreground" Value="{DynamicResource Ink}" />
+                        <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                    </Style>
+                </TreeView.ItemContainerStyle>
+                <TreeView.Resources>
+                    <HierarchicalDataTemplate DataType="{x:Type local:TargetFolder}" ItemsSource="{Binding Children}">
+                        <StackPanel Orientation="Horizontal" Margin="0,1" ToolTip="{Binding Path}">
+                            <TextBlock Text="📁" Margin="0,0,6,0" />
+                            <TextBlock Text="{Binding Name}" />
+                        </StackPanel>
+                    </HierarchicalDataTemplate>
+                </TreeView.Resources>
+            </TreeView>
+        </Border>
+
+        <TextBlock Grid.Row="4" Text="Oder Pfad eingeben (sftp://… oder /ordner/unterordner)" Margin="0,10,0,4" />
+        <TextBox x:Name="TargetBox" Grid.Row="5" Height="30" VerticalContentAlignment="Center" AutomationProperties.Name="Zielpfad" />
+
+        <StackPanel Grid.Row="6" Margin="0,10,0,0">
+            <TextBlock Text="Gibt es den Namen im Ziel schon" Margin="0,0,0,4" />
+            <ComboBox x:Name="PolicyBox" Height="30" AutomationProperties.Name="Bei Namenskonflikt" />
+            <TextBlock x:Name="Hint" Margin="0,8,0,0" FontSize="11" Foreground="{DynamicResource Subtle}" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Grid Grid.Row="7" Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="Status" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,0,12,0" />
+            <Button x:Name="OkButton" Grid.Column="1" Content="Verschieben" MinWidth="100" Height="30" Padding="14,0" IsDefault="True" Click="Ok_Click" />
+            <Button Grid.Column="2" Content="Abbrechen" Width="90" Height="30" Margin="8,0,0,0" IsCancel="True" />
+        </Grid>
+    </Grid>
+</Window>

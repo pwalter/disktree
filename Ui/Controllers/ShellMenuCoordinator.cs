@@ -22,6 +22,12 @@ public interface IShellMenuHost
     void Rescan(Node? node);
     /// <summary>Move / ZIP / rename / delete entries for the menu (empty in a stored scan).</summary>
     IReadOnlyList<(string Text, Action Run)> OperationExtras(string path, bool isDir);
+    /// <summary>Rename / move / delete-for-good entries for an item of a source that changes files itself (SFTP).</summary>
+    IReadOnlyList<MenuEntry> RemoteEntries(string path, bool isDir);
+    /// <summary>Delete on an item of such a source: the confirmation (delete for good), then the action.</summary>
+    void DeleteRemote(string path, bool isDir, long size);
+    /// <summary>"Im Baum zeigen": selects the folder (a file: the folder it lies in); false if the tree does not have it.</summary>
+    bool RevealInTree(string path);
 }
 
 /// <summary>
@@ -59,6 +65,7 @@ public sealed class ShellMenuCoordinator
 
     public void DeleteNode(NodeVM vm)
     {
+        if (NotLocal is { } w && StorageFeatures.IsRemoteWritable(w)) { _host.DeleteRemote(vm.Path, vm.Kind == Kind.Dir, vm.Size); return; }
         if (NotLocal is { } p) { Dialogs.Info(_window, StorageFeatures.WhyNot(p, StorageFeature.Delete)!); return; }
         RunShell(vm.Path, vm.Kind == Kind.File, vm.Size, vm, () => ShellContextMenu.InvokeVerb(_window, vm.Path, "delete"));
     }
@@ -68,7 +75,7 @@ public sealed class ShellMenuCoordinator
     /// <summary>Menu of a file in a list; a stored scan gets its small menu instead of the Windows one.</summary>
     public void ShowFileMenu(string path, long size, Point screenPos)
     {
-        if (NotLocal is { } p) { ShowSourceMenu(p, path, isDir: false); return; }
+        if (NotLocal is { } p) { ShowSourceMenu(p, path, isDir: false, fromList: true); return; }
         if (_snapshots.IsSnapshotMode) { ShowSnapshotMenu(path, isDir: false); return; }
         ShowFileShellMenu(path, size, screenPos);
     }
@@ -76,13 +83,17 @@ public sealed class ShellMenuCoordinator
     /// <summary>The Windows menu of a file (a stored scan only shows a hint).</summary>
     public void ShowFileShellMenu(string path, long size, Point screenPos)
     {
-        if (NotLocal is { } p) { ShowSourceMenu(p, path, isDir: false); return; }
+        if (NotLocal is { } p) { ShowSourceMenu(p, path, isDir: false, fromList: true); return; }
         RunShell(path, isFile: true, size, null,
             () => ShellContextMenu.Show(_window, path, screenPos, Extras(path, isDir: false)));
     }
 
-    public void DeleteFile(string path, long size)
+    public void DeleteFile(string path, long size) => DeleteEntry(path, isDir: false, size);
+
+    /// <summary>Delete on a row of a list (a file, or a folder found by the search).</summary>
+    public void DeleteEntry(string path, bool isDir, long size)
     {
+        if (NotLocal is { } w && StorageFeatures.IsRemoteWritable(w)) { _host.DeleteRemote(path, isDir, size); return; }
         if (NotLocal is { } p) { Dialogs.Info(_window, StorageFeatures.WhyNot(p, StorageFeature.Delete)!); return; }
         RunShell(path, isFile: true, size, null, () => ShellContextMenu.InvokeVerb(_window, path, "delete"));
     }
@@ -159,7 +170,7 @@ public sealed class ShellMenuCoordinator
     /// Menu of an item of a remote source: rescan and copy path work; the Windows actions are listed greyed out with the
     /// reason, so it is clear why they are missing.
     /// </summary>
-    private void ShowSourceMenu(IStorageProvider provider, string path, bool isDir)
+    private void ShowSourceMenu(IStorageProvider provider, string path, bool isDir, bool fromList = false)
     {
         var menu = new ContextMenu();
         void Add(string text, Action? run, string? whyNot = null)
@@ -171,10 +182,34 @@ public sealed class ShellMenuCoordinator
         }
 
         var scanner = _host.Scanner;
-        if (isDir)
-            Add("Ab hier neu scannen", () => _host.Rescan(scanner?.FindNode(path)));
-        else
-            Add("Ordner dieser Datei neu scannen", () => _host.Rescan(scanner is { } s ? s.FindNode(s.Paths.ParentOf(path) ?? "") : null));
+        void AddRescan()
+        {
+            if (isDir)
+                Add("Ab hier neu scannen", () => _host.Rescan(scanner?.FindNode(path)));
+            else
+                Add("Ordner dieser Datei neu scannen", () => _host.Rescan(scanner is { } s ? s.FindNode(s.Paths.ParentOf(path) ?? "") : null));
+        }
+
+        if (StorageFeatures.IsRemoteWritable(provider))
+        {
+            // A source that changes files itself (SFTP): our own actions first (rename, move, delete for good), then
+            // copy path / show in tree / rescan. What needs the Windows shell, ZIP or a recycle bin stays greyed out
+            // with the reason.
+            foreach (var e in _host.RemoteEntries(path, isDir)) Add(e.Text, e.Run, e.WhyNot);
+            menu.Items.Add(new Separator());
+            Add("Pfad kopieren", () => Clipboard.SetText(path));
+            if (fromList) Add("Im Baum zeigen", () => _host.RevealInTree(path));
+            AddRescan();
+            menu.Items.Add(new Separator());
+            Add("Übergeordneten Ordner öffnen", null, StorageFeatures.WhyNot(provider, StorageFeature.Explorer));
+            Add("In ZIP archivieren …", null, StorageFeatures.WhyNot(provider, StorageFeature.Zip));
+            Add("Löschen (Papierkorb)", null, StorageFeatures.WhyNot(provider, StorageFeature.Trash));
+            Add("Windows-Kontextmenü", null, StorageFeatures.WhyNot(provider, StorageFeature.ShellMenu));
+            menu.IsOpen = true;
+            return;
+        }
+
+        AddRescan();
         Add("Pfad kopieren", () => Clipboard.SetText(path));
         menu.Items.Add(new Separator());
         Add("Übergeordneten Ordner öffnen", null, StorageFeatures.WhyNot(provider, StorageFeature.Explorer));
