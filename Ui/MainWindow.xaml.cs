@@ -175,7 +175,7 @@ public partial class MainWindow : Window, IExportSource, ISnapshotHost, IShellMe
             new ListSelection(Dup.List,
                 () => Dup.SelectedFiles().Select(f => new SelectedEntry(f.Path, false, f.Size)),
                 prune: Dup.PruneMissing, coversAllCopies: Dup.AllCopiesChecked, forget: Dup.ForgetPaths),
-        ]);
+        ], () => _settings.RequestWarnThreshold);
         SearchPane.ExtraKeyDown = _fileOps.HandleKey;
 
         // Duplicate finder tab (DuplicatesPanel.xaml.cs): searches the selected folder, uses the shell menu from here.

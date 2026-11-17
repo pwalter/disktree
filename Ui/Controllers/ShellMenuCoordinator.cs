@@ -192,7 +192,7 @@ public sealed class ShellMenuCoordinator
 
         if (StorageFeatures.IsRemoteWritable(provider))
         {
-            // A source that changes files itself (SFTP): our own actions first (rename, move, delete for good), then
+            // A source that changes files itself (SFTP, S3): our own actions first (rename, move, delete for good), then
             // copy path / show in tree / rescan. What needs the Windows shell, ZIP or a recycle bin stays greyed out
             // with the reason.
             foreach (var e in _host.RemoteEntries(path, isDir)) Add(e.Text, e.Run, e.WhyNot);

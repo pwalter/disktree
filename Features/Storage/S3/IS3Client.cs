@@ -7,7 +7,51 @@ public readonly record struct S3ObjectInfo(string Key, long Size, long ModifiedT
 /// What HeadObject says about an object: size, ETag (with quotes) and its server-side encryption ("AES256", "aws:kms",
 /// "aws:kms:dsse"; null = none). <paramref name="CustomerKey"/>: encrypted with a key of the customer (SSE-C).
 /// </summary>
-public sealed record S3ObjectHead(long Size, string? ETag, string? Encryption, bool CustomerKey = false);
+public sealed record S3ObjectHead(long Size, string? ETag, string? Encryption, bool CustomerKey = false)
+{
+    /// <summary>Last-Modified as UTC ticks (0 = unknown).</summary>
+    public long ModifiedTicks { get; init; }
+
+    /// <summary>Storage class ("STANDARD_IA", "GLACIER" …); null = STANDARD (S3 sends no header for it).</summary>
+    public string? StorageClass { get; init; }
+
+    /// <summary>The KMS key of SSE-KMS / DSSE-KMS (ARN or id), null otherwise.</summary>
+    public string? KmsKeyId { get; init; }
+
+    /// <summary>SSE-KMS with an S3 Bucket Key.</summary>
+    public bool BucketKey { get; init; }
+
+    /// <summary>An archived object (GLACIER / DEEP_ARCHIVE) with a finished restore: its temporary copy can be read and copied.</summary>
+    public bool Restored { get; init; }
+
+    /// <summary>Intelligent-Tiering archive tier ("ARCHIVE_ACCESS", "DEEP_ARCHIVE_ACCESS"): needs a restore first; null = readable.</summary>
+    public string? ArchiveStatus { get; init; }
+
+    /// <summary>Content-Type (null = none sent).</summary>
+    public string? ContentType { get; init; }
+
+    /// <summary>User metadata (x-amz-meta-*), names in lower case without the prefix.</summary>
+    public IReadOnlyDictionary<string, string>? Metadata { get; init; }
+
+    /// <summary>Number of tags (x-amz-tagging-count; 0 = none or not reported).</summary>
+    public int TagCount { get; init; }
+}
+
+/// <summary>
+/// CopyObject inside one bucket. Metadata, Content-Type and tags are copied (MetadataDirective / TaggingDirective COPY);
+/// the storage class and the server-side encryption have to be given, or S3 would use STANDARD and the bucket default.
+/// </summary>
+/// <param name="StorageClass">null = STANDARD.</param>
+/// <param name="Encryption">"AES256", "aws:kms", "aws:kms:dsse" or null (bucket default).</param>
+/// <param name="KmsKeyId">The KMS key for "aws:kms" / "aws:kms:dsse" (the one of the original).</param>
+public sealed record S3CopyRequest(string Bucket, string SourceKey, string TargetKey, string? StorageClass = null,
+    string? Encryption = null, string? KmsKeyId = null, bool BucketKey = false);
+
+/// <summary>A key that DeleteObjects could not delete, with the S3 error code ("AccessDenied" …).</summary>
+public readonly record struct S3DeleteError(string Key, string Code, string Message);
+
+/// <summary>Versioning of a bucket: off (never on), enabled, or suspended (old versions are kept).</summary>
+public enum S3Versioning { Off, Enabled, Suspended }
 
 /// <summary>One page of ListObjectsV2: objects, common prefixes (with delimiter) and the token for the next page (null = last).</summary>
 public sealed record S3ListPage(IReadOnlyList<S3ObjectInfo> Objects, IReadOnlyList<string> Prefixes, string? NextToken);
@@ -36,6 +80,30 @@ public interface IS3Client
     /// into <paramref name="buffer"/> (memory only) and returns how many arrived (fewer at the end of the object).
     /// </summary>
     Task<int> ReadRangeAsync(string bucket, string key, long offset, Memory<byte> buffer, CancellationToken ct);
+
+    /// <summary>
+    /// CopyObject (objects up to 5 GB, inside one bucket). Throws like the other calls; an archived object without
+    /// restore comes as <see cref="System.IO.IOException"/> (InvalidObjectState).
+    /// </summary>
+    Task CopyAsync(S3CopyRequest request, CancellationToken ct);
+
+    /// <summary>
+    /// DeleteObjects with up to 1000 keys (quiet): returns the keys that could not be deleted. With versioning only
+    /// delete markers are written (no version id is sent). A missing key counts as deleted.
+    /// </summary>
+    Task<IReadOnlyList<S3DeleteError>> DeleteManyAsync(string bucket, IReadOnlyList<string> keys, CancellationToken ct);
+
+    /// <summary>GetObjectTagging: the tags of an object.</summary>
+    Task<IReadOnlyList<KeyValuePair<string, string>>> GetTagsAsync(string bucket, string key, CancellationToken ct);
+
+    /// <summary>PutObjectTagging: replaces the tags of an object (repairs a copy of a server that ignores TaggingDirective COPY).</summary>
+    Task PutTagsAsync(string bucket, string key, IReadOnlyList<KeyValuePair<string, string>> tags, CancellationToken ct);
+
+    /// <summary>GetBucketVersioning.</summary>
+    Task<S3Versioning> GetVersioningAsync(string bucket, CancellationToken ct);
+
+    /// <summary>PutObject without content (a folder marker "prefix/").</summary>
+    Task PutEmptyAsync(string bucket, string key, CancellationToken ct);
 
     /// <summary>Names of the buckets the credentials can see (connection test without a bucket).</summary>
     Task<IReadOnlyList<string>> ListBucketsAsync(CancellationToken ct);

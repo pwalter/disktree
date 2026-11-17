@@ -100,6 +100,12 @@ public sealed class PermanentDeletePlan
 
     public bool IsConfirmed { get; private set; }
 
+    /// <summary>
+    /// What the source has to add (S3: versioning of the bucket, requests): its text replaces the closing sentence about
+    /// the missing recycle bin, its highlight is shown in a box of its own. Null: the default text.
+    /// </summary>
+    public DeleteNote? SourceNote { get; set; }
+
     /// <summary>The user pressed "Endgültig löschen" in the dialog that showed this plan.</summary>
     public void Confirm() => IsConfirmed = true;
 
@@ -115,9 +121,97 @@ public sealed class PermanentDeletePlan
         string names = string.Join("\n", Items.Take(6).Select(i => "  " + i.Name + (i.IsDir ? "/" : "")))
                        + (Items.Count > 6 ? $"\n  … und {Items.Count - 6:N0} weitere" : "");
         string folder = Items.Select(i => i.Parent).Distinct().Count() == 1 ? Items[0].Parent ?? "" : "verschiedene Ordner";
+        string closing = SourceNote?.Text ?? "Diese Quelle hat keinen Papierkorb. Gelöschtes lässt sich nicht wiederherstellen.";
         return $"{what} mit zusammen {SizeFormat.Format(Bytes)} werden endgültig gelöscht.{inside}\n\n{names}\n\n" +
-               $"Quelle: {Where}\nOrt: {folder}\n\n" +
-               "Diese Quelle hat keinen Papierkorb. Gelöschtes lässt sich nicht wiederherstellen.";
+               $"Quelle: {Where}\nOrt: {folder}\n\n" + closing;
+    }
+}
+
+/// <summary>
+/// Renaming or moving folders on a source that copies every object and deletes the original afterwards (S3,
+/// <see cref="ICopyingWriter"/>): how many objects, how much data, how many requests, and that it is not atomic. The user
+/// has to confirm it (<see cref="Confirm"/>); without that, <see cref="RemoteFileOperations.Rename"/> and
+/// <see cref="RemoteFileOperations.Move"/> refuse to touch a folder of such a source.
+/// </summary>
+public sealed class CopyPlan
+{
+    /// <param name="items">What is renamed / moved (normalized).</param>
+    /// <param name="moving">Moving (true) or renaming (false), for the text.</param>
+    /// <param name="where">The source as the user knows it.</param>
+    /// <param name="writer">The writer that will do it (estimates and notes).</param>
+    /// <param name="countOf">Files, folders and bytes inside a folder as the scan knows them; null if not in the tree.</param>
+    public CopyPlan(IReadOnlyList<OpItem> items, bool moving, string where, ICopyingWriter writer,
+        Func<OpItem, (long Files, long Folders, long Bytes)?>? countOf = null)
+    {
+        Items = items;
+        Moving = moving;
+        Where = where;
+        foreach (var i in items)
+        {
+            if (!i.IsDir)
+            {
+                Files++;
+                Bytes += i.Size;
+                continue;
+            }
+            Folders++;
+            if (countOf?.Invoke(i) is { } c)
+            {
+                FolderObjects += c.Files;
+                Bytes += c.Bytes;
+            }
+            else
+            {
+                Bytes += i.Size;
+                CountsUnknown = true;
+            }
+        }
+        Cost = writer.EstimateCopy(Files, Folders, FolderObjects);
+        Notes = writer.CopyNotes;
+    }
+
+    /// <summary>Does this action need the confirmation? Folders on a source that copies instead of renaming.</summary>
+    public static bool Needed(IStorageWriter writer, IEnumerable<OpItem> items) => writer is ICopyingWriter && items.Any(i => i.IsDir);
+
+    public IReadOnlyList<OpItem> Items { get; }
+    public bool Moving { get; }
+    public string Where { get; }
+    public long Files { get; }
+    public long Folders { get; }
+
+    /// <summary>Objects inside the folders as far as the scan knows them (without empty folder markers).</summary>
+    public long FolderObjects { get; }
+    public long Bytes { get; }
+    public bool CountsUnknown { get; }
+    public CopyCost Cost { get; }
+    public string Notes { get; }
+
+    public bool IsConfirmed { get; private set; }
+
+    /// <summary>The user agreed in the dialog that showed <see cref="Describe"/>.</summary>
+    public void Confirm() => IsConfirmed = true;
+
+    public string Title => Moving ? "Ordner verschieben – Objekte werden kopiert und gelöscht" : "Ordner umbenennen – Objekte werden kopiert und gelöscht";
+
+    public string Describe()
+    {
+        string verb = Moving ? "verschoben" : "umbenannt";
+        string what = Folders == 1 && Files == 0 ? "1 Ordner"
+            : Files == 0 ? $"{Folders:N0} Ordner"
+            : $"{Items.Count:N0} Elemente ({Folders:N0} Ordner, {Files:N0} {(Files == 1 ? "Datei" : "Dateien")})";
+        long objects = Files + FolderObjects;
+        string names = string.Join("\n", Items.Take(6).Select(i => "  " + i.Name + (i.IsDir ? "/" : "")))
+                       + (Items.Count > 6 ? $"\n  … und {Items.Count - 6:N0} weitere" : "");
+        return $"{what} sollen {verb} werden. Diese Quelle kann nicht umbenennen oder verschieben: Jedes Objekt wird auf dem " +
+               "Server kopiert, die Kopie geprüft und erst danach das Original gelöscht.\n\n" +
+               $"{names}\n\n" +
+               $"Objekte: ca. {objects:N0}" + (CountsUnknown ? " (Inhalt teils unbekannt)" : " (laut Scan, dazu ggf. leere Ordner-Marker)") + "\n" +
+               $"Datenmenge: {SizeFormat.Format(Bytes)} (wird auf dem Server kopiert, nicht heruntergeladen)\n" +
+               $"Geschätzte Anfragen: ca. {Cost.Total:N0} – {Cost.List:N0} LIST, {Cost.Head:N0} HEAD, {Cost.Copy:N0} COPY (zählt wie PUT), " +
+               $"{Cost.Delete:N0} DELETE\n" +
+               $"Quelle: {Where}\n\n" +
+               "Nicht atomar: Bei Abbruch (Esc), Fehlern oder Verbindungsabbruch liegen Objekte teils am alten, teils am neuen Ort. " +
+               "Jedes Objekt liegt dabei vollständig an einem der beiden Orte; der Bericht danach nennt, was wo liegt.\n\n" + Notes;
     }
 }
 
@@ -142,6 +236,9 @@ public static class RemoteFileOperations
     /// <summary>The top of the source cannot be changed.</summary>
     public static bool IsRoot(OpItem i) => i.Parent == null;
 
+    /// <summary>From this many items in one folder, a source with <see cref="IFolderStat"/> lists the folder instead of looking each one up.</summary>
+    public const int FolderStatFrom = 3;
+
     /// <summary>
     /// Looks every item up on the source right before an action: what is gone is skipped, the rest gets its real kind and,
     /// for files, its age bucket (<paramref name="ages"/>). Returns the items that exist.
@@ -150,11 +247,32 @@ public static class RemoteFileOperations
         OpResult res, IDictionary<string, long>? modifiedTicks, CancellationToken ct)
     {
         var list = new List<OpItem>();
+        // Many items in one folder of a source that lists cheaper than it looks up one by one (S3): one listing instead.
+        var listed = new Dictionary<string, Dictionary<(string, bool), StorageItemInfo>>(StringComparer.Ordinal);
+        if (writer is IFolderStat folderStat)
+        {
+            foreach (var g in items.Where(i => i.Parent != null).GroupBy(i => i.Parent!, StringComparer.Ordinal).Where(g => g.Count() >= FolderStatFrom))
+            {
+                ct.ThrowIfCancellationRequested();
+                try
+                {
+                    var entries = new Dictionary<(string, bool), StorageItemInfo>();
+                    foreach (var (name, info) in folderStat.StatAll(g.Key, ct)) entries[(name, info.IsDirectory)] = info;
+                    listed[g.Key] = entries;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* one by one below */ }
+            }
+        }
         foreach (var i in items)
         {
             ct.ThrowIfCancellationRequested();
             StorageItemInfo? info;
-            try { info = writer.Stat(i.Path, ct); }
+            try
+            {
+                if (i.Parent != null && listed.TryGetValue(i.Parent, out var entries))
+                    info = entries.TryGetValue((i.Name, i.IsDir), out var e) ? e : null;
+                else info = writer is IKindAwareWriter kind ? kind.Stat(i.Path, i.IsDir, ct) : writer.Stat(i.Path, ct);
+            }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 res.Failed.Add((i.Path, ex.Message));
@@ -190,7 +308,37 @@ public static class RemoteFileOperations
 
         var res = new OpResult(plan.Items.FirstOrDefault()?.Paths?.Comparer);
         long files = 0, bytes = 0;
-        foreach (var item in plan.Items)
+        IEnumerable<OpItem> each = plan.Items;
+        // A source that deletes many files in one request (S3, up to 1000 keys): the single files first, in batches.
+        if (writer is IBatchDeleter batch && plan.Items.Count(i => !i.IsDir) > 1)
+        {
+            var single = plan.Items.Where(i => !i.IsDir).ToList();
+            each = plan.Items.Where(i => i.IsDir).ToList();
+            var byPath = new Dictionary<string, OpItem>(plan.Items[0].Paths?.Comparer ?? StringComparer.Ordinal);
+            foreach (var i in single) byPath.TryAdd(i.Path, i);
+            try
+            {
+                var tried = batch.DeleteFiles(single.Select(i => i.Path).ToList(), ct);
+                foreach (var (path, error) in tried)
+                {
+                    if (!byPath.TryGetValue(path, out var item)) continue;
+                    if (error != null) { res.Failed.Add((path, error)); continue; }
+                    res.Done.Add(item);
+                    files++;
+                    bytes += item.Size;
+                }
+                if (tried.Count < single.Count) res.Cancelled = true;
+            }
+            catch (OperationCanceledException) { res.Cancelled = true; }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                foreach (var i in single) res.Failed.Add((i.Path, ex.Message));
+            }
+            progress?.Invoke(files, bytes);
+            if (res.Cancelled) each = [];
+        }
+
+        foreach (var item in each)
         {
             if (ct.IsCancellationRequested) { res.Cancelled = true; break; }
             long baseFiles = files, baseBytes = bytes;
@@ -223,7 +371,40 @@ public static class RemoteFileOperations
             }
             progress?.Invoke(files, bytes);
         }
+        FindVanished(writer, res, res.Done);
         return res;
+    }
+
+    /// <summary>
+    /// A source whose folders are only key prefixes (S3): the folders the removed items lay in may be gone with them;
+    /// they go to <see cref="OpResult.Vanished"/>. Errors leave it as it is (a rescan shows it).
+    /// </summary>
+    private static void FindVanished(IStorageWriter writer, OpResult res, IEnumerable<OpItem> left)
+    {
+        if (writer is not IPrefixFolders prefixes) return;
+        var parents = left.Select(i => i.Parent).OfType<string>().Distinct(StringComparer.Ordinal).ToList();
+        if (parents.Count == 0) return;
+        try
+        {
+            res.Vanished.AddRange(prefixes.GoneFolders(parents));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OperationCanceledException)
+        {
+            // The tree may show an empty folder that is gone; the next scan drops it.
+        }
+    }
+
+    /// <summary>A folder of a source that copies instead of renaming (S3) is touched only with a confirmed <see cref="CopyPlan"/>.</summary>
+    private static void RequireCopyConfirmation(IStorageWriter writer, IEnumerable<OpItem> items, CopyPlan? confirmed)
+    {
+        if (CopyPlan.Needed(writer, items) && confirmed?.IsConfirmed != true)
+            throw new InvalidOperationException("Ordner dieser Quelle werden kopiert und danach gelöscht; das braucht eine Bestätigung.");
+    }
+
+    /// <summary>After a rename / move on a source that copies: the change time the new entry got (age buckets).</summary>
+    private static void TakeStamp(IStorageWriter writer, OpResult res, string newPath)
+    {
+        if (writer is ICopyingWriter copying && copying.TryGetNewStamp(newPath, out var ticks)) res.NewTicks[newPath] = ticks;
     }
 
     // ---------------------------------------------------------------- rename
@@ -304,10 +485,15 @@ public static class RemoteFileOperations
         return plans;
     }
 
-    /// <summary>Carries out checked plans; the source refuses a name that appeared meanwhile (nothing is replaced).</summary>
-    public static OpResult Rename(IStorageWriter writer, IEnumerable<RenamePlan> plans, CancellationToken ct)
+    /// <summary>
+    /// Carries out checked plans; the source refuses a name that appeared meanwhile (nothing is replaced). Folders of a
+    /// source that copies instead of renaming (S3) need a confirmed <paramref name="confirmed"/>; a folder that was renamed
+    /// only partly is in <see cref="OpResult.Partial"/>.
+    /// </summary>
+    public static OpResult Rename(IStorageWriter writer, IEnumerable<RenamePlan> plans, CancellationToken ct, CopyPlan? confirmed = null)
     {
         var list = plans.ToList();
+        RequireCopyConfirmation(writer, list.Where(p => p.Ok).Select(p => p.Item), confirmed);
         var res = new OpResult(list.FirstOrDefault()?.Item.Paths?.Comparer);
         foreach (var p in list)
         {
@@ -316,11 +502,20 @@ public static class RemoteFileOperations
             if (p.Problem != null) { res.Failed.Add((p.Item.Path, p.Problem)); continue; }
             try
             {
-                var newPath = writer.Rename(p.Item.Path, p.NewName, ct);
+                var newPath = writer is IKindAwareWriter kind && p.Item.Parent is { } parent
+                    ? kind.Move(p.Item.Path, p.Item.IsDir, parent, p.NewName, replace: false, ct)
+                    : writer.Rename(p.Item.Path, p.NewName, ct);
                 res.Done.Add(p.Item);
                 res.NewPaths[p.Item.Path] = newPath;
+                TakeStamp(writer, res, newPath);
             }
             catch (OperationCanceledException) { res.Cancelled = true; break; }
+            catch (PartialChangeException ex)
+            {
+                res.Failed.AddRange(ex.Failed.Count > 0 ? ex.Failed : [(p.Item.Path, ex.Message)]);
+                res.Partial.Add(p.Item);
+                if (ex.Cancelled) { res.Cancelled = true; break; }
+            }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 res.Failed.Add((p.Item.Path, ex.Message));
@@ -350,13 +545,14 @@ public static class RemoteFileOperations
     /// atomically where the source can).
     /// </summary>
     public static OpResult Move(IStorageWriter writer, PathOps paths, IReadOnlyList<OpItem> items, string destDir, ConflictPolicy policy,
-        Func<OpItem, string, (ConflictPolicy Choice, bool ForAll)>? ask, CancellationToken ct)
+        Func<OpItem, string, (ConflictPolicy Choice, bool ForAll)>? ask, CancellationToken ct, CopyPlan? confirmed = null)
     {
+        RequireCopyConfirmation(writer, items, confirmed);
         var res = new OpResult(paths.Comparer);
         HashSet<string> taken;
         try
         {
-            if (writer.Stat(destDir, ct) is not { IsDirectory: true })
+            if (StatFolder(writer, destDir, ct) is not { IsDirectory: true })
             {
                 res.Failed.Add((destDir, "Zielordner nicht vorhanden."));
                 return res;
@@ -416,17 +612,28 @@ public static class RemoteFileOperations
                     }
                 }
 
-                var newPath = writer.Move(item.Path, destDir, name, replace, ct);
+                var newPath = writer is IKindAwareWriter kind
+                    ? kind.Move(item.Path, item.IsDir, destDir, name, replace, ct)
+                    : writer.Move(item.Path, destDir, name, replace, ct);
                 taken.Add(name);
                 res.Done.Add(item);
                 res.NewPaths[item.Path] = newPath;
+                TakeStamp(writer, res, newPath);
             }
             catch (OperationCanceledException) { res.Cancelled = true; break; }
+            catch (PartialChangeException ex)
+            {
+                // Part of it is at the new place: both folders need a rescan.
+                res.Failed.AddRange(ex.Failed.Count > 0 ? ex.Failed : [(item.Path, ex.Message)]);
+                res.Partial.Add(item);
+                if (ex.Cancelled) { res.Cancelled = true; break; }
+            }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 res.Failed.Add((item.Path, ex.Message));
             }
         }
+        FindVanished(writer, res, res.Done);
         return res;
     }
 
@@ -447,13 +654,20 @@ public static class RemoteFileOperations
         error = null;
         var t = text.Trim().Trim('"').Trim();
         var paths = provider.Paths;
+        bool bucketScoped = provider is IPrefixFolders; // S3: the top is the bucket
         if (t.Length == 0) { error = "Bitte einen Zielordner wählen oder eingeben."; return null; }
         string full;
         try
         {
             if (t.StartsWith('/') && !t.StartsWith("//", StringComparison.Ordinal)) full = provider.Normalize(paths.Join(top, t.TrimStart('/')));
             else if (provider.TryParse(t, out var loc)) full = loc.Path;
-            else { error = "Bitte einen vollständigen Pfad dieses Servers angeben (sftp://… oder /ordner)."; return null; }
+            else
+            {
+                error = bucketScoped
+                    ? $"Bitte einen vollständigen Pfad in diesem Bucket angeben ({top}/… oder /ordner)."
+                    : "Bitte einen vollständigen Pfad dieses Servers angeben (sftp://… oder /ordner).";
+                return null;
+            }
         }
         catch (ArgumentException ex)
         {
@@ -462,11 +676,17 @@ public static class RemoteFileOperations
         }
         if (!paths.IsSameOrUnder(top, full))
         {
-            error = $"Verschieben geht nur auf demselben Server: {top}";
+            // S3: only inside the same bucket – another bucket may lie in another region or account, with other
+            // credentials, versioning and encryption defaults, and it is not part of the scanned tree.
+            error = bucketScoped ? $"Verschieben geht nur innerhalb desselben Buckets: {top}" : $"Verschieben geht nur auf demselben Server: {top}";
             return null;
         }
         return full;
     }
+
+    /// <summary>The folder at <paramref name="path"/> (on a source where a file may have the same name: the folder, not the file).</summary>
+    public static StorageItemInfo? StatFolder(IStorageWriter writer, string path, CancellationToken ct) =>
+        writer is IKindAwareWriter kind ? kind.Stat(path, true, ct) ?? kind.Stat(path, false, ct) : writer.Stat(path, ct);
 
     /// <summary>Creates a folder and the missing folders above it (like mkdir -p). Throws on errors.</summary>
     public static void CreateFolders(IStorageWriter writer, PathOps paths, string folder, CancellationToken ct)
@@ -474,7 +694,7 @@ public static class RemoteFileOperations
         var missing = new Stack<string>();
         for (var f = folder; f != null; f = paths.ParentOf(f))
         {
-            var info = writer.Stat(f, ct);
+            var info = StatFolder(writer, f, ct);
             if (info is { IsDirectory: true }) break;
             if (info != null) throw new IOException($"Es gibt schon eine Datei dieses Namens: {f}");
             missing.Push(f);

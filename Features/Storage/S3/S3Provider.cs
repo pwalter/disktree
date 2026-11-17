@@ -17,7 +17,7 @@ namespace DiskTree.Features.Storage.S3;
 /// profile for every path it is given. No AWS SDK type is touched before the first request (lazy loading).
 /// </para>
 /// </summary>
-public sealed class S3Provider : IStorageProvider, IContentHashSource, IDeepListing
+public sealed partial class S3Provider : IStorageProvider, IContentHashSource, IDeepListing
 {
     public const string ProviderId = "s3";
 
@@ -91,7 +91,11 @@ public sealed class S3Provider : IStorageProvider, IContentHashSource, IDeepList
     public string Id => ProviderId;
     public string DisplayName => "S3";
 
-    public StorageCaps Caps => StorageCaps.CaseSensitive | StorageCaps.ParallelListing | StorageCaps.CostsPerRequest;
+    /// <summary>
+    /// Delete (DeleteObjects), rename and move (copy + delete, <see cref="S3Writer"/>); no recycle bin, ZIP, shell or owners.
+    /// </summary>
+    public StorageCaps Caps => StorageCaps.CaseSensitive | StorageCaps.ParallelListing | StorageCaps.CostsPerRequest
+                               | StorageCaps.Delete | StorageCaps.Rename | StorageCaps.Move;
 
     public PathOps Paths => S3PathOps.Instance;
 
@@ -104,7 +108,7 @@ public sealed class S3Provider : IStorageProvider, IContentHashSource, IDeepList
 
     private bool Flat => _profile?.Listing == SourceListing.Flat;
 
-    private IS3Client Client
+    internal IS3Client Client
     {
         get
         {

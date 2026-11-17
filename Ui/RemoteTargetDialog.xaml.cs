@@ -107,8 +107,12 @@ public partial class RemoteTargetDialog : Window
                  })
             PolicyBox.Items.Add(o);
         PolicyBox.SelectedIndex = 0;
-        Hint.Text = "Verschoben wird auf dem Server (kein Kopieren). Einen Zielordner, den es noch nicht gibt, legt DiskTree nach " +
-                    "Rückfrage an. „Ersetzen“ löscht das vorhandene Ziel endgültig – SFTP hat keinen Papierkorb.";
+        Hint.Text = writer is ICopyingWriter
+            ? "S3 kennt kein Verschieben: Jedes Objekt wird auf dem Server kopiert, geprüft und danach das Original gelöscht – nur " +
+              "innerhalb dieses Buckets. Objekt-ACLs werden nicht übernommen. Einen fehlenden Zielordner legt DiskTree nach Rückfrage " +
+              "an (Ordner-Marker). „Ersetzen“ löscht das vorhandene Ziel (ohne Versionierung endgültig)."
+            : "Verschoben wird auf dem Server (kein Kopieren). Einen Zielordner, den es noch nicht gibt, legt DiskTree nach " +
+              "Rückfrage an. „Ersetzen“ löscht das vorhandene Ziel endgültig – SFTP hat keinen Papierkorb.";
 
         TargetBox.Text = initial;
         Loaded += (_, _) =>
@@ -148,7 +152,7 @@ public partial class RemoteTargetDialog : Window
         Status.Text = "Prüfe den Zielordner auf dem Server …";
         try
         {
-            var info = await Task.Run(() => _writer.Stat(target, CancellationToken.None));
+            var info = await Task.Run(() => RemoteFileOperations.StatFolder(_writer, target, CancellationToken.None));
             if (info is { IsDirectory: true } && !info.Value.IsLink)
             {
                 Finish(target, policy);
