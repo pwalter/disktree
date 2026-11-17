@@ -142,6 +142,108 @@ internal sealed class AwsS3Client : IS3Client, IDisposable
         }
     }
 
+    public async Task<S3ListPage> ListWithOwnersAsync(string bucket, string prefix, string? continuationToken, int maxKeys, CancellationToken ct)
+    {
+        try
+        {
+            var r = await _client.ListObjectsV2Async(new ListObjectsV2Request
+            {
+                BucketName = bucket,
+                Prefix = prefix,
+                ContinuationToken = continuationToken,
+                MaxKeys = maxKeys,
+                FetchOwner = true,
+            }, ct).ConfigureAwait(false);
+
+            var objects = r.S3Objects is { } os
+                ? os.Select(o => new S3ObjectInfo(o.Key, o.Size ?? 0, o.LastModified is { } m ? m.ToUniversalTime().Ticks : 0,
+                    o.StorageClass?.Value, o.ETag, OwnerOf(o.Owner))).ToList()
+                : new List<S3ObjectInfo>();
+            return new S3ListPage(objects, [], r.IsTruncated == true ? r.NextContinuationToken : null);
+        }
+        catch (Exception ex) when (S3Errors.Translate(ex, ct, bucket) is { } mapped)
+        {
+            throw mapped;
+        }
+    }
+
+    private static S3Owner? OwnerOf(Amazon.S3.Model.Owner? o) =>
+        o == null || (string.IsNullOrEmpty(o.Id) && string.IsNullOrEmpty(o.DisplayName))
+            ? null
+            : new S3Owner(o.Id ?? "", string.IsNullOrWhiteSpace(o.DisplayName) ? null : o.DisplayName);
+
+    public async Task<S3Acl> GetBucketAclAsync(string bucket, CancellationToken ct)
+    {
+        try
+        {
+            var r = await _client.GetBucketAclAsync(new GetBucketAclRequest { BucketName = bucket }, ct).ConfigureAwait(false);
+            var grants = r.Grants?.Where(g => g.Grantee != null).Select(g => new S3Grant(
+                g.Grantee.Type?.Value ?? "",
+                g.Grantee.CanonicalUser ?? g.Grantee.URI ?? g.Grantee.EmailAddress ?? "",
+                string.IsNullOrWhiteSpace(g.Grantee.DisplayName) ? null : g.Grantee.DisplayName,
+                g.Permission?.Value ?? "")).ToList() ?? [];
+            return new S3Acl(OwnerOf(r.Owner), grants);
+        }
+        catch (Exception ex) when (S3Errors.Translate(ex, ct, bucket) is { } mapped)
+        {
+            throw mapped;
+        }
+    }
+
+    public async Task<string?> GetObjectOwnershipAsync(string bucket, CancellationToken ct)
+    {
+        try
+        {
+            var r = await _client.GetBucketOwnershipControlsAsync(new GetBucketOwnershipControlsRequest { BucketName = bucket }, ct)
+                .ConfigureAwait(false);
+            return r.OwnershipControls?.Rules?.FirstOrDefault()?.ObjectOwnership?.Value;
+        }
+        catch (AmazonS3Exception ex) when (ex.ErrorCode == "OwnershipControlsNotFoundError")
+        {
+            return null;
+        }
+        catch (Exception ex) when (S3Errors.Translate(ex, ct, bucket) is { } mapped)
+        {
+            throw mapped;
+        }
+    }
+
+    public async Task<S3PublicAccessBlock?> GetPublicAccessBlockAsync(string bucket, CancellationToken ct)
+    {
+        try
+        {
+            var r = await _client.GetPublicAccessBlockAsync(new GetPublicAccessBlockRequest { BucketName = bucket }, ct).ConfigureAwait(false);
+            var c = r.PublicAccessBlockConfiguration;
+            return c == null ? null : new S3PublicAccessBlock(c.BlockPublicAcls == true, c.IgnorePublicAcls == true,
+                c.BlockPublicPolicy == true, c.RestrictPublicBuckets == true);
+        }
+        catch (AmazonS3Exception ex) when (ex.ErrorCode == "NoSuchPublicAccessBlockConfiguration")
+        {
+            return null;
+        }
+        catch (Exception ex) when (S3Errors.Translate(ex, ct, bucket) is { } mapped)
+        {
+            throw mapped;
+        }
+    }
+
+    public async Task<bool?> GetPolicyIsPublicAsync(string bucket, CancellationToken ct)
+    {
+        try
+        {
+            var r = await _client.GetBucketPolicyStatusAsync(new GetBucketPolicyStatusRequest { BucketName = bucket }, ct).ConfigureAwait(false);
+            return r.PolicyStatus?.IsPublic == true;
+        }
+        catch (AmazonS3Exception ex) when (ex.ErrorCode == "NoSuchBucketPolicy")
+        {
+            return null;
+        }
+        catch (Exception ex) when (S3Errors.Translate(ex, ct, bucket) is { } mapped)
+        {
+            throw mapped;
+        }
+    }
+
     public async Task<S3ObjectHead> HeadAsync(string bucket, string key, CancellationToken ct)
     {
         try

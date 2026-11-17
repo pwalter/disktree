@@ -1,7 +1,33 @@
 namespace DiskTree.Features.Storage.S3;
 
-/// <summary>One object of a listing; <paramref name="ETag"/> as the server sends it (with quotes), null if none.</summary>
-public readonly record struct S3ObjectInfo(string Key, long Size, long ModifiedTicks, string? StorageClass = null, string? ETag = null);
+/// <summary>
+/// One object of a listing; <paramref name="ETag"/> as the server sends it (with quotes), null if none.
+/// <paramref name="Owner"/> only with <see cref="IS3Client.ListWithOwnersAsync"/> (and only if the server sends it).
+/// </summary>
+public readonly record struct S3ObjectInfo(string Key, long Size, long ModifiedTicks, string? StorageClass = null, string? ETag = null,
+    S3Owner? Owner = null);
+
+/// <summary>
+/// An S3 account as owner: the canonical user id (64 hex digits on AWS) and, where the server still sends it, a display
+/// name (AWS stopped sending display names in 2025; MinIO and others send one).
+/// </summary>
+public sealed record S3Owner(string Id, string? DisplayName = null);
+
+/// <summary>
+/// One grant of an ACL. <paramref name="Type"/>: "CanonicalUser", "Group" (<paramref name="Id"/> is the group URI) or
+/// "AmazonCustomerByEmail" (<paramref name="Id"/> is the address). <paramref name="Permission"/>: FULL_CONTROL, READ,
+/// WRITE, READ_ACP, WRITE_ACP.
+/// </summary>
+public sealed record S3Grant(string Type, string Id, string? DisplayName, string Permission);
+
+/// <summary>GetBucketAcl: the bucket's owner and its grants.</summary>
+public sealed record S3Acl(S3Owner? Owner, IReadOnlyList<S3Grant> Grants);
+
+/// <summary>Block Public Access of a bucket (the four switches).</summary>
+public sealed record S3PublicAccessBlock(bool BlockPublicAcls, bool IgnorePublicAcls, bool BlockPublicPolicy, bool RestrictPublicBuckets)
+{
+    public bool All => BlockPublicAcls && IgnorePublicAcls && BlockPublicPolicy && RestrictPublicBuckets;
+}
 
 /// <summary>
 /// What HeadObject says about an object: size, ETag (with quotes) and its server-side encryption ("AES256", "aws:kms",
@@ -104,6 +130,24 @@ public interface IS3Client
 
     /// <summary>PutObject without content (a folder marker "prefix/").</summary>
     Task PutEmptyAsync(string bucket, string key, CancellationToken ct);
+
+    /// <summary>ListObjectsV2 without delimiter and with FetchOwner: every object below the prefix with its owner ("Speicher pro Besitzer").</summary>
+    Task<S3ListPage> ListWithOwnersAsync(string bucket, string prefix, string? continuationToken, int maxKeys, CancellationToken ct);
+
+    /// <summary>GetBucketAcl: owner and grants of the bucket.</summary>
+    Task<S3Acl> GetBucketAclAsync(string bucket, CancellationToken ct);
+
+    /// <summary>
+    /// GetBucketOwnershipControls: "BucketOwnerEnforced" (ACLs off), "BucketOwnerPreferred" or "ObjectWriter";
+    /// null if the bucket has no such setting.
+    /// </summary>
+    Task<string?> GetObjectOwnershipAsync(string bucket, CancellationToken ct);
+
+    /// <summary>GetPublicAccessBlock of the bucket; null if none is set.</summary>
+    Task<S3PublicAccessBlock?> GetPublicAccessBlockAsync(string bucket, CancellationToken ct);
+
+    /// <summary>GetBucketPolicyStatus: whether the bucket policy makes the bucket public; null if the bucket has no policy.</summary>
+    Task<bool?> GetPolicyIsPublicAsync(string bucket, CancellationToken ct);
 
     /// <summary>Names of the buckets the credentials can see (connection test without a bucket).</summary>
     Task<IReadOnlyList<string>> ListBucketsAsync(CancellationToken ct);

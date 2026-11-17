@@ -17,7 +17,7 @@ Speicherplatz-Analyse für Windows, ähnlich wie TreeSize: Pfad oder Laufwerk an
 - **Alter:** Auswertung nach „zuletzt geändert“ (Diagramm und Spalte „Älter als …“ im Baum, Schwellwert einstellbar).
 - **Suche** (Strg+F): Ordner und Dateien nach Name, Mindestgröße und Endung.
 - **Duplikate finden:** gleiche Dateien per Größe, Teil-Hash und SHA-256, mit „verschwendetem Platz“.
-- **Besitzer und Rechte:** Besitzer und ACL des markierten Ordners, Speicher pro Besitzer (auf Knopfdruck).
+- **Besitzer und Rechte:** Besitzer und ACL des markierten Ordners, Speicher pro Besitzer (auf Knopfdruck). Bei SFTP mit uid/gid und POSIX-Rechten (auch pro Gruppe), bei S3 mit Bucket-Besitzer, Bucket-ACL, Objektbesitz, Block Public Access und Speicher pro Objekt-Besitzer.
 - **Ausschlüsse:** Ordner (Name, Muster wie `*.tmp` oder Pfad) vom Scan ausnehmen, auch per `--exclude`.
 - **Self-Update:** DiskTree sucht beim Start nach einer neuen Version (unten rechts in der Statusleiste), lädt sie von den GitHub-Releases, prüft die SHA-256-Prüfsumme und startet neu. Abschaltbar per Rechtsklick auf die Versionsanzeige oder mit `--no-update-check`.
 - **Export** als CSV (Excel-tauglich), außerdem **Bericht** als HTML oder PDF (größte Ordner, Dateitypen, Alter, größte Dateien).
