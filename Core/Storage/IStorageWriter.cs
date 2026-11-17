@@ -24,9 +24,10 @@ public sealed class DeleteOutcome
 }
 
 /// <summary>
-/// Optional for a source whose files can be changed in place (SFTP): delete for good, rename, move on the same source.
-/// The local disk does not use it (it has the recycle bin and the Windows shell, Features/FileOperations); S3 does not
-/// offer it. The UI asks <see cref="StorageFeatures"/>, which wants both the caps (<see cref="StorageCaps.Delete"/>,
+/// Optional for a source whose files can be changed (SFTP, S3): delete for good, rename, move on the same source.
+/// The local disk does not use it (it has the recycle bin and the Windows shell, Features/FileOperations). S3 renames
+/// and moves by copying (<see cref="ICopyingWriter"/>, with the optional interfaces next to it). The UI asks
+/// <see cref="StorageFeatures"/>, which wants both the caps (<see cref="StorageCaps.Delete"/>,
 /// <see cref="StorageCaps.Move"/>, <see cref="StorageCaps.Rename"/>) and this interface.
 /// <para>
 /// Paths are the provider's full paths. Every call may block on the network: callers run it off the UI thread.

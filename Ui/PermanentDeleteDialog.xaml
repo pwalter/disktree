@@ -10,6 +10,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <Border Background="#D6453D" CornerRadius="6" Padding="12,10">
@@ -28,10 +29,17 @@
             </ScrollViewer>
         </Border>
 
-        <TextBlock x:Name="Warning" Grid.Row="2" Margin="0,10,0,0" Foreground="#D6453D" FontWeight="SemiBold" TextWrapping="Wrap"
+        <!-- What the source adds (S3 with versioning: only delete markers, old versions stay and cost). -->
+        <Border x:Name="SourceBox" Grid.Row="2" Margin="0,10,0,0" BorderBrush="#E0A030" BorderThickness="2" CornerRadius="6"
+                Padding="10,8" Visibility="Collapsed">
+            <TextBlock x:Name="SourceHighlight" Foreground="{DynamicResource Ink}" FontWeight="SemiBold" TextWrapping="Wrap"
+                       AutomationProperties.Name="Hinweis zur Quelle" />
+        </Border>
+
+        <TextBlock x:Name="Warning" Grid.Row="3" Margin="0,10,0,0" Foreground="#D6453D" FontWeight="SemiBold" TextWrapping="Wrap"
                    Visibility="Collapsed" />
 
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
             <Button x:Name="DeleteButton" Content="Endgültig löschen" MinWidth="140" Height="30" Padding="14,0" Click="Delete_Click"
                     Background="#D6453D" Foreground="White" BorderBrush="#B8372F"
                     ToolTip="Löscht die Auswahl auf dem Server. Das kann nicht rückgängig gemacht werden." />

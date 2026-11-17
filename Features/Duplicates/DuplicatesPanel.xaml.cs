@@ -135,7 +135,7 @@ public partial class DuplicatesPanel : UserControl
         {
             Selected = () => List.SelectedItem as DupFileVM,
             ExtraKey = (key, _) => ExtraKeyDown?.Invoke(key) == true,
-            // Read-only remote sources (S3): Delete does nothing there. SFTP: Delete asks and deletes for good (host).
+            // Read-only remote sources: Delete does nothing there. SFTP, S3: Delete asks and deletes for good (host).
             CanDelete = _ => !ShowsRemote || ShowsWritable,
             Delete = file =>
             {

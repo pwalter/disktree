@@ -78,9 +78,16 @@ public sealed partial class FileOpsController
     private bool _opBusy;
     private string _lastMoveTarget = "";
 
+    private readonly Func<long>? _requestThreshold;
+
+    /// <param name="requestThreshold">
+    /// Requests after which an action on a paid source (S3) pauses and asks (the "Quellen …" setting); null = never.
+    /// </param>
     public FileOpsController(Window window, ScanTabsController tabs, TreeController tree, ScanStatusView status,
-        SnapshotController snapshots, ScanController scan, IScanViews views, IReadOnlyList<ISelectionSource> sources)
+        SnapshotController snapshots, ScanController scan, IScanViews views, IReadOnlyList<ISelectionSource> sources,
+        Func<long>? requestThreshold = null)
     {
+        _requestThreshold = requestThreshold;
         _window = window;
         _tabs = tabs;
         _tree = tree;

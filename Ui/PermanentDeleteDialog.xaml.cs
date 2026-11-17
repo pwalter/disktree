@@ -5,7 +5,8 @@ namespace DiskTree.Ui;
 
 /// <summary>
 /// "Endgültig löschen – kann nicht rückgängig gemacht werden": the confirmation before deleting on a source without
-/// recycle bin (SFTP). Shows what goes (count, size, examples, folder contents), where (server, folder). The default
+/// recycle bin (SFTP, S3). Shows what goes (count, size, examples, folder contents), where (server, folder) and what the
+/// source adds (S3: versioning of the bucket, requests; a versioned bucket in a box of its own). The default
 /// button is "Abbrechen" (Enter and Esc cancel); only the red button confirms the plan (<see cref="PermanentDeletePlan.Confirm"/>).
 /// </summary>
 public partial class PermanentDeleteDialog : Window
@@ -19,6 +20,11 @@ public partial class PermanentDeleteDialog : Window
         _plan = plan;
         Headline.Text = PermanentDeletePlan.Title;
         Details.Text = plan.Describe();
+        if (plan.SourceNote?.Highlight is { } highlight)
+        {
+            SourceHighlight.Text = highlight;
+            SourceBox.Visibility = Visibility.Visible;
+        }
         if (warning != null)
         {
             Warning.Text = warning;

@@ -12,21 +12,35 @@ namespace DiskTree.Ui.Controllers;
 public readonly record struct MenuEntry(string Text, Action? Run, string? WhyNot = null);
 
 /// <summary>
-/// Rename, move and delete for good on a source that changes files itself (<see cref="IStorageWriter"/>, SFTP): no
+/// Rename, move and delete for good on a source that changes files itself (<see cref="IStorageWriter"/>, SFTP, S3): no
 /// recycle bin, no ZIP, no Windows shell. Every delete goes through <see cref="PermanentDeleteDialog"/> (default button
-/// "Abbrechen"); names are checked case-sensitively; the server does the work off the UI thread and Esc cancels it
-/// between entries. The tree, the charts and the lists are kept in step through <see cref="TreeUpdate"/> (or a rescan of
-/// what could not be followed exactly), like the disk actions.
+/// "Abbrechen"; S3 adds the versioning of the bucket and the requests); names are checked case-sensitively; the server
+/// does the work off the UI thread and Esc cancels it between entries. S3 renames and moves folders by copying every
+/// object: that is shown and confirmed first (<see cref="CopyPlan"/>), and every request of a step goes through one
+/// <see cref="ListRun"/> with the cost pause of the settings. The tree, the charts and the lists are kept in step through
+/// <see cref="TreeUpdate"/> (or a rescan of what could not be followed exactly), like the disk actions.
 /// </summary>
 public sealed partial class FileOpsController
 {
     private CancellationTokenSource? _opCts;
     private string _lastRemoteTarget = "";
 
-    /// <summary>The source of the active tab's scan changes files itself (SFTP), else null (the disk, S3, nothing scanned).</summary>
+    /// <summary>The writer of the step that runs now, bound to its request counter (S3); null between steps.</summary>
+    private IStorageWriter? _opWriter;
+
+    /// <summary>Requests the current action has sent so far (all its steps), for the report of a paid source.</summary>
+    private long _actionRequests;
+
+    /// <summary>The source of the active tab's scan changes files itself (SFTP, S3), else null (the disk, nothing scanned).</summary>
     private IStorageProvider? RemoteWritable => Scanner?.Provider is { } p && StorageFeatures.IsRemoteWritable(p) ? p : null;
 
-    private IStorageWriter Writer => (IStorageWriter)Scanner!.Provider;
+    /// <summary>
+    /// Inside a step (<see cref="RunBusyRemote"/>): the writer bound to the step's run, so every request is counted, can
+    /// pause at the cost limit and ends with Esc. Outside: the provider itself.
+    /// </summary>
+    private IStorageWriter Writer => _opWriter ?? (IStorageWriter)Scanner!.Provider;
+
+    private bool CostsPerRequest => Scanner?.Provider is { } p && (p.Caps & StorageCaps.CostsPerRequest) != 0;
 
     private static string SourceName(IStorageProvider p) => p.Profile is { } pr ? $"{p.DisplayName} „{pr.Name}“" : p.DisplayName;
 
@@ -130,6 +144,7 @@ public sealed partial class FileOpsController
     {
         if (_snapshots.IsSnapshotMode) { _snapshots.ShowHint(); return null; }
         if (_opBusy || Scanner is not { Root: { } top } scanner) return null;
+        _actionRequests = 0;
         if (_tabs.Busy != null)
         {
             Notice("Ein Scan läuft noch. Die Aktion ist erst möglich, wenn er fertig oder abgebrochen ist.");
@@ -185,12 +200,58 @@ public sealed partial class FileOpsController
         if (dlg.ShowDialog() != true) return;
         var plans = dlg.Result;
 
-        var res = await RunBusyRemote("Benenne um …", ct => RemoteFileOperations.Rename(Writer, plans, ct));
+        // S3: a folder is renamed by copying all its objects – only after the user saw what that means.
+        var copyPlan = ConfirmCopy(scanner, plans.Where(p => p.Ok).Select(p => p.Item).ToList(), moving: false, out bool declined);
+        if (declined) return;
+
+        var res = await RunBusyRemote("Benenne um …", ct => RemoteFileOperations.Rename(Writer, plans, ct, copyPlan), "Kopiere");
         if (res == null) return;
         if (Scanner != scanner) return; // the tab was switched meanwhile (not possible while busy, but cheap to check)
         TreeUpdate.Renamed(scanner, res);
         await RefreshAfterRemoteChangeAsync(scanner, res.Done.Select(i => i.Path));
         RemoteReport("Umbenannt", items, res);
+        // A folder renamed only partly: its parent holds the old and the new name.
+        if (res.Partial.Count > 0) RescanAll(scanner, res.Partial.Select(i => i.Parent ?? i.Path));
+    }
+
+    /// <summary>
+    /// Renaming / moving folders on a source that copies every object (S3): shows objects, data, requests and that it
+    /// is not atomic; default button "Nein". Null without folders or on another source; <paramref name="declined"/> if
+    /// the user said no.
+    /// </summary>
+    private CopyPlan? ConfirmCopy(Scanner scanner, IReadOnlyList<OpItem> items, bool moving, out bool declined)
+    {
+        declined = false;
+        if (!CopyPlan.Needed(Writer, items) || Writer is not ICopyingWriter copying) return null;
+        var plan = new CopyPlan(items, moving, SourceName(scanner.Provider), copying,
+            i => scanner.FindNode(i.Path) is { } n ? (n.FileCount, n.DirCount, n.Size) : null);
+        if (!Dialogs.ConfirmRisky(_window, plan.Describe() + "\n\nFortfahren?", plan.Title))
+        {
+            declined = true;
+            return null;
+        }
+        plan.Confirm();
+        return plan;
+    }
+
+    /// <summary>Scans folders again one after the other (the nearest folder of the tree for each path; nothing twice).</summary>
+    private void RescanAll(Scanner scanner, IEnumerable<string> paths)
+    {
+        var nodes = new List<Node>();
+        foreach (var p in paths)
+        {
+            Node? n = null;
+            for (var q = p; q != null && n == null; q = scanner.Paths.ParentOf(q)) n = scanner.FindNode(q);
+            if (n != null) nodes.Add(n);
+        }
+        bool Below(Node n, Node other) { for (var a = n.Parent; a != null; a = a.Parent) if (a == other) return true; return false; }
+        var tops = nodes.Distinct().Where(n => !nodes.Any(o => o != n && Below(n, o))).ToList();
+        async Task Run()
+        {
+            foreach (var n in tops)
+                if (Scanner == scanner) await _scan.RescanAsync(n);
+        }
+        Run().Forget("RescanAsync");
     }
 
     private async Task RemoteMoveAsync(List<OpItem> sel)
@@ -204,20 +265,26 @@ public sealed partial class FileOpsController
         if (dlg.ShowDialog() != true || dlg.Result is not { } choice) return;
         _lastRemoteTarget = choice.Target;
 
+        var copyPlan = ConfirmCopy(scanner, items, moving: true, out bool declined);
+        if (declined) return;
+
         var res = await RunBusyRemote("Verschiebe auf dem Server …", ct => RemoteFileOperations.Move(Writer, scanner.Paths, items, choice.Target,
             choice.Policy, (item, target) => _window.Dispatcher.Invoke(() =>
             {
                 var d = new ConflictDialog(item, target, permanent: true) { Owner = _window };
                 d.ShowDialog();
                 return (d.Choice, d.ForAll);
-            }), ct));
+            }), ct, copyPlan), "Kopiere");
         if (res == null) return;
 
         TreeUpdate.Removed(scanner, res.Done, RemoveFolderNode, res.NewPaths);
+        TreeUpdate.Vanished(scanner, res.Vanished, RemoveFolderNode);
         var again = TreeUpdate.Arrived(scanner, choice.Target, res);
-        await RefreshAfterRemoteChangeAsync(scanner, res.Done.Select(i => i.Path));
+        await RefreshAfterRemoteChangeAsync(scanner, res.Done.Select(i => i.Path).Concat(res.Vanished));
         RemoteReport("Verschoben", items, res);
-        if (again != null) _scan.RescanAsync(again).Forget("RescanAsync");
+        // Moved only partly (S3: some objects of a folder are at the new place): both places are scanned again.
+        if (res.Partial.Count > 0) RescanAll(scanner, res.Partial.Select(i => i.Path).Append(choice.Target));
+        else if (again != null) _scan.RescanAsync(again).Forget("RescanAsync");
     }
 
     private async Task RemoteDeleteAsync(List<OpItem> sel)
@@ -230,6 +297,18 @@ public sealed partial class FileOpsController
         var plan = new PermanentDeletePlan(items, SourceName(scanner.Provider),
             i => scanner.FindNode(i.Path) is { } n ? (n.FileCount, n.DirCount, n.Size) : null);
         var all = items.Select(i => i.Path).ToList();
+        if (Writer is ICopyingWriter)
+        {
+            // S3: whether the bucket keeps old versions (then only delete markers are written), and what it costs.
+            var note = await RunBusyRemote("Prüfe die Versionierung des Buckets …", ct => ((ICopyingWriter)Writer).DescribeDelete(all, ct));
+            if (note == null) return;
+            long single = items.Count(i => !i.IsDir);
+            long requests = ((ICopyingWriter)Writer).EstimateDelete(single, items.Count(i => i.IsDir), Math.Max(0, plan.Files - single));
+            plan.SourceNote = note with
+            {
+                Text = (note.Text ?? "") + $"\n\nGeschätzte Anfragen: ca. {requests:N0} (LIST und DeleteObjects mit je bis zu 1.000 Objekten).",
+            };
+        }
         string? warn = _sources.Any(s => s.CoversAllCopies(all))
             ? "Achtung: Von mindestens einer Dublettengruppe sind alle Kopien in der Auswahl. Danach gibt es die Datei nicht mehr."
             : null;
@@ -250,7 +329,8 @@ public sealed partial class FileOpsController
         if (res == null) return;
 
         TreeUpdate.Removed(scanner, res.Done, RemoveFolderNode);
-        await RefreshAfterRemoteChangeAsync(scanner, res.Done.Select(i => i.Path).Concat(res.Partial.Select(i => i.Path)));
+        TreeUpdate.Vanished(scanner, res.Vanished, RemoveFolderNode);
+        await RefreshAfterRemoteChangeAsync(scanner, res.Done.Select(i => i.Path).Concat(res.Partial.Select(i => i.Path)).Concat(res.Vanished));
         RemoteReport("Endgültig gelöscht", items, res);
 
         // A folder that is only partly gone: its numbers come from a rescan (of the folder above all such folders).
@@ -286,9 +366,27 @@ public sealed partial class FileOpsController
     /// Runs a step on the server off the UI thread: scans and other actions are locked meanwhile (<see cref="IsBusy"/>),
     /// Esc cancels (<see cref="CancelOperation"/>). Errors of the connection end up in a message; null then.
     /// </summary>
-    private async Task<T?> RunBusyRemote<T>(string status, Func<CancellationToken, T> work) where T : class
+    /// <param name="progressVerb">For a source that reports objects and bytes (S3 copies): "Kopiere" → "Kopiere … 120 Objekte, 1,2 GB".</param>
+    private async Task<T?> RunBusyRemote<T>(string status, Func<CancellationToken, T> work, string? progressVerb = null) where T : class
     {
         using var cts = _opCts = new CancellationTokenSource();
+        var provider = Scanner?.Provider;
+        // A paid source (S3): the requests of the step go through one run with the cost pause of the settings.
+        long threshold = CostsPerRequest ? Math.Max(0, _requestThreshold?.Invoke() ?? 0) : 0;
+        var run = new ListRun(cts.Token, threshold);
+        run.LimitReached += r => _window.Dispatcher.InvokeAsync(() => AskRequests(r, threshold, cts));
+        long lastTick = 0;
+        Action<long, long>? progress = progressVerb == null ? null : (objects, bytes) =>
+        {
+            long now = Environment.TickCount64;
+            if (now - Interlocked.Read(ref lastTick) < 200) return;
+            Interlocked.Exchange(ref lastTick, now);
+            _window.Dispatcher.BeginInvoke(() =>
+            {
+                if (_opBusy) _status.ShowText($"{progressVerb} … {objects:N0} Objekte, {SizeFormat.Format(bytes)} (Esc bricht ab)");
+            });
+        };
+        _opWriter = provider is IRunBoundWriter bound ? bound.Bind(run, progress) : null;
         _opBusy = true;
         _status.ShowText(status + " (Esc bricht ab)");
         Mouse.OverrideCursor = Cursors.AppStarting;
@@ -309,9 +407,30 @@ public sealed partial class FileOpsController
         }
         finally
         {
+            _actionRequests += run.Requests;
+            _opWriter = null;
             _opBusy = false;
             _opCts = null;
             Mouse.OverrideCursor = null;
+        }
+    }
+
+    /// <summary>The cost limit of a step is reached (S3): go on, or cancel (what was copied is still finished cleanly).</summary>
+    private void AskRequests(ListRun run, long threshold, CancellationTokenSource cts)
+    {
+        if (!_opBusy || run.Cancellation.IsCancellationRequested || Scanner?.Provider is not { } p) return;
+        bool more = Dialogs.Confirm(_window,
+            $"Die Aktion hat bereits {run.Requests:N0} Anfragen an {SourceName(p)} gestellt.\n\n" +
+            "Bei Cloud-Speichern kostet jede Anfrage Geld. Die Aktion wartet auf diese Entscheidung.\n\n" +
+            $"Weiter? (Die nächste Rückfrage kommt nach weiteren {Math.Max(1, threshold):N0} Anfragen.)\n\n" +
+            "Ja = weiter · Nein = abbrechen (ein schon kopiertes Objekt wird noch sauber abgeschlossen)\n\n" +
+            "Die Schwelle lässt sich unter „Quellen …“ ändern.",
+            MessageBoxImage.Warning);
+        if (more) run.Resume(run.Requests + Math.Max(1, threshold));
+        else
+        {
+            try { cts.Cancel(); }
+            catch (ObjectDisposedException) { /* the step is over */ }
         }
     }
 
@@ -341,11 +460,16 @@ public sealed partial class FileOpsController
         if (res.Skipped.Count > 0) text += $", {res.Skipped.Count:N0} übersprungen";
         if (res.Failed.Count > 0) text += $", {res.Failed.Count:N0} Fehler";
         if (res.Cancelled) text += ", abgebrochen";
+        if (CostsPerRequest) text += $" – {_actionRequests:N0} Anfragen";
         _status.ShowText(text + ".");
 
         var failed = res.Failed.ToList();
+        bool deleting = verb.Contains("gelöscht", StringComparison.Ordinal);
         string? hint = res.Partial.Count > 0
-            ? "Nicht alles ließ sich löschen; die betroffenen Ordner werden neu eingelesen."
+            ? deleting
+                ? "Nicht alles ließ sich löschen; die betroffenen Ordner werden neu eingelesen."
+                : "Nicht alles wurde übertragen: Jedes Objekt liegt vollständig entweder am alten oder am neuen Ort (siehe oben). " +
+                  "Die betroffenen Ordner werden neu eingelesen."
             : res.Cancelled ? "Abgebrochen: Was bis dahin erledigt war, bleibt so." : null;
         if (failed.Count > 0 || hint != null) ShowFailures(text + ".", failed, hint);
     }

@@ -17,6 +17,12 @@ public static class Dialogs
     public static bool Confirm(Window? owner, string text, MessageBoxImage icon = MessageBoxImage.Question, string title = Title) =>
         Show(owner, text, title, MessageBoxButton.YesNo, icon) == MessageBoxResult.Yes;
 
+    /// <summary>Yes / No before something that cannot simply be undone: the default button (Enter) is No.</summary>
+    public static bool ConfirmRisky(Window? owner, string text, string title = Title) =>
+        (owner == null
+            ? MessageBox.Show(text, title, MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No)
+            : MessageBox.Show(owner, text, title, MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No)) == MessageBoxResult.Yes;
+
     private static MessageBoxResult Show(Window? owner, string text, string title, MessageBoxButton buttons, MessageBoxImage icon) =>
         owner == null
             ? MessageBox.Show(text, title, buttons, icon)
